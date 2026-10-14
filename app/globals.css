@@ -1,26 +1,120 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* COLORS KUSTOM EDUFIT */
+  --color-primary: #032521;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1b3b36;
+  --color-on-primary-container: #84a59e;
+  --color-secondary: #006d40;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #89f9b5;
+  --color-on-secondary-container: #007444;
+  --color-secondary-fixed: #89f9b5;
+  --color-secondary-fixed-dim: #6ddc9b;
+  --color-on-secondary-fixed: #002110;
+  --color-tertiary: #132320;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #283935;
+  --color-on-tertiary-container: #90a29e;
+  --color-tertiary-fixed: #d3e7e1;
+  --color-background: #f8faf9;
+  --color-on-background: #191c1c;
+  --color-surface: #f8faf9;
+  --color-on-surface: #191c1c;
+  --color-surface-variant: #e1e3e2;
+  --color-on-surface-variant: #414846;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f4f3;
+  --color-surface-container: #eceeed;
+  --color-surface-container-high: #e6e9e8;
+  --color-outline: #717976;
+  --color-outline-variant: #c1c8c5;
+
+  /* FONTS KUSTOM (Di-mapping ke Jakarta Sans & Poppins) */
+  --font-bebas: var(--font-jakarta), sans-serif;
+  --font-jakarta: var(--font-poppins), sans-serif;
+  
+  --font-headline-xl: var(--font-bebas);
+  --font-headline-lg: var(--font-bebas);
+  --font-headline-md: var(--font-bebas);
+  --font-headline-sm: var(--font-jakarta);
+  --font-body-lg: var(--font-jakarta);
+  --font-body-md: var(--font-jakarta);
+  --font-body-sm: var(--font-jakarta);
+  --font-label-lg: var(--font-jakarta);
+  --font-label-md: var(--font-jakarta);
+  --font-label-caps: var(--font-bebas);
+
+  /* SPACING KUSTOM EDUFIT */
+  --spacing-margin-mobile: 1.25rem;
+  --spacing-margin: 3rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+  --spacing-gutter: 1.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+    --bg-dashboard: #f8faf9;
+    --card-surface: #ffffff;
+    --text-main: #191c1c;
+    --text-muted: #717976;
+    --border-color: #eceeed;
+    --sidebar-bg: #032521;
+    --sidebar-icon: #84a59e;
+    --sidebar-icon-active: #89f9b5;
+    
+    /* Warna Pastel untuk Bento Cards (Sesuai Referensi 3) */
+    --card-yellow: #fef0c7;
+    --card-yellow-text: #93370d;
+    --card-blue: #e0f2fe;
+    --card-blue-text: #075985;
+    --card-pink: #fce7f3;
+    --card-pink-text: #9d174d;
+    --card-green: #dcfce7;
+    --card-green-text: #166534;
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    --alert-bg: #fefce8;
+    --alert-border: #fef08a;
+    --alert-text-main: #854d0e;
+    --alert-text-sub: #713f12;
+    --alert-icon: #a16207;
+  }
+
+  .dark {
+    --bg-dashboard: #021614;
+    --card-surface: #0a241f;
+    --text-main: #f8faf9;
+    --text-muted: #84a59e;
+    --border-color: #1b3b36;
+    --sidebar-bg: #000000;
+    --sidebar-icon: #414846;
+    --sidebar-icon-active: #89f9b5;
+
+    /* Warna Pastel disesuaikan untuk Dark Mode */
+    --card-yellow: #7a4510;
+    --card-yellow-text: #fef0c7;
+    --card-blue: #0c4a6e;
+    --card-blue-text: #e0f2fe;
+    --card-pink: #831843;
+    --card-pink-text: #fce7f3;
+    --card-green: #14532d;
+    --card-green-text: #dcfce7;
+
+    --alert-bg: #422006;
+    --alert-border: #854d0e;
+    --alert-text-main: #fef08a;
+    --alert-text-sub: #fef9c3;
+    --alert-icon: #fde047;
+  }
+
+  body {
+    background-color: var(--bg-dashboard);
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
 }
