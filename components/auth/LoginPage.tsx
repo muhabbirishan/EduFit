@@ -1,15 +1,16 @@
+// @ts-nocheck
 "use client";
 
-import { supabase } from '@/lib/supabase';
-import { Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { supabase } from "@/lib/supabase";
+import { ArrowLeft, ArrowUpRight, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
@@ -20,107 +21,164 @@ export default function LoginPage() {
 
         try {
             // 1. Autentikasi dengan Supabase
-            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
+            const { data: authData, error: authError } =
+                await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
 
             if (authError) throw new Error("Email atau password salah.");
             if (!authData.user) throw new Error("User tidak ditemukan.");
 
             // 2. Cek Role dari tabel user_profiles
             const { data: profile, error: profileError } = await supabase
-                .from('user_profiles')
-                .select('role')
-                .eq('id', authData.user.id)
+                .from("user_profiles")
+                .select("role")
+                .eq("id", authData.user.id)
                 .single();
 
-            if (profileError || !profile) throw new Error("Gagal mengambil profil pengguna.");
+            if (profileError || !profile) {
+                throw new Error("Gagal mengambil profil pengguna.");
+            }
 
             // 3. Otorisasi berdasarkan Role
-            if (profile.role === 'siswa') {
+            if (profile.role === "siswa") {
                 await supabase.auth.signOut();
-                toast.error('Akses Web Ditolak!', {
-                    description: 'Siswa hanya dapat login melalui Aplikasi Mobile EduFit.',
+                toast.error("Akses Web Ditolak!", {
+                    description:
+                        "Siswa hanya dapat login melalui Aplikasi Mobile EduFit."
                 });
-            } else if (profile.role === 'admin') {
-                toast.success('Login Berhasil!', { description: 'Mengarahkan ke Dashboard Admin...' });
-                router.push('/admin');
-            } else if (profile.role === 'guru') {
-                toast.success('Login Berhasil!', { description: 'Mengarahkan ke Dashboard Guru...' });
-                router.push('/guru');
+            } else if (profile.role === "admin") {
+                toast.success("Login Berhasil!", {
+                    description: "Mengarahkan ke Dashboard Admin..."
+                });
+                router.push("/admin");
+            } else if (profile.role === "guru") {
+                toast.success("Login Berhasil!", {
+                    description: "Mengarahkan ke Dashboard Guru..."
+                });
+                router.push("/guru");
             }
         } catch (error: any) {
-            toast.error('Gagal Login', { description: error.message });
+            toast.error("Gagal Login", { description: error.message });
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="w-screen h-screen flex overflow-hidden bg-white">
-
-            {/* KOLOM KIRI (KOLOM 1): Gambar Background & Branding */}
-            <div className="hidden lg:flex lg:w-1/2 relative bg-[#00422b]">
+        <div className="w-screen min-h-screen flex flex-col lg:flex-row overflow-x-hidden bg-[#f4f1ea] text-[#18181b]">
+            {/* ==============================================================
+                KOLOM KIRI: VISUAL EDITORIAL & LOGO GAMBAR ASLI
+               ============================================================== */}
+            <div className="hidden lg:flex lg:w-1/2 relative bg-[#141413] overflow-hidden">
                 <img
                     src="/images/intro-card.jpg"
                     alt="EduFit Background"
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover opacity-65 scale-105"
                 />
-                <div className="absolute inset-0 bg-[#002b1c]/75 backdrop-blur-[1px]"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-[#141413] via-[#141413]/70 to-black/40" />
 
-                <div className="absolute inset-0 flex flex-col justify-between p-14 text-white z-10">
-                    <Link href="/" className="font-bebas text-4xl tracking-widest uppercase text-white hover:text-[#89f9b5] transition-colors w-fit">
-                        EduFit
+                <div className="relative z-10 flex flex-col justify-between p-14 w-full text-white">
+                    {/* LOGO GAMBAR ASLI PENGGANTI TEKS EDUFIT */}
+                    <Link
+                        href="/"
+                        className="inline-flex items-center w-fit hover:scale-105 transition-transform"
+                    >
+                        <img
+                            src="/images/logo-putih.png"
+                            alt="EduFit"
+                            className="h-20 w-auto object-contain drop-shadow-md"
+                        />
                     </Link>
-                    <div>
-                        <h2 className="text-5xl xl:text-6xl font-bebas leading-[0.9] tracking-tight mb-4 text-white drop-shadow-md">
-                            SISTEM PEMANTAUAN <br /> KEBUGARAN CERDAS
+
+                    <div className="space-y-6">
+                        <div className="border-l-2 border-[#f5c84c] pl-4">
+                            <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#f5c84c] block mb-1">
+                                Portal Pendidik & Administrator
+                            </span>
+                            <p className="text-white/80 max-w-md text-sm leading-relaxed">
+                                Mengintegrasikan kurikulum PJOK SMA Indonesia dengan analitik
+                                kebugaran jasmani dan manajemen bahan ajar terpadu.
+                            </p>
+                        </div>
+
+                        <h2 className="text-5xl xl:text-6xl font-bebas leading-[0.9] tracking-tight text-white">
+                            SISTEM PEMANTAUAN <br />
+                            <span className="text-[#f5c84c]">KEBUGARAN CERDAS</span>
                         </h2>
-                        <p className="font-poppins text-white/80 max-w-md text-sm leading-relaxed">
-                            Mengintegrasikan kurikulum S3 SMA Indonesia dengan kecerdasan buatan untuk masa depan pendidikan olahraga yang lebih baik.
-                        </p>
                     </div>
                 </div>
             </div>
 
-            {/* KOLOM KANAN (KOLOM 2): Form Login */}
-            <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 sm:p-12 overflow-y-auto no-scrollbar relative">
+            {/* ==============================================================
+                KOLOM KANAN: FORM LOGIN BERSIH & RESPONSIF
+               ============================================================== */}
+            <div className="w-full lg:w-1/2 min-h-screen flex flex-col justify-between p-6 sm:p-12 lg:p-16 relative">
+                {/* Baris Atas Mobile: Logo Gambar Hitam & Tombol Kembali */}
+                <div className="flex items-center justify-between w-full max-w-[400px] mx-auto lg:max-w-none">
+                    <Link href="/" className="lg:hidden inline-flex items-center">
+                        <img
+                            src="/images/logo-hitam.png"
+                            alt="EduFit"
+                            className="h-14 w-auto object-contain"
+                        />
+                    </Link>
 
-                {/* Tombol kembali (Khusus Mobile) */}
-                <div className="absolute top-6 left-6 lg:hidden">
-                    <Link href="/" className="font-bebas text-3xl tracking-widest text-[#006c49]">EduFit</Link>
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#52525b] hover:text-[#18181b] transition-colors ml-auto"
+                    >
+                        <ArrowLeft size={15} /> Kembali ke Beranda
+                    </Link>
                 </div>
 
-                <div className="w-full max-w-[380px] mx-auto flex flex-col pt-12 lg:pt-0">
-
-                    <div className="w-full text-left mb-10">
-                        <h1 className="text-3xl md:text-4xl font-jakarta font-extrabold text-[#191c1c] tracking-tight mb-2">
+                {/* Container Utama Form Login */}
+                <div className="w-full max-w-[400px] mx-auto my-auto py-8">
+                    <div className="mb-10">
+                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717a] mb-2">
+                            Otentikasi Portal Web
+                        </div>
+                        <h1 className="text-3xl sm:text-4xl font-jakarta font-extrabold text-[#18181b] tracking-tight mb-2">
                             Selamat Datang
                         </h1>
-                        <p className="text-[#717976] font-poppins text-sm font-medium">
-                            Silakan masuk ke akun Anda untuk mengakses portal.
+                        <p className="text-[#52525b] text-sm font-medium">
+                            Masuk menggunakan akun Guru PJOK atau Administrator Anda.
                         </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="w-full space-y-5 font-poppins">
-
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-bold text-[#414846] ml-1">Email Sekolah</label>
-                            <div className="relative">
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="nama@sekolah.edu"
-                                    required
-                                    className="w-full px-5 py-4 bg-[#f8faf9] border border-[#e1e3e2] rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#89f9b5] focus:border-[#006c49] transition-all placeholder:text-[#c1c8c5] text-[#191c1c]"
-                                />
-                            </div>
+                    <form onSubmit={handleLogin} className="w-full space-y-5">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-wider text-[#52525b] block">
+                                Email Institusi / Sekolah
+                            </label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="nama@sekolah.edu"
+                                required
+                                className="w-full px-5 py-4 bg-white border border-black/10 rounded-2xl text-sm font-medium focus:outline-none focus:border-[#18181b] transition-colors placeholder:text-[#a1a1aa] text-[#18181b]"
+                            />
                         </div>
 
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-bold text-[#414846] ml-1">Password</label>
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold uppercase tracking-wider text-[#52525b]">
+                                    Kata Sandi
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        toast.info(
+                                            "Silakan hubungi Administrator Utama untuk mereset kata sandi akun sekolah Anda."
+                                        )
+                                    }
+                                    className="text-xs font-bold text-[#71717a] hover:text-[#18181b] transition-colors cursor-pointer"
+                                >
+                                    Lupa sandi?
+                                </button>
+                            </div>
                             <div className="relative flex items-center">
                                 <input
                                     type={showPassword ? "text" : "password"}
@@ -128,66 +186,61 @@ export default function LoginPage() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     required
-                                    className="w-full pl-5 pr-12 py-4 bg-[#f8faf9] border border-[#e1e3e2] rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#89f9b5] focus:border-[#006c49] transition-all placeholder:text-[#c1c8c5] text-[#191c1c]"
+                                    className="w-full pl-5 pr-12 py-4 bg-white border border-black/10 rounded-2xl text-sm font-medium focus:outline-none focus:border-[#18181b] transition-colors placeholder:text-[#a1a1aa] text-[#18181b]"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-5 text-[#84a59e] hover:text-[#006c49] transition-colors"
+                                    className="absolute right-4 p-1 text-[#71717a] hover:text-[#18181b] transition-colors cursor-pointer"
                                 >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    {showPassword ? (
+                                        <EyeOff size={18} />
+                                    ) : (
+                                        <Eye size={18} />
+                                    )}
                                 </button>
-                            </div>
-                            <div className="w-full flex justify-end mt-2">
-                                <Link href="#" className="text-xs font-bold text-[#006c49] hover:underline">
-                                    Lupa kata sandi?
-                                </Link>
                             </div>
                         </div>
 
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full py-4 bg-[#89f9b5] text-[#002110] font-jakarta font-bold text-sm uppercase tracking-widest rounded-full hover:bg-[#6ddc9b] hover:shadow-[0_10px_20px_rgba(137,249,181,0.3)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-4"
+                            className="w-full py-4 bg-[#18181b] text-white font-jakarta font-bold text-xs uppercase tracking-widest rounded-2xl hover:bg-[#f5c84c] hover:text-[#18181b] transition-all disabled:opacity-60 cursor-pointer mt-4 flex items-center justify-center gap-2 shadow-lg"
                         >
-                            {isLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}
+                            <span>
+                                {isLoading
+                                    ? "Memverifikasi Akses..."
+                                    : "Masuk ke Dashboard"}
+                            </span>
+                            {!isLoading && <ArrowUpRight size={16} />}
                         </button>
                     </form>
 
-                    <div className="w-full flex items-center gap-4 my-10">
-                        <div className="h-px bg-[#eceeed] flex-1"></div>
-                        <span className="text-[11px] font-poppins font-bold text-[#a0aba8] uppercase tracking-wider">Metode Alternatif</span>
-                        <div className="h-px bg-[#eceeed] flex-1"></div>
-                    </div>
-
-                    <div className="flex items-center justify-center gap-4 w-full mb-10">
-                        <button className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-[#032521] hover:bg-[#89f9b5] hover:text-[#002110] transition-colors border border-[#e1e3e2] hover:border-transparent shadow-sm hover:shadow-md group">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="group-hover:scale-110 transition-transform">
-                                <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.761H12.545z" />
-                            </svg>
-                        </button>
-                        <button className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-[#032521] hover:bg-[#89f9b5] hover:text-[#002110] transition-colors border border-[#e1e3e2] hover:border-transparent shadow-sm hover:shadow-md group">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="group-hover:scale-110 transition-transform">
-                                <path d="M0 0h11v11H0zM13 0h11v11H13zM0 13h11v11H0zM13 13h11v11H13z" />
-                            </svg>
-                        </button>
-                        <button className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-[#032521] hover:bg-[#89f9b5] hover:text-[#002110] transition-colors border border-[#e1e3e2] hover:border-transparent shadow-sm hover:shadow-md group">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="group-hover:scale-110 transition-transform">
-                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div className="mt-auto pt-6 text-center font-poppins text-xs text-[#717976]">
-                        Belum memiliki akun?{' '}
-                        <Link href="/" className="font-jakarta font-bold text-[#006c49] hover:text-[#00422b]">
-                            Hubungi Admin Sekolah
+                    {/* Catatan Informasi Akses Siswa */}
+                    <div className="mt-10 pt-6 border-t border-black/10 flex items-start justify-between gap-4">
+                        <div>
+                            <span className="text-xs font-bold text-[#18181b] block">
+                                Login sebagai Siswa?
+                            </span>
+                            <p className="text-xs text-[#52525b] mt-0.5 leading-relaxed">
+                                Akun siswa dikhususkan pada aplikasi Android EduFit.
+                            </p>
+                        </div>
+                        <Link
+                            href="/#download"
+                            className="text-xs font-bold uppercase tracking-wider underline text-[#18181b] hover:text-[#c88a04] shrink-0 pt-0.5"
+                        >
+                            Unduh APK
                         </Link>
                     </div>
+                </div>
 
+                {/* Footer Kecil Kolom Kanan */}
+                <div className="w-full max-w-[400px] mx-auto lg:max-w-none flex items-center justify-between text-xs text-[#71717a] font-medium">
+                    <span>© 2026 EduFit</span>
+                    <span>Kurikulum PJOK SMA/SMK</span>
                 </div>
             </div>
-
         </div>
     );
 }

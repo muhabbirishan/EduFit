@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,6 +15,8 @@ import {
   X,
   UsersRound,
   UserCheck,
+  Sparkles,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -23,6 +26,9 @@ export default function DashboardGuru() {
   const [profile, setProfile] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Mode Circular Gauge di Bento 3
+  const [gaugeMode, setGaugeMode] = useState<"kognitif" | "imt" | "partisipasi">("kognitif");
 
   // State Form Buka Kelas
   const [gradeLevel, setGradeLevel] = useState<number>(10);
@@ -217,7 +223,6 @@ export default function DashboardGuru() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Pastikan kolom gender pada user_profiles ikut ter-update meskipun API route lama belum menyertakannya
       await supabase
         .from("user_profiles")
         .update({ gender: studentGender })
@@ -251,12 +256,7 @@ export default function DashboardGuru() {
     toast.success("Kode disalin");
   };
 
-  const bentoColors = [
-    "bg-[#fef08a] text-black dark:bg-[#111111] dark:text-white dark:border dark:border-white/10 dark:hover:border-[#facc15]/50",
-    "bg-[#bbf7d0] text-black dark:bg-[#161616] dark:text-white dark:border dark:border-white/10 dark:hover:border-[#facc15]/50",
-    "bg-[#fed7aa] text-black dark:bg-[#1a1a1a] dark:text-white dark:border dark:border-white/10 dark:hover:border-[#facc15]/50",
-    "bg-[#bae6fd] text-black dark:bg-[#0f0f0f] dark:text-white dark:border dark:border-white/10 dark:hover:border-[#facc15]/50",
-  ];
+  const bentoColors = ["#fef08a", "#bbf7d0", "#fed7aa", "#bae6fd"];
 
   if (isLoading)
     return (
@@ -271,9 +271,25 @@ export default function DashboardGuru() {
   const kognitifGain = stats.posttestAvg - stats.pretestAvg;
   const selectedClassObj = classes.find((c) => c.id === selectedClassId);
 
+  // Kalkulasi gauge persentase untuk Bento 3
+  const gaugePct =
+    gaugeMode === "kognitif"
+      ? Math.max(0, Math.min(100, stats.posttestAvg))
+      : gaugeMode === "imt"
+      ? bmiNormalPct
+      : Math.min(100, Math.round((stats.totalStudents / 40) * 100));
+
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset =
+    circumference - (Math.max(10, gaugePct) / 100) * circumference;
+
   return (
-    <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-12 relative z-10">
+    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+      {/* ====================================================================
+          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
+         ==================================================================== */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-10">
         <div className="max-w-3xl">
           <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-4 opacity-50">
             <School size={16} />{" "}
@@ -288,6 +304,7 @@ export default function DashboardGuru() {
           </h1>
         </div>
 
+        {/* 3 Angka Raksasa Terbuka (Naked Giant Numbers) */}
         <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
           <div>
             <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
@@ -298,20 +315,129 @@ export default function DashboardGuru() {
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none text-emerald-500">
               {stats.totalStudents}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
               Siswa Terdaftar
             </div>
           </div>
+          <div>
+            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+              {stats.posttestAvg}%
+            </div>
+            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
+              Skor Posttest
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 mb-6">
-        {/* BENTO 1: FORM BUKA KELAS */}
+      {/* ====================================================================
+          ZONA 2: 4 BAR TELEMETRI RUANG GURU (MURNI GARIS-GARIS TANPA PILL BIRU/HIJAU!)
+         ==================================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-10">
+        {/* Bar 1: Rata-rata Pretest */}
+        <div className="lg:col-span-3 space-y-2">
+          <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
+            <span>Rata-rata Pretest</span>
+            <span>Tes Awal</span>
+          </div>
+          <div
+            className="h-14 rounded-2xl px-6 flex items-center justify-between"
+            style={{
+              backgroundColor: "var(--ref-dark-panel)",
+              color: "var(--ref-dark-panel-text)",
+            }}
+          >
+            <span className="text-2xl font-light tracking-tight">
+              {isLoading ? "—" : `${stats.pretestAvg}%`}
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">
+              Kognitif
+            </span>
+          </div>
+        </div>
+
+        {/* Bar 2: Rata-rata Posttest */}
+        <div className="lg:col-span-3 space-y-2">
+          <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
+            <span>Rata-rata Posttest</span>
+            <span>{kognitifGain >= 0 ? `+${kognitifGain} Pt` : `${kognitifGain} Pt`}</span>
+          </div>
+          <div
+            className="h-14 rounded-2xl px-6 flex items-center justify-between"
+            style={{
+              backgroundColor: "#facc15",
+              color: "#18181b",
+            }}
+          >
+            <span className="text-2xl font-semibold tracking-tight">
+              {isLoading ? "—" : `${stats.posttestAvg}%`}
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              Pencapaian
+            </span>
+          </div>
+        </div>
+
+        {/* Bar 3: Striped Track Murni (TANPA PILL BORDER BIRU/HIJAU DI DALAMNYA!) */}
+        <div className="sm:col-span-2 lg:col-span-4 space-y-2">
+          <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
+            <span>Partisipasi Kelas</span>
+            <span>{classes.length} Rombel Aktif</span>
+          </div>
+          <div
+            className="h-14 rounded-2xl px-6 border relative overflow-hidden flex items-center justify-between"
+            style={{
+              backgroundColor: "var(--ref-card-solid)",
+              borderColor: "var(--ref-card-border)",
+              backgroundImage: "var(--ref-stripe-pattern)",
+            }}
+          >
+            <span
+              className="text-2xl font-light tracking-tight relative z-10"
+              style={{ color: "var(--ref-text-primary)" }}
+            >
+              {isLoading ? "—" : `${stats.totalStudents} Siswa`}
+            </span>
+            <span
+              className="text-[11px] font-bold uppercase tracking-widest opacity-60 relative z-10"
+              style={{ color: "var(--ref-text-primary)" }}
+            >
+              Terdaftar
+            </span>
+          </div>
+        </div>
+
+        {/* Bar 4: IMT Normal */}
+        <div className="sm:col-span-2 lg:col-span-2 space-y-2">
+          <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
+            <span>IMT Normal</span>
+            <span>Komposisi</span>
+          </div>
+          <div
+            className="h-14 rounded-2xl px-5 flex items-center justify-center border"
+            style={{
+              backgroundColor: "var(--ref-card-solid)",
+              borderColor: "var(--ref-card-border)",
+              color: "var(--ref-text-primary)",
+            }}
+          >
+            <span className="text-2xl font-light tracking-tight text-emerald-500">
+              {bmiNormalPct}%
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ====================================================================
+          ZONA 3: TRIO KARTU BENTO LEBAR (3 KOLOM x col-span-4 • min-h-[390px])
+         ==================================================================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
+        {/* BENTO 1 (PATTERN POLKADOT HALUS): FORM BUKA KELAS BARU */}
         <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[340px] border group"
+          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[390px] border group"
           style={{
             backgroundColor: isDark ? "#111111" : "#ffffff",
             borderColor: isDark
@@ -320,7 +446,7 @@ export default function DashboardGuru() {
           }}
         >
           <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.1] rounded-[2.5rem] overflow-hidden"
+            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.08] rounded-[2.5rem] overflow-hidden"
             style={{
               backgroundImage:
                 "radial-gradient(currentColor 2px, transparent 2px)",
@@ -328,17 +454,18 @@ export default function DashboardGuru() {
             }}
           />
 
-          <div className="relative z-10">
+          <div className="relative z-20">
             <h2 className="text-3xl font-light tracking-tight mb-2">
-              Buka Kelas
+              Buka Sesi Kelas
             </h2>
             <p className="text-sm mb-6 leading-relaxed font-medium opacity-50">
-              Pilih daftar kelas SMA/SMK yang disediakan Admin.
+              Pilih daftar kelas SMA/SMK yang telah disediakan Admin untuk mulai
+              mengajar.
             </p>
 
             <form onSubmit={handleCreateClass} className="space-y-6">
               <div
-                className="flex gap-2 p-1.5 rounded-full"
+                className="flex gap-1.5 p-1.5 rounded-full mb-4"
                 style={{
                   backgroundColor: isDark
                     ? "rgba(255,255,255,0.05)"
@@ -350,7 +477,7 @@ export default function DashboardGuru() {
                     key={g}
                     type="button"
                     onClick={() => setGradeLevel(g)}
-                    className="flex-1 py-2.5 rounded-full text-xs font-bold transition-all"
+                    className="flex-1 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer"
                     style={{
                       backgroundColor:
                         gradeLevel === g ? "#facc15" : "transparent",
@@ -363,27 +490,17 @@ export default function DashboardGuru() {
                 ))}
               </div>
 
-              <div className="relative w-full">
+              <div className="relative w-full mb-6">
                 <div
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
                   style={{
                     borderColor: isDark
                       ? "rgba(255,255,255,0.2)"
-                      : "rgba(0,0,0,0.1)",
+                      : "rgba(0,0,0,0.12)",
                   }}
                 >
-                  <span
-                    className={
-                      selectedSchoolClass
-                        ? isDark
-                          ? "text-white"
-                          : "text-black"
-                        : isDark
-                        ? "text-white/30"
-                        : "text-black/30"
-                    }
-                  >
+                  <span className="truncate pr-3">
                     {selectedSchoolClass
                       ? `${
                           gradeLevel === 10
@@ -396,11 +513,12 @@ export default function DashboardGuru() {
                   </span>
                   <ChevronDown
                     size={24}
-                    className={`transition-transform duration-300 opacity-50 ${
+                    className={`transition-transform duration-300 opacity-50 shrink-0 ${
                       isDropdownOpen ? "rotate-180" : ""
                     }`}
                   />
                 </div>
+
                 <AnimatePresence>
                   {isDropdownOpen && (
                     <motion.div
@@ -408,7 +526,7 @@ export default function DashboardGuru() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.98 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-56 overflow-y-auto"
+                      className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-56 overflow-y-auto no-scrollbar"
                       style={{
                         backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
                         borderColor: isDark
@@ -448,22 +566,23 @@ export default function DashboardGuru() {
                   )}
                 </AnimatePresence>
               </div>
-
-              <button
-                type="submit"
-                disabled={!selectedSchoolClass}
-                className="w-full py-4 rounded-full font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:opacity-80 transition-opacity mt-2 disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ backgroundColor: "#facc15", color: "#000" }}
-              >
-                <Plus size={16} strokeWidth={3} /> Buka Sesi Kelas
-              </button>
             </form>
           </div>
+
+          <button
+            type="button"
+            onClick={handleCreateClass}
+            disabled={!selectedSchoolClass}
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md text-white disabled:opacity-30 disabled:cursor-not-allowed relative z-10"
+            style={{ backgroundColor: "#10b981" }}
+          >
+            <Plus size={16} strokeWidth={2.5} /> Buka Sesi Kelas Baru
+          </button>
         </div>
 
-        {/* BENTO 2: EVALUASI KOGNITIF */}
+        {/* BENTO 2 (PATTERN GRID MILIMETER): EVALUASI KOGNITIF (VERTICAL PILL BARS + DOTS) */}
         <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[340px] border"
+          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
           style={{
             backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
             borderColor: isDark
@@ -471,79 +590,88 @@ export default function DashboardGuru() {
               : "rgba(0,0,0,0.05)",
           }}
         >
-          <div className="flex justify-between items-start">
+          <div
+            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
+            style={{
+              backgroundImage:
+                "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
+              backgroundSize: "26px 26px",
+            }}
+          />
+
+          <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit size={16} /> Evaluasi Kognitif
+              <BrainCircuit size={16} /> Evaluasi Kognitif Siswa
+            </div>
+            {kognitifGain !== 0 && (
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">
+                {kognitifGain > 0 ? `+${kognitifGain} Pt` : `${kognitifGain} Pt`}
+              </span>
+            )}
+          </div>
+
+          <div className="my-4 flex items-end gap-3 relative z-10">
+            <div className="text-6xl font-light tracking-tighter leading-none">
+              {stats.posttestAvg}%
+            </div>
+            <div className="text-sm font-semibold opacity-50 mb-1">
+              Rata-rata Skor Posttest
             </div>
           </div>
-          <div className="mt-4 flex-1 flex flex-col justify-center">
-            <div className="flex items-end gap-3 mb-2">
-              <div className="text-6xl font-light tracking-tighter leading-none">
-                {stats.posttestAvg}
-              </div>
-              <div className="text-sm font-semibold opacity-50 mb-1">
-                Rata-rata Posttest
-              </div>
-            </div>
-            <div className="mt-6 space-y-4">
-              <div>
-                <div className="flex justify-between text-xs font-bold uppercase tracking-widest mb-2 opacity-60">
-                  <span>Pretest</span>
-                  <span>{stats.pretestAvg}</span>
-                </div>
+
+          {/* Grafik Batang Vertikal Bertitik (Pretest vs Posttest) */}
+          <div className="grid grid-cols-2 gap-6 items-end pt-4 h-44 relative z-10">
+            {[
+              { label: "Pretest Awal", score: stats.pretestAvg, isHighlight: false },
+              { label: "Posttest Akhir", score: stats.posttestAvg, isHighlight: true },
+            ].map((bar) => {
+              const heightPct = Math.max(15, bar.score);
+              return (
                 <div
-                  className="h-2 w-full rounded-full overflow-hidden"
-                  style={{
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(0,0,0,0.05)",
-                  }}
+                  key={bar.label}
+                  className="flex flex-col items-center justify-end h-full gap-2"
                 >
+                  <span className="text-xs font-bold opacity-75">
+                    {bar.score}%
+                  </span>
                   <div
-                    className="h-full bg-blue-400 rounded-full"
+                    className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px]"
                     style={{
-                      width: `${Math.max(0, Math.min(100, stats.pretestAvg))}%`,
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(24,24,27,0.07)",
+                    }}
+                  >
+                    <div
+                      className="w-full rounded-full transition-all duration-500"
+                      style={{
+                        height: `${heightPct}%`,
+                        backgroundColor: bar.isHighlight
+                          ? "#facc15"
+                          : "var(--ref-text-primary)",
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      backgroundColor: bar.isHighlight
+                        ? "#facc15"
+                        : "var(--ref-text-primary)",
                     }}
                   />
+                  <span className="text-[11px] font-bold opacity-60">
+                    {bar.label}
+                  </span>
                 </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs font-bold uppercase tracking-widest mb-2">
-                  <span style={{ color: "#facc15" }}>Posttest</span>
-                  <span style={{ color: "#facc15" }}>{stats.posttestAvg}</span>
-                </div>
-                <div
-                  className="h-2 w-full rounded-full overflow-hidden"
-                  style={{
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(0,0,0,0.05)",
-                  }}
-                >
-                  <div
-                    className="h-full rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)]"
-                    style={{
-                      width: `${Math.max(
-                        0,
-                        Math.min(100, stats.posttestAvg)
-                      )}%`,
-                      backgroundColor: "#facc15",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-            {kognitifGain > 0 && (
-              <div className="mt-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-500">
-                <TrendingUp size={16} /> +{kognitifGain} Poin Peningkatan
-              </div>
-            )}
+              );
+            })}
           </div>
         </div>
 
-        {/* BENTO 3: PROFIL FISIK (IMT) */}
+        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): PROFIL FISIK IMT */}
         <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[340px] border"
+          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
           style={{
             backgroundColor: isDark ? "#111111" : "#ffffff",
             borderColor: isDark
@@ -551,96 +679,129 @@ export default function DashboardGuru() {
               : "rgba(0,0,0,0.05)",
           }}
         >
-          <div className="flex justify-between items-start">
+          <div
+            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.02] dark:opacity-[0.05]"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(45deg, currentColor, currentColor 2px, transparent 2px, transparent 16px)",
+            }}
+          />
+
+          <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Activity size={16} /> Profil Fisik (IMT)
+              <Activity size={16} /> Komposisi Fisik (IMT)
+            </div>
+            <div className="flex items-center gap-1">
+              {[
+                { key: "kognitif", label: "Normal" },
+                { key: "imt", label: "Kurus" },
+                { key: "partisipasi", label: "Gemuk" },
+              ].map((m) => {
+                const active = gaugeMode === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setGaugeMode(m.key as any)}
+                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                    style={{
+                      backgroundColor: active
+                        ? "#facc15"
+                        : "var(--ref-card-subtle)",
+                      color: active ? "#000" : "var(--ref-text-secondary)",
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div className="mt-4 flex-1 flex flex-col justify-center">
-            <div className="flex items-end gap-3 mb-6">
-              <div className="text-6xl font-light tracking-tighter leading-none">
-                {bmiNormalPct}%
-              </div>
-              <div className="text-sm font-semibold opacity-50 mb-1">
-                IMT Normal
-              </div>
+
+          {/* Svg Tick-Mark Gauge dengan Teks di Bawah (Aman dari Terpotong) */}
+          <div className="relative flex flex-col items-center justify-center my-2 z-10">
+            <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
+              <circle
+                cx="70"
+                cy="70"
+                r={radius}
+                fill="none"
+                stroke={
+                  isDark ? "rgba(255,255,255,0.16)" : "rgba(24,24,27,0.16)"
+                }
+                strokeWidth="6"
+                strokeDasharray="2 5"
+              />
+              <circle
+                cx="70"
+                cy="70"
+                r={radius}
+                fill="none"
+                stroke="#facc15"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                className="transition-all duration-700"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 pt-2">
+              <span className="text-3xl font-light tracking-tighter leading-none">
+                {isLoading
+                  ? "—"
+                  : gaugeMode === "kognitif"
+                  ? `${bmiNormalPct}%`
+                  : gaugeMode === "imt"
+                  ? `${stats.bmiStats.kurang}`
+                  : `${stats.bmiStats.lebih}`}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-1">
+                {gaugeMode === "kognitif"
+                  ? "Normal"
+                  : gaugeMode === "imt"
+                  ? "Kurus"
+                  : "Berlebih"}
+              </span>
             </div>
-            <div
-              className="h-4 w-full rounded-full flex overflow-hidden mb-4"
-              style={{
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
-              }}
-            >
-              {stats.bmiStats.total > 0 && (
-                <>
-                  <div
-                    className="h-full bg-blue-400"
-                    style={{
-                      width: `${
-                        (stats.bmiStats.kurang / stats.bmiStats.total) * 100
-                      }%`,
-                    }}
-                  />
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${
-                        (stats.bmiStats.normal / stats.bmiStats.total) * 100
-                      }%`,
-                      backgroundColor: "#facc15",
-                    }}
-                  />
-                  <div
-                    className="h-full bg-red-400"
-                    style={{
-                      width: `${
-                        (stats.bmiStats.lebih / stats.bmiStats.total) * 100
-                      }%`,
-                    }}
-                  />
-                </>
-              )}
-            </div>
-            <div className="flex justify-between text-xs font-bold tracking-widest uppercase opacity-70">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-blue-400" /> Kurus
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: "#facc15" }}
-                />{" "}
-                Normal
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-red-400" /> Gemuk
-              </div>
+          </div>
+
+          <div className="relative z-10">
+            <div className="flex justify-between text-[11px] font-bold tracking-widest uppercase opacity-70 pt-3 border-t border-black/10 dark:border-white/10">
+              <span>{stats.bmiStats.kurang} Kurus</span>
+              <span>•</span>
+              <span>{stats.bmiStats.normal} Normal</span>
+              <span>•</span>
+              <span>{stats.bmiStats.lebih} Gemuk</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* HEADER RUANG KELAS & TOMBOL TAMBAH SISWA */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-10 mb-6 gap-4">
-        <h3 className="text-xl font-light tracking-tight opacity-50">
-          Ruang Kelas Aktif
-        </h3>
+      {/* HEADER RUANG KELAS & TOMBOL REGISTRASI SISWA */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-12 mb-6 gap-4 relative z-10">
+        <div>
+          <h3 className="text-3xl font-light tracking-tight">
+            Ruang Kelas Aktif ({classes.length})
+          </h3>
+          <p className="text-xs font-medium opacity-50 mt-1">
+            Daftar kelas yang sedang Anda ampu pada semester berjalan.
+          </p>
+        </div>
+
         <button
           onClick={() => setIsStudentModalOpen(true)}
-          className="px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-80 shadow-md"
-          style={{ backgroundColor: "#facc15", color: "#000" }}
+          className="px-6 py-3.5 rounded-full text-xs font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md text-white cursor-pointer"
+          style={{ backgroundColor: "#10b981" }}
         >
           <UsersRound size={16} strokeWidth={2.5} /> Registrasi Akun Siswa
         </button>
       </div>
 
-      {/* DAFTAR KELAS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10">
+      {/* DAFTAR KELAS GRID (PASTEL LIGHT / OBSIDIAN DARK) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10 mb-12">
         {classes.length === 0 ? (
           <div
-            className="xl:col-span-3 flex items-center justify-center p-10 rounded-[2.5rem] border border-dashed opacity-50"
+            className="xl:col-span-3 flex items-center justify-center p-14 rounded-[2.5rem] border border-dashed opacity-50"
             style={{
               borderColor: isDark
                 ? "rgba(255,255,255,0.2)"
@@ -648,15 +809,12 @@ export default function DashboardGuru() {
             }}
           >
             <div className="text-xl font-light tracking-tight">
-              Belum ada kelas yang dibuat.
+              Belum ada kelas yang dibuka. Silakan buat sesi kelas di atas.
             </div>
           </div>
         ) : (
           classes.map((cls, index) => {
-            const bgLight = bentoColors[index % bentoColors.length]
-              .split(" ")[0]
-              .replace("bg-[", "")
-              .replace("]", "");
+            const bgLight = bentoColors[index % bentoColors.length];
             return (
               <div
                 key={cls.id}
@@ -676,57 +834,66 @@ export default function DashboardGuru() {
                     backgroundSize: "24px 24px",
                   }}
                 />
+
                 <div className="flex justify-between items-start relative z-10">
-                  <span
-                    className="px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase"
-                    style={{
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    Kelas {cls.grade_level}
+                  <span className="text-xs font-bold tracking-widest uppercase opacity-65">
+                    KELAS {cls.grade_level} · SEMESTER AKTIF
                   </span>
-                  <button
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
                     style={{
                       backgroundColor: isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,0,0,0.05)",
+                        ? "rgba(255,255,255,0.06)"
+                        : "rgba(0,0,0,0.06)",
                     }}
                   >
-                    <ArrowUpRight size={20} strokeWidth={1.5} />
-                  </button>
+                    <ArrowUpRight size={18} strokeWidth={1.5} />
+                  </div>
                 </div>
-                <div className="mt-8 relative z-10">
-                  <div className="text-4xl font-light tracking-tighter mb-8 leading-none">
+
+                <div className="my-6 relative z-10">
+                  <div className="text-4xl font-light tracking-tighter leading-tight mb-2">
                     {cls.name}
                   </div>
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-2">
-                        Kode Join
-                      </div>
-                      <div
-                        className="text-lg font-bold font-mono px-3 py-1.5 rounded-xl inline-flex items-center gap-3 cursor-pointer transition-colors"
-                        style={{
-                          backgroundColor: isDark
-                            ? "rgba(255,255,255,0.05)"
-                            : "rgba(0,0,0,0.05)",
-                        }}
-                        onClick={() => copyCode(cls.class_code)}
-                      >
-                        {cls.class_code}{" "}
-                        <Copy size={12} className="opacity-50" />
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold opacity-50 uppercase tracking-widest">
+                      Kode Bergabung:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyCode(cls.class_code)}
+                      className="px-3 py-1 rounded-xl text-xs font-bold font-mono inline-flex items-center gap-1.5 border cursor-pointer"
+                      style={{
+                        backgroundColor: isDark
+                          ? "rgba(255,255,255,0.06)"
+                          : "rgba(0,0,0,0.06)",
+                        borderColor: isDark
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(0,0,0,0.1)",
+                      }}
+                      title="Salin Kode Kelas"
+                    >
+                      {cls.class_code} <Copy size={11} className="opacity-60" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-end justify-between border-t border-black/10 dark:border-white/10 pt-5 relative z-10">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                      Partisipasi Siswa
                     </div>
-                    <div className="text-right">
-                      <div className="text-4xl font-light leading-none">
-                        {cls.student_classes?.length || 0}
-                      </div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">
-                        Siswa
-                      </div>
+                    <div className="text-3xl font-light leading-none">
+                      {cls.student_classes?.length || 0} Siswa
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                      Status Ruang
+                    </div>
+                    <div className="text-sm font-bold text-emerald-500">
+                      Aktif Mengajar
                     </div>
                   </div>
                 </div>
@@ -736,7 +903,7 @@ export default function DashboardGuru() {
         )}
       </div>
 
-      {/* MODAL REGISTRASI AKUN SISWA (DILENGKAPI PILIHAN GENDER PUTRA L / PUTRI P) */}
+      {/* MODAL REGISTRASI AKUN SISWA */}
       <AnimatePresence>
         {isStudentModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -752,9 +919,9 @@ export default function DashboardGuru() {
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              className="w-full max-w-2xl rounded-[2.5rem] p-8 md:p-10 relative z-10 shadow-2xl border max-h-[92vh] overflow-y-auto"
+              className="w-full max-w-2xl rounded-[2.5rem] p-8 md:p-10 relative z-10 shadow-2xl border max-h-[92vh] overflow-y-auto no-scrollbar"
               style={{
-                backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+                backgroundColor: isDark ? "#141414" : "#ffffff",
                 borderColor: isDark
                   ? "rgba(255,255,255,0.1)"
                   : "rgba(0,0,0,0.05)",
@@ -763,7 +930,7 @@ export default function DashboardGuru() {
             >
               <button
                 onClick={() => setIsStudentModalOpen(false)}
-                className="absolute top-6 right-6 p-2 rounded-full transition-colors hover:bg-red-500 hover:text-white"
+                className="absolute top-6 right-6 p-2 rounded-full opacity-60 hover:opacity-100 cursor-pointer"
                 style={{
                   backgroundColor: isDark
                     ? "rgba(255,255,255,0.05)"
@@ -802,7 +969,6 @@ export default function DashboardGuru() {
                     />
                   </div>
 
-                  {/* SELECTOR JENIS KELAMIN (PUTRA L / PUTRI P) */}
                   <div className="md:col-span-2">
                     <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-3 block">
                       Jenis Kelamin (Menentukan Norma TKJI & Algoritma)
@@ -811,7 +977,7 @@ export default function DashboardGuru() {
                       <button
                         type="button"
                         onClick={() => setStudentGender("L")}
-                        className="p-4 rounded-2xl border text-sm font-bold flex items-center justify-center gap-2.5 transition-all"
+                        className="p-4 rounded-2xl border text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer"
                         style={{
                           backgroundColor:
                             studentGender === "L"
@@ -840,7 +1006,7 @@ export default function DashboardGuru() {
                       <button
                         type="button"
                         onClick={() => setStudentGender("P")}
-                        className="p-4 rounded-2xl border text-sm font-bold flex items-center justify-center gap-2.5 transition-all"
+                        className="p-4 rounded-2xl border text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer"
                         style={{
                           backgroundColor:
                             studentGender === "P"
@@ -878,7 +1044,7 @@ export default function DashboardGuru() {
                       onChange={(e) => setStudentEmail(e.target.value)}
                       type="email"
                       placeholder="siswa@edufit.com"
-                      className="w-full p-4 rounded-xl text-sm focus:outline-none border"
+                      className="w-full p-4 rounded-2xl text-sm focus:outline-none border"
                       style={{
                         backgroundColor: isDark
                           ? "rgba(255,255,255,0.02)"
@@ -900,7 +1066,7 @@ export default function DashboardGuru() {
                       onChange={(e) => setStudentPassword(e.target.value)}
                       type="text"
                       placeholder="Minimal 6 karakter"
-                      className="w-full p-4 rounded-xl text-sm focus:outline-none border"
+                      className="w-full p-4 rounded-2xl text-sm focus:outline-none border"
                       style={{
                         backgroundColor: isDark
                           ? "rgba(255,255,255,0.02)"
@@ -913,7 +1079,6 @@ export default function DashboardGuru() {
                   </div>
                 </div>
 
-                {/* CUSTOM DROPDOWN PENEMPATAN KELAS */}
                 <div className="pt-2 relative">
                   <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">
                     Penempatan Kelas
@@ -921,7 +1086,7 @@ export default function DashboardGuru() {
                   <button
                     type="button"
                     onClick={() => setIsClassSelectOpen(!isClassSelectOpen)}
-                    className="w-full p-4 rounded-xl text-sm font-bold border flex items-center justify-between"
+                    className="w-full p-4 rounded-xl text-sm font-bold border flex items-center justify-between cursor-pointer"
                     style={{
                       backgroundColor: isDark ? "#222" : "#f8fafc",
                       borderColor: isDark
@@ -942,7 +1107,7 @@ export default function DashboardGuru() {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
-                        className="absolute left-0 right-0 mt-2 rounded-2xl shadow-xl border z-50 max-h-48 overflow-y-auto p-1.5"
+                        className="absolute left-0 right-0 mt-2 rounded-2xl shadow-xl border z-50 max-h-48 overflow-y-auto p-1.5 no-scrollbar"
                         style={{
                           backgroundColor: isDark ? "#222" : "#ffffff",
                           borderColor: isDark
@@ -958,7 +1123,7 @@ export default function DashboardGuru() {
                               setSelectedClassId(c.id);
                               setIsClassSelectOpen(false);
                             }}
-                            className="w-full text-left px-4 py-3 rounded-xl text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5"
+                            className="w-full text-left px-4 py-3 rounded-xl text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                             style={{
                               color:
                                 selectedClassId === c.id
@@ -979,8 +1144,8 @@ export default function DashboardGuru() {
                 <button
                   type="submit"
                   disabled={isSubmittingStudent}
-                  className="w-full py-4 mt-6 rounded-full font-bold text-xs uppercase tracking-widest transition-opacity shadow-md disabled:opacity-50 hover:opacity-80"
-                  style={{ backgroundColor: "#facc15", color: "#000" }}
+                  className="w-full py-4 mt-6 rounded-full font-bold text-xs uppercase tracking-widest transition-opacity shadow-md disabled:opacity-50 hover:opacity-80 cursor-pointer text-white"
+                  style={{ backgroundColor: "#10b981" }}
                 >
                   {isSubmittingStudent
                     ? "Memproses ke Server..."

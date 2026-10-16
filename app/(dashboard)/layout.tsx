@@ -1,8 +1,8 @@
+// @ts-nocheck
 "use client";
 
 import Sidebar from "@/components/dashboard/Sidebar";
 import { supabase } from "@/lib/supabase";
-import { Menu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,16 +18,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     useEffect(() => {
         setMounted(true);
         const checkAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            const {
+                data: { session }
+            } = await supabase.auth.getSession();
             if (!session) {
-                router.replace('/login');
+                router.replace("/login");
                 return;
             }
-            const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', session.user.id).single();
+            const { data: profile } = await supabase
+                .from("user_profiles")
+                .select("role")
+                .eq("id", session.user.id)
+                .single();
 
-            if (!profile || profile.role === 'siswa') {
+            if (!profile || profile.role === "siswa") {
                 await supabase.auth.signOut();
-                router.replace('/login');
+                router.replace("/login");
             } else {
                 setIsAllowed(true);
             }
@@ -35,38 +41,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         checkAuth();
     }, [router]);
 
-    if (!isAllowed) return <div className="fixed inset-0 bg-[#fcfcfc] dark:bg-[#050505]" />;
+    if (!isAllowed) {
+        return (
+            <div
+                className="fixed inset-0"
+                style={{ backgroundColor: "var(--ref-canvas-bg, #f4f1ea)" }}
+            />
+        );
+    }
 
-    const isDark = mounted && resolvedTheme === 'dark';
+    const isDark = mounted && resolvedTheme === "dark";
 
     return (
         <div
-            className="min-h-screen font-jakarta transition-colors duration-500 relative overflow-hidden flex flex-col lg:flex-row"
+            className="min-h-screen font-jakarta transition-colors duration-500 relative overflow-x-hidden flex flex-col"
             style={{
-                backgroundColor: isDark ? '#050505' : '#fcfcfc',
-                color: isDark ? '#ffffff' : '#000000'
+                background: "var(--ref-canvas-gradient)",
+                backgroundColor: "var(--ref-canvas-bg)",
+                color: "var(--ref-text-primary)"
             }}
         >
-            {/* MESH GRADIENT ADMIN (HIJAU EDUFIT) */}
+            {/* AMBIENT GLOW HANGAT LIGHT & STRONG DARK */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transition-opacity duration-700">
-                <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-[#bbf7d0]/40 dark:bg-[#064e3b]/20 blur-[120px]" />
-                <div className="absolute top-[20%] -right-[10%] w-[40%] h-[60%] rounded-full bg-[#86efac]/30 dark:bg-[#022c22]/30 blur-[150px]" />
+                <div
+                    className="absolute -top-[10%] right-[5%] w-[460px] h-[460px] rounded-full blur-[140px]"
+                    style={{
+                        backgroundColor: isDark
+                            ? "rgba(245, 200, 76, 0.12)"
+                            : "rgba(245, 200, 76, 0.30)"
+                    }}
+                />
+                <div
+                    className="absolute bottom-[5%] -left-[8%] w-[500px] h-[500px] rounded-full blur-[150px]"
+                    style={{
+                        backgroundColor: isDark
+                            ? "rgba(56, 189, 248, 0.06)"
+                            : "rgba(254, 243, 199, 0.70)"
+                    }}
+                />
             </div>
 
-            {/* NAVBAR MOBILE */}
-            <header
-                className="lg:hidden fixed top-0 left-0 right-0 w-full h-20 z-40 flex items-center justify-between px-6 shadow-sm border-b backdrop-blur-xl transition-colors"
-                style={{
-                    backgroundColor: isDark ? 'rgba(5,5,5,0.9)' : 'rgba(255,255,255,0.9)',
-                    borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
-                }}
-            >
-                {mounted && <img src={isDark ? "/images/logo-putih.png" : "/images/logo-hitam.png"} alt="EduFit" className="h-8 object-contain" />}
-                <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 transition-colors" style={{ color: isDark ? '#fff' : '#000' }}>
-                    <Menu className="w-8 h-8" />
-                </button>
-            </header>
-
+            {/* TOP NAVBAR DENGAN CONTAINER IDENTIK */}
             <Sidebar
                 isMobileOpen={isMobileMenuOpen}
                 closeMobile={() => setIsMobileMenuOpen(false)}
@@ -74,8 +89,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 setIsCollapsed={setIsDesktopCollapsed}
             />
 
-            <main className={`flex-1 w-full p-4 lg:p-10 pt-28 lg:pt-10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] relative z-10 min-h-screen 
-        ${isDesktopCollapsed ? 'lg:ml-[88px]' : 'lg:ml-[280px]'}`}>
+            {/* KONTEN UTAMA SEJAJAR 100% DENGAN MARGIN NAVBAR */}
+            <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 pt-3 pb-16 relative z-10">
                 {children}
             </main>
         </div>

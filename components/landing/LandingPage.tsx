@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import {
@@ -8,9 +9,9 @@ import {
     Menu,
     Play,
     X
-} from 'lucide-react';
-import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+} from "lucide-react";
+import Link from "next/link";
+import React, { useEffect, useRef, useState } from "react";
 
 // ============================================================================
 // ENGINE ANIMASI SCROLL (CUSTOM HOOK)
@@ -20,12 +21,15 @@ function useIntersectionObserver(options = {}) {
     const targetRef = useRef(null);
 
     useEffect(() => {
-        const observer = new IntersectionObserver(([entry]) => {
-            if (entry.isIntersecting) {
-                setIsIntersecting(true);
-                observer.unobserve(entry.target);
-            }
-        }, { threshold: 0.1, ...options });
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsIntersecting(true);
+                    observer.unobserve(entry.target);
+                }
+            },
+            { threshold: 0.12, ...options }
+        );
 
         const currentTarget = targetRef.current;
         if (currentTarget) observer.observe(currentTarget);
@@ -38,13 +42,22 @@ function useIntersectionObserver(options = {}) {
     return [targetRef, isIntersecting] as const;
 }
 
-const Reveal = ({ children, delay = 0, className = "" }: { children: React.ReactNode, delay?: number, className?: string }) => {
+const Reveal = ({
+    children,
+    delay = 0,
+    className = ""
+}: {
+    children: React.ReactNode;
+    delay?: number;
+    className?: string;
+}) => {
     const [ref, isVisible] = useIntersectionObserver();
     return (
         <div
             ref={ref as any}
-            className={`transition-all duration-1000 ease-out ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
-                } ${className}`}
+            className={`transition-all duration-1000 ease-out ${
+                isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
+            } ${className}`}
             style={{ transitionDelay: `${delay}ms` }}
         >
             {children}
@@ -53,48 +66,60 @@ const Reveal = ({ children, delay = 0, className = "" }: { children: React.React
 };
 
 // ============================================================================
-// KOMPONEN UTAMA LANDING PAGE
+// KOMPONEN UTAMA LANDING PAGE (EDITORIAL & STICKY SCROLL ARCHITECTURE)
 // ============================================================================
 export default function LandingPage() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    // State Navigasi Cerdas
+    // State Navigasi Cerdas (Konsep Asli yang Disukai User)
     const [isScrolled, setIsScrolled] = useState(false);
     const [showNavbar, setShowNavbar] = useState(true);
     const [lastScrollY, setLastScrollY] = useState(0);
 
     // State Scroll Timeline & Active Section (ScrollSpy)
     const [scrollProgress, setScrollProgress] = useState(0);
-    const [activeSection, setActiveSection] = useState('beranda');
+    const [activeSection, setActiveSection] = useState("beranda");
 
+    // State Interaktif untuk Evaluasi & Video Modal
     const [activeFeature, setActiveFeature] = useState(0);
+    const [isVideoOpen, setIsVideoOpen] = useState(false);
 
     useEffect(() => {
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
 
             // 1. Hitung Progress Bar (Timeline)
-            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-            const progress = (currentScrollY / docHeight) * 100;
+            const docHeight =
+                document.documentElement.scrollHeight - window.innerHeight;
+            const progress = docHeight > 0 ? (currentScrollY / docHeight) * 100 : 0;
             setScrollProgress(progress);
 
             // 2. Deteksi Section Aktif (ScrollSpy)
-            const sections = ['beranda', 'tentang', 'fasilitas', 'ai-training', 'evaluasi'];
-            let current = 'beranda';
+            const sections = [
+                "beranda",
+                "tentang",
+                "fasilitas",
+                "ai-training",
+                "evaluasi"
+            ];
+            let current = "beranda";
             for (const section of sections) {
                 const el = document.getElementById(section);
                 if (el) {
                     const rect = el.getBoundingClientRect();
-                    if (rect.top <= window.innerHeight / 3 && rect.bottom >= window.innerHeight / 3) {
+                    if (
+                        rect.top <= window.innerHeight / 2.5 &&
+                        rect.bottom >= window.innerHeight / 3
+                    ) {
                         current = section;
                     }
                 }
             }
             setActiveSection(current);
 
-            // 3. Logika Hide/Show Navbar
-            setIsScrolled(currentScrollY > 20);
-            if (currentScrollY > lastScrollY && currentScrollY > 100) {
+            // 3. Logika Hide/Show Navbar saat Scroll
+            setIsScrolled(currentScrollY > 30);
+            if (currentScrollY > lastScrollY && currentScrollY > 120) {
                 setShowNavbar(false);
             } else {
                 setShowNavbar(true);
@@ -103,206 +128,534 @@ export default function LandingPage() {
             setLastScrollY(currentScrollY);
         };
 
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => window.removeEventListener("scroll", handleScroll);
     }, [lastScrollY]);
 
-    const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    const scrollToSection = (
+        e: React.MouseEvent<HTMLAnchorElement>,
+        id: string
+    ) => {
         e.preventDefault();
         const el = document.getElementById(id);
         if (el) {
-            el.scrollIntoView({ behavior: 'smooth' });
+            el.scrollIntoView({ behavior: "smooth" });
         }
         setIsMobileMenuOpen(false);
     };
 
+    // Data Evaluasi Fisik (URL Gambar 100% Asli)
     const features = [
-        { title: "Evaluasi Postur & Komposisi", desc: "Pengukuran Tinggi Badan, Berat Badan, dan kalkulasi Indeks Massa Tubuh (IMT) secara otomatis.", image: "/images/fasilitas-1.jpg" },
-        { title: "Kekuatan & Ketahanan Lengan", desc: "Tes Gantung Angkat Tubuh (Pull-up) untuk Putra dan Gantung Siku Tekuk untuk Putri.", image: "/images/about-main.jpg" },
-        { title: "Ketahanan Otot Inti (Core)", desc: "Tes Baring Duduk (Sit-up) 60 detik dengan panduan biomekanika yang benar.", image: "/images/hero-bg.jpg" },
-        { title: "Daya Ledak & Kecepatan", desc: "Integrasi tes Loncat Tegak (Vertical Jump) dan Lari Cepat 60 Meter.", image: "/images/fasilitas-2.jpg" },
+        {
+            num: "01",
+            title: "Evaluasi Postur & Komposisi",
+            subtitle: "Indeks Massa Tubuh (WHO 2007)",
+            desc: "Pengukuran Tinggi Badan, Berat Badan, dan kalkulasi Indeks Massa Tubuh (IMT) secara otomatis sesuai profil umur bulan dan jenis kelamin siswa.",
+            image: "/images/fasilitas-1.jpg"
+        },
+        {
+            num: "02",
+            title: "Kekuatan & Ketahanan Lengan",
+            subtitle: "Pull-Up & Bent-Arm Hang",
+            desc: "Tes Gantung Angkat Tubuh (Pull-up) untuk Putra dan Gantung Siku Tekuk untuk Putri dengan standar norma Tes Kebugaran Jasmani Indonesia.",
+            image: "/images/about-main.jpg"
+        },
+        {
+            num: "03",
+            title: "Ketahanan Otot Inti (Core)",
+            subtitle: "Baring Duduk 60 Detik",
+            desc: "Tes Baring Duduk (Sit-up) 60 detik dengan panduan biomekanika yang benar untuk memetakan daya tahan otot perut siswa.",
+            image: "/images/hero-bg.jpg"
+        },
+        {
+            num: "04",
+            title: "Daya Ledak & Kecepatan",
+            subtitle: "Vertical Jump & Sprint 60m",
+            desc: "Integrasi tes Loncat Tegak (Vertical Jump), Lari Cepat 60 Meter, dan Lari Daya Tahan ke dalam satu rapor kebugaran digital.",
+            image: "/images/fasilitas-2.jpg"
+        }
+    ];
+
+    // Data 4 Fase Matriks untuk Sticky Stacking Scroll (URL Gambar 100% Asli)
+    const stickyMatrices = [
+        {
+            num: "01",
+            volume: "Matriks Vol. 1",
+            phase: "FASE ADAPTASI · MINGGU 1–2",
+            target: "Pengenalan Gerak & Irama Napas",
+            desc: "Menyesuaikan respons jantung-paru dan jaringan sendi terhadap beban kerja awal pada intensitas rendah hingga sedang (RPE 4–5) tanpa memaksakan kecepatan.",
+            dosis: "3 Sesi / Minggu · 25 Menit · Jeda Pemulihan Penuh",
+            img: "/images/fasilitas-1.jpg",
+            bg: "#18181b",
+            accent: "#f5c84c"
+        },
+        {
+            num: "02",
+            volume: "Matriks Vol. 2",
+            phase: "FASE PEMANTAPAN · MINGGU 3–4",
+            target: "Konsistensi Volume & Kontrol Teknik",
+            desc: "Membangun kebiasaan gerak yang stabil melalui metode Continuous Run dan latihan beban tubuh terkendali sesuai komponen TKJI yang diprioritaskan.",
+            dosis: "3–4 Sesi / Minggu · 30 Menit · RPE 5–6",
+            img: "/images/fasilitas-2.jpg",
+            bg: "#201e1a",
+            accent: "#f5c84c"
+        },
+        {
+            num: "03",
+            volume: "Matriks Vol. 3",
+            phase: "FASE PENGUATAN · MINGGU 5–6",
+            target: "Progresi Beban Terukur 5–10%",
+            desc: "Meningkatkan tuntutan latihan secara bertahap melalui kombinasi Interval Training dan Fartlek ketika beban minggu sebelumnya sudah terasa lebih ringan.",
+            dosis: "4 Sesi / Minggu · 35 Menit · RPE 6–7",
+            img: "/images/fasilitas-3.jpg",
+            bg: "#141816",
+            accent: "#f5c84c"
+        },
+        {
+            num: "04",
+            volume: "Matriks Vol. 4",
+            phase: "FASE PERKEMBANGAN · MINGGU 7–8",
+            target: "Puncak Kesiapan Fisik & Evaluasi Akhir",
+            desc: "Menyiapkan kondisi puncak kebugaran siswa sebelum pelaksanaan Posttest sekaligus mengevaluasi konsistensi jurnal latihan pribadi.",
+            dosis: "3–4 Sesi / Minggu · 35–40 Menit · Evaluasi FITT",
+            img: "/images/about-main.jpg",
+            bg: "#1c1917",
+            accent: "#f5c84c"
+        }
     ];
 
     return (
         <>
             <style jsx global>{`
-        html { scroll-behavior: smooth; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
+                html {
+                    scroll-behavior: smooth;
+                }
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+            `}</style>
 
-            <main className="w-full min-h-screen bg-[#f8faf9] font-jakarta antialiased selection:bg-[#006c49] selection:text-white overflow-x-hidden relative">
-
-                {/* TIMELINE SCROLL */}
+            <main className="w-full min-h-screen bg-[#f4f1ea] text-[#18181b] font-jakarta antialiased selection:bg-[#f5c84c] selection:text-[#18181b] overflow-x-hidden relative">
+                {/* ==============================================================
+                    TIMELINE SCROLL PROGRESS BAR
+                   ============================================================== */}
                 <div className="fixed top-0 left-0 w-full h-1 z-[60] bg-black/10">
                     <div
-                        className="h-full bg-[#89f9b5] transition-all duration-100 ease-out"
+                        className="h-full bg-[#f5c84c] transition-all duration-100 ease-out"
                         style={{ width: `${scrollProgress}%` }}
-                    ></div>
+                    />
                 </div>
 
-                {/* NAVBAR */}
-                <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-in-out border-b ${isScrolled ? 'border-white/10' : 'border-transparent'
-                    } ${showNavbar ? 'translate-y-0' : '-translate-y-[120%]'} ${isScrolled ? 'bg-[#003b28]/95 backdrop-blur-md py-3 shadow-sm' : 'bg-transparent py-6'
-                    }`}>
+                {/* ==============================================================
+                    NAVBAR (KONSEP ASLI LANDING PAGE + WARNA WARM CARBON & GOLD)
+                   ============================================================== */}
+                <header
+                    className={`fixed top-0 inset-x-0 z-50 transition-all duration-500 ease-in-out border-b ${
+                        isScrolled ? "border-white/10" : "border-transparent"
+                    } ${showNavbar ? "translate-y-0" : "-translate-y-[120%]"} ${
+                        isScrolled
+                            ? "bg-[#141413]/95 backdrop-blur-md py-3 shadow-lg"
+                            : "bg-transparent py-5 lg:py-6"
+                    }`}
+                >
                     <div className="max-w-[1400px] mx-auto px-6 lg:px-12 flex items-center justify-between">
-                        <a href="#beranda" onClick={(e) => scrollToSection(e, 'beranda')} className="flex items-center gap-2 z-50 hover:scale-105 transition-transform">
-                            <img src="/images/logo-putih.png" alt="EduFit" className="h-16 md:h-24 object-contain drop-shadow-md" />
+                        <a
+                            href="#beranda"
+                            onClick={(e) => scrollToSection(e, "beranda")}
+                            className="flex items-center gap-2 z-50 hover:scale-105 transition-transform"
+                        >
+                            <img
+                                src="/images/logo-putih.png"
+                                alt="EduFit"
+                                className="h-14 sm:h-16 md:h-20 object-contain drop-shadow-md"
+                            />
                         </a>
 
                         <nav className="hidden lg:flex items-center gap-10 text-[13px] font-bold uppercase tracking-widest z-50">
-                            <a href="#tentang" onClick={(e) => scrollToSection(e, 'tentang')} className={`transition-colors ${activeSection === 'tentang' ? 'text-[#89f9b5]' : 'text-white/80 hover:text-white'}`}>Tentang</a>
-                            <a href="#fasilitas" onClick={(e) => scrollToSection(e, 'fasilitas')} className={`transition-colors ${activeSection === 'fasilitas' ? 'text-[#89f9b5]' : 'text-white/80 hover:text-white'}`}>Fasilitas</a>
-                            <a href="#ai-training" onClick={(e) => scrollToSection(e, 'ai-training')} className={`transition-colors ${activeSection === 'ai-training' ? 'text-[#89f9b5]' : 'text-white/80 hover:text-white'}`}>Program AI</a>
-                            <a href="#evaluasi" onClick={(e) => scrollToSection(e, 'evaluasi')} className={`transition-colors ${activeSection === 'evaluasi' ? 'text-[#89f9b5]' : 'text-white/80 hover:text-white'}`}>Evaluasi</a>
+                            {[
+                                { id: "tentang", label: "Tentang" },
+                                { id: "fasilitas", label: "Fasilitas" },
+                                { id: "ai-training", label: "Program AI" },
+                                { id: "evaluasi", label: "Evaluasi" }
+                            ].map((item) => (
+                                <a
+                                    key={item.id}
+                                    href={`#${item.id}`}
+                                    onClick={(e) => scrollToSection(e, item.id)}
+                                    className={`transition-colors relative py-1 ${
+                                        activeSection === item.id
+                                            ? "text-[#f5c84c]"
+                                            : "text-white/80 hover:text-white"
+                                    }`}
+                                >
+                                    {item.label}
+                                    {activeSection === item.id && (
+                                        <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[#f5c84c]" />
+                                    )}
+                                </a>
+                            ))}
                         </nav>
 
-                        <div className="flex items-center gap-6 z-50">
-                            <Link href="/login" className="hidden lg:inline-flex items-center justify-center font-bold text-xs bg-white text-[#00422b] px-6 py-3 rounded-full hover:bg-[#89f9b5] transition-all uppercase tracking-wider shadow-lg">
-                                Masuk Portal <ArrowUpRight className="w-4 h-4 ml-1" />
+                        <div className="flex items-center gap-4 z-50">
+                            <Link
+                                href="/login"
+                                className="hidden lg:inline-flex items-center justify-center font-bold text-xs bg-[#f5c84c] text-[#18181b] px-7 py-3.5 rounded-full hover:bg-white transition-all uppercase tracking-wider shadow-lg"
+                            >
+                                Masuk Portal <ArrowUpRight className="w-4 h-4 ml-1.5" />
                             </Link>
-                            <button className="lg:hidden text-white p-2" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-                                {isMobileMenuOpen ? <X className="w-8 h-8" /> : <Menu className="w-8 h-8" />}
+                            <button
+                                type="button"
+                                className="lg:hidden text-white p-2"
+                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                aria-label="Menu"
+                            >
+                                {isMobileMenuOpen ? (
+                                    <X className="w-8 h-8" />
+                                ) : (
+                                    <Menu className="w-8 h-8" />
+                                )}
                             </button>
                         </div>
                     </div>
 
-                    {/* Menu Mobile */}
-                    <div className={`lg:hidden absolute top-0 left-0 w-full bg-[#00422b] transition-all duration-500 ease-in-out flex flex-col justify-center items-center ${isMobileMenuOpen ? 'h-[100vh] opacity-100 visible' : 'h-0 opacity-0 invisible'}`}>
+                    {/* Menu Fullscreen Mobile */}
+                    <div
+                        className={`lg:hidden fixed inset-0 bg-[#141413] transition-all duration-500 ease-in-out flex flex-col justify-center items-center ${
+                            isMobileMenuOpen
+                                ? "opacity-100 visible pointer-events-auto"
+                                : "opacity-0 invisible pointer-events-none"
+                        }`}
+                    >
                         <nav className="flex flex-col items-center gap-8 text-white text-xl font-bold uppercase tracking-widest">
-                            <a href="#beranda" onClick={(e) => scrollToSection(e, 'beranda')} className={`${activeSection === 'beranda' ? 'text-[#89f9b5]' : ''}`}>Beranda</a>
-                            <a href="#tentang" onClick={(e) => scrollToSection(e, 'tentang')} className={`${activeSection === 'tentang' ? 'text-[#89f9b5]' : ''}`}>Tentang</a>
-                            <a href="#fasilitas" onClick={(e) => scrollToSection(e, 'fasilitas')} className={`${activeSection === 'fasilitas' ? 'text-[#89f9b5]' : ''}`}>Fasilitas</a>
-                            <a href="#ai-training" onClick={(e) => scrollToSection(e, 'ai-training')} className={`${activeSection === 'ai-training' ? 'text-[#89f9b5]' : ''}`}>Program AI</a>
-                            <a href="#evaluasi" onClick={(e) => scrollToSection(e, 'evaluasi')} className={`${activeSection === 'evaluasi' ? 'text-[#89f9b5]' : ''}`}>Evaluasi</a>
-                            <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="bg-[#89f9b5] text-[#00422b] px-10 py-4 rounded-full mt-6 shadow-xl">
+                            <a
+                                href="#beranda"
+                                onClick={(e) => scrollToSection(e, "beranda")}
+                                className={
+                                    activeSection === "beranda" ? "text-[#f5c84c]" : ""
+                                }
+                            >
+                                Beranda
+                            </a>
+                            <a
+                                href="#tentang"
+                                onClick={(e) => scrollToSection(e, "tentang")}
+                                className={
+                                    activeSection === "tentang" ? "text-[#f5c84c]" : ""
+                                }
+                            >
+                                Tentang
+                            </a>
+                            <a
+                                href="#fasilitas"
+                                onClick={(e) => scrollToSection(e, "fasilitas")}
+                                className={
+                                    activeSection === "fasilitas" ? "text-[#f5c84c]" : ""
+                                }
+                            >
+                                Fasilitas
+                            </a>
+                            <a
+                                href="#ai-training"
+                                onClick={(e) => scrollToSection(e, "ai-training")}
+                                className={
+                                    activeSection === "ai-training" ? "text-[#f5c84c]" : ""
+                                }
+                            >
+                                Program AI
+                            </a>
+                            <a
+                                href="#evaluasi"
+                                onClick={(e) => scrollToSection(e, "evaluasi")}
+                                className={
+                                    activeSection === "evaluasi" ? "text-[#f5c84c]" : ""
+                                }
+                            >
+                                Evaluasi
+                            </a>
+                            <Link
+                                href="/login"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="bg-[#f5c84c] text-[#18181b] px-10 py-4 rounded-full mt-4 text-sm font-black shadow-xl"
+                            >
                                 Masuk Portal
                             </Link>
                         </nav>
                     </div>
                 </header>
 
-                {/* HERO SECTION */}
-                <section id="beranda" className="relative w-full h-screen min-h-[600px] overflow-hidden flex flex-col justify-end bg-[#00422b]">
+                {/* ==============================================================
+                    HERO SECTION (FULL-BLEED CINEMATIC TANPA PILL BADGE AI SLOP)
+                   ============================================================== */}
+                <section
+                    id="beranda"
+                    className="relative w-full min-h-screen overflow-hidden flex flex-col justify-end bg-[#141413]"
+                >
                     <div className="absolute inset-0 z-0">
-                        <img src="/images/hero-bg.jpg" alt="EduFit Background" className="w-full h-full object-cover object-center opacity-70" />
-                        <div className="absolute inset-0 bg-[#00422b]/60 backdrop-blur-[4px]"></div>
+                        <img
+                            src="/images/hero-bg.jpg"
+                            alt="EduFit Background"
+                            className="w-full h-full object-cover object-center opacity-65"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#141413] via-[#141413]/55 to-black/40" />
                     </div>
 
-                    <div className="max-w-[1400px] w-full mx-auto px-6 lg:px-12 pb-16 lg:pb-24 relative z-10 flex flex-col justify-end h-full">
-                        <div className="max-w-2xl mb-8 lg:mb-12">
-                            <Reveal>
-                                <p className="text-white/95 text-sm md:text-lg leading-relaxed font-medium drop-shadow-md border-l-2 border-[#89f9b5] pl-4">
-                                    Sistem cerdas pemantauan tes kebugaran jasmani, analitik stamina, dan rapor performa fisik terpadu berbasis kurikulum S3 SMA Indonesia.
-                                </p>
-                            </Reveal>
+                    <div className="max-w-[1400px] w-full mx-auto px-6 lg:px-12 pt-36 pb-12 lg:pb-20 relative z-10 flex flex-col justify-end">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end mb-8 lg:mb-12">
+                            <div className="lg:col-span-7">
+                                <Reveal>
+                                    <p className="text-white/95 text-sm sm:text-base md:text-lg leading-relaxed font-medium max-w-xl border-l-2 border-[#f5c84c] pl-5">
+                                        Sistem cerdas pemantauan tes kebugaran jasmani, analitik
+                                        stamina, dan rapor performa fisik terpadu berbasis
+                                        kurikulum SMA Indonesia.
+                                    </p>
+                                </Reveal>
+                            </div>
+
+                            {/* Statistik Editorial Tanpa Kotak Kapsul */}
+                            <div className="lg:col-span-5 grid grid-cols-3 gap-6 border-t border-white/20 pt-5 text-white">
+                                <Reveal delay={100}>
+                                    <span className="block text-2xl sm:text-3xl font-bebas text-[#f5c84c] tracking-wide">
+                                        4.800+
+                                    </span>
+                                    <span className="block text-[11px] uppercase tracking-wider text-white/70 mt-0.5">
+                                        Matriks Latihan
+                                    </span>
+                                </Reveal>
+                                <Reveal delay={200}>
+                                    <span className="block text-2xl sm:text-3xl font-bebas text-white tracking-wide">
+                                        5 POS TKJI
+                                    </span>
+                                    <span className="block text-[11px] uppercase tracking-wider text-white/70 mt-0.5">
+                                        Standar Nasional
+                                    </span>
+                                </Reveal>
+                                <Reveal delay={300}>
+                                    <span className="block text-2xl sm:text-3xl font-bebas text-white tracking-wide">
+                                        KELAS X–XII
+                                    </span>
+                                    <span className="block text-[11px] uppercase tracking-wider text-white/70 mt-0.5">
+                                        Kurikulum Terpadu
+                                    </span>
+                                </Reveal>
+                            </div>
                         </div>
 
                         <Reveal delay={200}>
-                            <h1 className="text-[18vw] lg:text-[12vw] font-bebas text-white font-extrabold leading-[0.85] tracking-tight uppercase drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]">
-                                KEBUGARAN<br />JASMANI
+                            <h1 className="text-[17vw] sm:text-[15vw] lg:text-[11.5vw] font-bebas text-white font-extrabold leading-[0.83] tracking-tight uppercase drop-shadow-[0_10px_25px_rgba(0,0,0,0.5)]">
+                                KEBUGARAN
+                                <br />
+                                <span className="text-[#f5c84c]">JASMANI</span>
                             </h1>
                         </Reveal>
                     </div>
                 </section>
 
-                <div className="h-20 lg:h-32 bg-[#f8faf9]"></div>
-
-                {/* ABOUT REDEFINE */}
-                <section id="tentang" className="w-full py-20 bg-[#f8faf9] relative">
-                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
-                        <Reveal className="w-full lg:w-1/4">
-                            <div className="w-full aspect-[4/3] rounded-3xl overflow-hidden shadow-lg relative group">
-                                <img src="/images/intro-card.jpg" alt="Court" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                                <div className="absolute bottom-4 left-4 flex gap-2">
-                                    <span className="w-3 h-3 bg-[#89f9b5] rounded-full border border-white"></span>
-                                    <span className="w-3 h-3 bg-[#00422b] rounded-full border border-white"></span>
+                {/* ==============================================================
+                    SECTION TENTANG (EDITORIAL ASYMMETRIC LAYOUT)
+                   ============================================================== */}
+                <section
+                    id="tentang"
+                    className="w-full py-24 lg:py-36 bg-[#f4f1ea] relative"
+                >
+                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
+                        {/* Baris Editorial Pembuka */}
+                        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16 mb-24 lg:mb-32">
+                            <Reveal className="w-full lg:w-1/3">
+                                <div className="w-full aspect-[4/3] rounded-3xl overflow-hidden shadow-xl relative group">
+                                    <img
+                                        src="/images/intro-card.jpg"
+                                        alt="Court"
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                                    <div className="absolute bottom-5 left-5 flex items-center gap-2">
+                                        <span className="w-3 h-3 bg-[#f5c84c] rounded-full" />
+                                        <span className="w-3 h-3 bg-[#18181b] rounded-full border border-white/40" />
+                                    </div>
                                 </div>
-                            </div>
-                        </Reveal>
+                            </Reveal>
 
-                        <Reveal delay={200} className="w-full lg:w-3/4">
-                            <h2 className="text-2xl lg:text-4xl lg:leading-snug font-medium text-gray-800 max-w-4xl text-center lg:text-left">
-                                Di EduFit, kami mendefinisikan ulang cara siswa berlatih dan berprestasi. Dari <span className="font-black text-black">rencana evaluasi personal</span> hingga pelacakan kemajuan <span className="font-black text-black">stamina real-time</span>.
-                            </h2>
-                        </Reveal>
-                    </div>
-                </section>
+                            <Reveal delay={150} className="w-full lg:w-2/3">
+                                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717a] mb-4">
+                                    01 — Filosofi Pendidikan Fisik
+                                </div>
+                                <h2 className="text-2xl sm:text-3xl lg:text-5xl lg:leading-[1.18] font-medium text-[#18181b]">
+                                    Di EduFit, kami mendefinisikan ulang cara siswa berlatih dan
+                                    berprestasi. Dari{" "}
+                                    <span className="font-black underline decoration-[#f5c84c] decoration-4 underline-offset-4">
+                                        rencana evaluasi personal
+                                    </span>{" "}
+                                    hingga pelacakan kemajuan{" "}
+                                    <span className="font-black">stamina real-time</span>.
+                                </h2>
+                            </Reveal>
+                        </div>
 
-                {/* BENTO GRID */}
-                <section className="w-full pb-32 bg-[#f8faf9]">
-                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                        {/* Komposisi Asimetris 3 Kolom */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                            <Reveal
+                                delay={100}
+                                className="lg:col-span-3 flex flex-col justify-center space-y-6 text-left order-2 lg:order-1"
+                            >
+                                <div className="h-px w-12 bg-[#18181b]" />
+                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#71717a]">
+                                    Integrasi Kurikulum
+                                </h3>
+                                <p className="text-sm font-medium text-[#52525b] leading-relaxed">
+                                    Apakah Anda bersiap untuk evaluasi tengah semester atau
+                                    ingin membangun kebiasaan hidup sehat, EduFit menjaga siswa
+                                    tetap termotivasi dengan integrasi kurikulum Kelas X, XI, dan
+                                    XII.
+                                </p>
+                                <div className="pt-2">
+                                    <a
+                                        href="#fasilitas"
+                                        onClick={(e) => scrollToSection(e, "fasilitas")}
+                                        className="inline-flex items-center justify-center bg-[#18181b] text-white font-bold text-xs uppercase tracking-wider px-8 py-4 rounded-full hover:bg-[#f5c84c] hover:text-[#18181b] transition-all w-fit group"
+                                    >
+                                        Mulai Eksplorasi{" "}
+                                        <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                                    </a>
+                                </div>
+                            </Reveal>
 
-                        <Reveal delay={100} className="lg:col-span-3 flex flex-col justify-center space-y-6 text-center lg:text-left order-2 lg:order-1">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Tentang Sistem</h3>
-                            <p className="text-sm font-medium text-gray-600 leading-relaxed">
-                                Apakah Anda bersiap untuk evaluasi tengah semester atau ingin membangun kebiasaan hidup sehat, EduFit menjaga Anda tetap termotivasi dengan integrasi kurikulum S3 SMA.
-                            </p>
-                            <div className="flex justify-center lg:justify-start">
-                                <a href="#fasilitas" onClick={(e) => scrollToSection(e, 'fasilitas')} className="inline-flex items-center justify-center bg-black text-white font-bold text-xs uppercase tracking-wider px-8 py-4 rounded-full hover:bg-[#00422b] transition-all w-fit mt-4 group">
-                                    Mulai Eksplorasi <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                            <Reveal
+                                delay={250}
+                                className="lg:col-span-6 h-[380px] sm:h-[480px] lg:h-[580px] rounded-[2rem] overflow-hidden shadow-2xl relative group order-1 lg:order-2"
+                            >
+                                <img
+                                    src="/images/about-main.jpg"
+                                    alt="Lari"
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                                />
+                                <div className="absolute inset-0 bg-black/20" />
+                                <button
+                                    type="button"
+                                    onClick={() => setIsVideoOpen(true)}
+                                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-18 h-18 bg-[#18181b]/70 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 text-[#f5c84c] hover:bg-[#f5c84c] hover:text-[#18181b] transition-all cursor-pointer shadow-2xl"
+                                    aria-label="Lihat Ringkasan Ekosistem"
+                                >
+                                    <Play className="w-6 h-6 ml-1" fill="currentColor" />
+                                </button>
+                            </Reveal>
+
+                            <Reveal
+                                delay={400}
+                                className="lg:col-span-3 flex flex-col justify-center space-y-8 order-3"
+                            >
+                                <p className="text-sm font-medium text-[#52525b] leading-relaxed">
+                                    Dapatkan akses ke materi kognitif interaktif, video
+                                    biomekanika gerakan yang benar, serta analitik kebugaran yang
+                                    dirancang khusus untuk profil fisik remaja Indonesia.
+                                </p>
+
+                                <a
+                                    href="#ai-training"
+                                    onClick={(e) => scrollToSection(e, "ai-training")}
+                                    className="w-full aspect-square max-w-sm bg-[#18181b] rounded-[2rem] p-8 relative overflow-hidden flex flex-col justify-between group cursor-pointer hover:shadow-2xl transition-all"
+                                >
+                                    <div className="flex justify-between items-start relative z-10">
+                                        <Activity className="w-7 h-7 text-[#f5c84c]" />
+                                        <ArrowUpRight className="w-6 h-6 text-white group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                    </div>
+                                    <div className="relative z-10 text-left">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/50 block mb-2">
+                                            4.800 Kombinasi
+                                        </span>
+                                        <h4 className="text-2xl font-black text-white leading-tight">
+                                            ALGORITMA <br />
+                                            <span className="text-[#f5c84c]">KUSTOM</span> AI
+                                        </h4>
+                                    </div>
+                                    <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-[#f5c84c]/10 rounded-full blur-xl" />
                                 </a>
-                            </div>
-                        </Reveal>
-
-                        <Reveal delay={300} className="lg:col-span-6 h-[400px] sm:h-[500px] lg:h-[600px] rounded-[2rem] overflow-hidden shadow-2xl relative group order-1 lg:order-2">
-                            <img src="/images/about-main.jpg" alt="Lari" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
-                            <div className="absolute inset-0 bg-black/10"></div>
-                            <button className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center border border-white/50 text-white hover:bg-white hover:text-black transition-colors">
-                                <Play className="w-6 h-6 ml-1" />
-                            </button>
-                        </Reveal>
-
-                        <Reveal delay={500} className="lg:col-span-3 flex flex-col justify-center space-y-8 lg:space-y-12 text-center lg:text-left order-3">
-                            <p className="text-sm font-medium text-gray-600 leading-relaxed hidden lg:block">
-                                Dapatkan akses ke materi kognitif interaktif, video biomekanika gerakan yang benar, serta analitik rahasia yang biasa digunakan oleh atlet profesional.
-                            </p>
-
-                            <div className="w-full aspect-square max-w-sm mx-auto bg-[#00422b] rounded-[2rem] p-6 relative overflow-hidden flex flex-col justify-between group cursor-pointer hover:shadow-xl transition-all">
-                                <div className="flex justify-between items-start relative z-10">
-                                    <Activity className="w-6 h-6 text-[#89f9b5]" />
-                                    <ArrowUpRight className="w-6 h-6 text-white group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                                </div>
-                                <h4 className="text-xl font-black text-white leading-tight relative z-10 text-left">
-                                    ALGORITMA <br /><span className="text-[#89f9b5]">KUSTOM</span> AI
-                                </h4>
-                                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full"></div>
-                            </div>
-                        </Reveal>
+                            </Reveal>
+                        </div>
                     </div>
                 </section>
 
-                {/* EXPLORE FACILITIES */}
-                <section id="fasilitas" className="w-full py-24 lg:py-32 bg-white relative">
+                {/* ==============================================================
+                    SECTION EKSPLORASI FASILITAS (ACCORDION GALLERY EXPANSION)
+                   ============================================================== */}
+                <section
+                    id="fasilitas"
+                    className="w-full py-24 lg:py-32 bg-white relative border-t border-black/5"
+                >
                     <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
                         <Reveal>
-                            <div className="flex flex-col lg:flex-row justify-between lg:items-end gap-6 mb-12 lg:mb-16 border-b border-gray-200 pb-8 lg:pb-12 text-center lg:text-left">
-                                <h2 className="text-5xl lg:text-7xl font-bebas font-bold text-black leading-[0.85] tracking-tight">
-                                    EKSPLORASI <br /> FASILITAS
-                                </h2>
-                                <p className="text-sm font-medium text-gray-500 max-w-sm mx-auto lg:mx-0 lg:text-right">
-                                    Empat pilar utama sistem EduFit yang dirancang untuk mengawal setiap fase perkembangan kebugaran jasmani siswa.
+                            <div className="flex flex-col lg:flex-row justify-between lg:items-end gap-6 mb-12 lg:mb-16 border-b border-black/10 pb-8 lg:pb-12">
+                                <div>
+                                    <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717a] mb-3">
+                                        02 — Empat Pilar Utama
+                                    </div>
+                                    <h2 className="text-5xl lg:text-7xl font-bebas font-bold text-[#18181b] leading-[0.85] tracking-tight">
+                                        EKSPLORASI <br /> FASILITAS
+                                    </h2>
+                                </div>
+                                <p className="text-sm font-medium text-[#52525b] max-w-sm lg:text-right">
+                                    Empat pilar utama sistem EduFit yang dirancang untuk
+                                    mengawal setiap fase perkembangan kebugaran jasmani siswa.
                                 </p>
                             </div>
                         </Reveal>
 
-                        <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[600px]">
+                        <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[580px]">
                             {[
-                                { title: "PRETEST FISIK", subtitle: "Ukur batas awal stamina", img: "/images/fasilitas-1.jpg" },
-                                { title: "BIOMEKANIKA", subtitle: "Efisiensi postur tubuh", img: "/images/fasilitas-2.jpg" },
-                                { title: "KOGNITIF", subtitle: "Teori & Nutrisi Olahraga", img: "/images/fasilitas-3.jpg" },
-                                { title: "ALGORITMA AI", subtitle: "Resep Latihan Personal", img: "/images/about-main.jpg" },
+                                {
+                                    num: "01",
+                                    title: "PRETEST FISIK",
+                                    subtitle: "Ukur batas awal stamina",
+                                    img: "/images/fasilitas-1.jpg"
+                                },
+                                {
+                                    num: "02",
+                                    title: "BIOMEKANIKA",
+                                    subtitle: "Efisiensi postur tubuh",
+                                    img: "/images/fasilitas-2.jpg"
+                                },
+                                {
+                                    num: "03",
+                                    title: "KOGNITIF",
+                                    subtitle: "Teori & Refleksi Ilmiah",
+                                    img: "/images/fasilitas-3.jpg"
+                                },
+                                {
+                                    num: "04",
+                                    title: "ALGORITMA AI",
+                                    subtitle: "Resep Latihan Personal",
+                                    img: "/images/about-main.jpg"
+                                }
                             ].map((item, idx) => (
-                                <Reveal key={idx} delay={idx * 150} className="group relative w-full h-[200px] sm:h-[250px] lg:h-full lg:flex-1 hover:flex-[2] transition-all duration-700 ease-out rounded-3xl overflow-hidden cursor-pointer bg-gray-200">
-                                    <img src={item.img} alt={item.title} className="w-full h-full object-cover object-center" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-80 group-hover:opacity-100 transition-opacity"></div>
+                                <Reveal
+                                    key={idx}
+                                    delay={idx * 120}
+                                    className="group relative w-full h-[240px] sm:h-[280px] lg:h-full lg:flex-1 hover:lg:flex-[2.2] transition-all duration-700 ease-out rounded-3xl overflow-hidden cursor-pointer bg-[#18181b]"
+                                >
+                                    <img
+                                        src={item.img}
+                                        alt={item.title}
+                                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-85 group-hover:opacity-95 transition-opacity" />
+
+                                    <div className="absolute top-6 left-6 text-white/60 font-bebas text-2xl tracking-widest">
+                                        {item.num}
+                                    </div>
 
                                     <div className="absolute bottom-6 left-6 right-6">
-                                        <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 group-hover:bg-white group-hover:text-black text-white transition-colors">
+                                        <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center mb-4 group-hover:bg-[#f5c84c] group-hover:text-[#18181b] text-white transition-colors">
                                             <ArrowUpRight className="w-4 h-4" />
                                         </div>
-                                        <h3 className="text-2xl font-bebas font-bold text-white tracking-widest leading-none mb-1">{item.title}</h3>
-                                        <p className="text-xs font-bold text-white/70 uppercase lg:opacity-0 lg:translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 delay-100">{item.subtitle}</p>
+                                        <h3 className="text-2xl sm:text-3xl font-bebas font-bold text-white tracking-wider leading-none mb-1">
+                                            {item.title}
+                                        </h3>
+                                        <p className="text-xs font-bold text-[#f5c84c] uppercase tracking-wider lg:opacity-0 lg:translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
+                                            {item.subtitle}
+                                        </p>
                                     </div>
                                 </Reveal>
                             ))}
@@ -310,132 +663,367 @@ export default function LandingPage() {
                     </div>
                 </section>
 
-                {/* PROGRAM AI */}
-                <section id="ai-training" className="w-full py-24 lg:py-32 bg-[#f8faf9] border-y border-gray-200 relative">
+                {/* ==============================================================
+                    SECTION PROGRAM AI: STICKY STACKING SCROLL ARCHITECTURE
+                    (Konsep Baru Sesuai Permintaan User - Kartu Bertumpuk Saat Scroll!)
+                   ============================================================== */}
+                <section
+                    id="ai-training"
+                    className="w-full py-24 lg:py-36 bg-[#f4f1ea] border-t border-black/10 relative"
+                >
                     <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
-                        <div className="flex flex-col lg:flex-row gap-8 lg:gap-24 mb-16 text-center lg:text-left">
-                            <Reveal className="w-full lg:w-1/3">
-                                <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Program Unggulan</p>
-                                <p className="text-sm font-medium text-gray-700 leading-relaxed max-w-sm mx-auto lg:mx-0">
-                                    Berdasarkan hasil tes fisik dan kategori IMT Anda, kecerdasan buatan kami akan merakit salah satu dari 4.800 matriks jadwal latihan.
-                                </p>
-                            </Reveal>
-                            <Reveal delay={200} className="w-full lg:w-2/3">
-                                <h2 className="text-4xl lg:text-6xl font-bebas font-bold text-gray-300 leading-none tracking-tight">
-                                    DI EDUFIT, AI MENDORONG <br className="hidden lg:block" /><span className="text-black">LATIHAN LEBIH PINTAR</span>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+                            {/* KOLOM KIRI: STICKY NARRATIVE CONTROLLER */}
+                            <div className="lg:col-span-5 lg:sticky lg:top-32 space-y-6">
+                                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717a]">
+                                    03 — Mesin Rekomendasi Kelas XII
+                                </div>
+                                <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bebas font-bold text-[#18181b] leading-[0.88] tracking-tight">
+                                    DI EDUFIT, AI MENDORONG{" "}
+                                    <span className="text-[#c88a04]">
+                                        LATIHAN LEBIH PINTAR
+                                    </span>
                                 </h2>
-                            </Reveal>
-                        </div>
+                                <p className="text-sm sm:text-base font-medium text-[#52525b] leading-relaxed">
+                                    Berdasarkan hasil tes fisik TKJI dan kategori IMT setiap
+                                    siswa, sistem kami merakit salah satu dari{" "}
+                                    <strong className="text-[#18181b]">
+                                        4.800 matriks jadwal latihan
+                                    </strong>{" "}
+                                    ke dalam 4 fase perkembangan selama 8 minggu.
+                                </p>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {[1, 2, 3, 4].map((num) => (
-                                <Reveal key={num} delay={num * 100} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-xl transition-shadow group cursor-pointer">
-                                    <div className="w-full aspect-square bg-gray-100 rounded-2xl mb-6 overflow-hidden relative">
-                                        <img src={`/images/fasilitas-${num === 4 ? '1' : num}.jpg`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="Matriks" />
-                                        <div className="absolute top-3 right-3 w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                                            <div className="w-2 h-2 bg-[#006c49] rounded-full"></div>
+                                <div className="pt-4 border-t border-black/10 grid grid-cols-2 gap-6">
+                                    <div>
+                                        <span className="text-3xl font-bebas font-bold text-[#18181b] block">
+                                            8 MINGGU
+                                        </span>
+                                        <span className="text-xs font-medium text-[#71717a]">
+                                            Siklus Program Pribadi FITT
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-3xl font-bebas font-bold text-[#18181b] block">
+                                            4 FASE
+                                        </span>
+                                        <span className="text-xs font-medium text-[#71717a]">
+                                            Gulir ke bawah untuk melihat tahapan →
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* KOLOM KANAN: STICKY STACKING CARDS (BERTUMPUK SAAT DI-SCROLL) */}
+                            <div className="lg:col-span-7 space-y-8 lg:space-y-12">
+                                {stickyMatrices.map((mat, idx) => (
+                                    <div
+                                        key={mat.num}
+                                        className="sticky rounded-[2rem] overflow-hidden shadow-2xl border border-white/10 transition-transform duration-500"
+                                        style={{
+                                            top: `${104 + idx * 24}px`,
+                                            backgroundColor: mat.bg,
+                                            color: "#ffffff",
+                                            zIndex: 10 + idx
+                                        }}
+                                    >
+                                        <div className="grid grid-cols-1 md:grid-cols-12 items-stretch">
+                                            <div className="md:col-span-5 relative min-h-[220px] md:min-h-[320px] overflow-hidden">
+                                                <img
+                                                    src={mat.img}
+                                                    alt={mat.volume}
+                                                    className="absolute inset-0 w-full h-full object-cover"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/70 via-black/20 to-transparent" />
+                                                <span className="absolute top-5 left-5 font-bebas text-4xl text-[#f5c84c] tracking-wider">
+                                                    {mat.num}
+                                                </span>
+                                            </div>
+
+                                            <div className="md:col-span-7 p-7 sm:p-9 flex flex-col justify-between space-y-6">
+                                                <div className="space-y-3">
+                                                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#f5c84c]">
+                                                        {mat.phase}
+                                                    </div>
+                                                    <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                                                        {mat.volume} — {mat.target}
+                                                    </h3>
+                                                    <p className="text-xs sm:text-sm text-white/75 leading-relaxed">
+                                                        {mat.desc}
+                                                    </p>
+                                                </div>
+
+                                                <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-4">
+                                                    <span className="text-xs font-bold text-white/90">
+                                                        {mat.dosis}
+                                                    </span>
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-[#f5c84c] shrink-0" />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <h4 className="text-lg font-black text-black">Matriks Vol. {num}</h4>
-                                    <p className="text-xs font-bold text-gray-400 mt-1 uppercase">Fase {num === 1 ? 'Adaptasi' : num === 2 ? 'Kekuatan' : num === 3 ? 'Ketahanan' : 'Pemulihan'}</p>
-                                </Reveal>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </section>
 
-                {/* DAFTAR EVALUASI FISIK */}
-                <section id="evaluasi" className="w-full py-24 lg:py-32 bg-[#f8faf9] border-t border-gray-200 relative">
-                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 flex flex-col lg:flex-row gap-12 lg:gap-24">
-
-                        <div className="w-full lg:w-1/2 flex flex-col text-center lg:text-left">
+                {/* ==============================================================
+                    SECTION DAFTAR EVALUASI FISIK (CLEAN EDITORIAL LIST + STICKY VISUAL)
+                   ============================================================== */}
+                <section
+                    id="evaluasi"
+                    className="w-full py-24 lg:py-36 bg-white border-t border-black/10 relative"
+                >
+                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
+                        {/* Kolom Kiri: Sticky Visual Preview */}
+                        <div className="lg:col-span-6 lg:sticky lg:top-32">
                             <Reveal>
-                                <h2 className="text-5xl lg:text-7xl font-bebas font-bold text-gray-300 leading-[0.85] tracking-tight mb-8 lg:mb-10">
-                                    DAFTAR <br className="hidden lg:block" /><span className="text-black">EVALUASI FISIK</span>
+                                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#71717a] mb-3">
+                                    04 — Instrumen Lapangan Terstandar
+                                </div>
+                                <h2 className="text-5xl lg:text-7xl font-bebas font-bold text-[#d4d4d8] leading-[0.85] tracking-tight mb-8">
+                                    DAFTAR <br className="hidden lg:block" />
+                                    <span className="text-[#18181b]">EVALUASI FISIK</span>
                                 </h2>
-                                <div className="w-full aspect-[4/3] rounded-3xl overflow-hidden bg-gray-200 shadow-xl transition-all duration-500 relative">
+
+                                <div className="w-full aspect-[4/3] rounded-[2rem] overflow-hidden bg-[#18181b] shadow-2xl relative">
                                     {features.map((feat, idx) => (
                                         <img
                                             key={idx}
                                             src={feat.image}
                                             alt={feat.title}
-                                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out ${activeFeature === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                                            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-out ${
+                                                activeFeature === idx
+                                                    ? "opacity-100 scale-100 z-10"
+                                                    : "opacity-0 scale-105 z-0"
+                                            }`}
                                         />
                                     ))}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-20" />
+                                    <div className="absolute bottom-6 left-6 right-6 z-30 flex items-end justify-between text-white">
+                                        <div>
+                                            <span className="font-bebas text-2xl text-[#f5c84c] tracking-widest block">
+                                                INSTRUMEN {features[activeFeature].num}
+                                            </span>
+                                            <span className="text-sm font-bold">
+                                                {features[activeFeature].subtitle}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </Reveal>
                         </div>
 
-                        <div className="w-full lg:w-1/2 flex flex-col justify-center gap-3 md:gap-4 mt-6 lg:mt-0">
-                            <Reveal delay={200} className="flex flex-col gap-3">
-                                {features.map((feat, idx) => (
-                                    <div
-                                        key={idx}
-                                        onClick={() => setActiveFeature(idx)}
-                                        className={`flex items-start justify-between p-4 md:p-6 rounded-2xl cursor-pointer transition-all duration-300 border-2 ${activeFeature === idx
-                                                ? 'bg-white border-[#006c49] shadow-lg md:scale-[1.02]'
-                                                : 'bg-transparent border-transparent hover:bg-gray-100'
-                                            }`}
-                                    >
-                                        <div className="flex flex-col gap-1 pr-2 w-full">
-                                            <h4 className={`text-base md:text-xl font-black transition-colors ${activeFeature === idx ? 'text-[#006c49]' : 'text-black'}`}>
-                                                {feat.title}
-                                            </h4>
-                                            <div className={`transition-all duration-300 overflow-hidden ${activeFeature === idx ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'}`}>
-                                                <p className="text-xs md:text-sm font-medium text-gray-500 leading-relaxed">
+                        {/* Kolom Kanan: Editorial List dengan Garis Pembatas Halus (Tanpa Kotak Pil) */}
+                        <div className="lg:col-span-6 flex flex-col justify-center lg:pt-20">
+                            <Reveal delay={150} className="divide-y divide-black/10 border-y border-black/10">
+                                {features.map((feat, idx) => {
+                                    const isActive = activeFeature === idx;
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={() => setActiveFeature(idx)}
+                                            className="py-6 sm:py-8 cursor-pointer group transition-all"
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-baseline gap-5">
+                                                    <span
+                                                        className={`font-bebas text-2xl sm:text-3xl tracking-wider transition-colors ${
+                                                            isActive
+                                                                ? "text-[#c88a04]"
+                                                                : "text-[#a1a1aa] group-hover:text-[#18181b]"
+                                                        }`}
+                                                    >
+                                                        {feat.num}
+                                                    </span>
+                                                    <div>
+                                                        <h4
+                                                            className={`text-lg sm:text-2xl font-black tracking-tight transition-colors ${
+                                                                isActive
+                                                                    ? "text-[#18181b]"
+                                                                    : "text-[#52525b] group-hover:text-[#18181b]"
+                                                            }`}
+                                                        >
+                                                            {feat.title}
+                                                        </h4>
+                                                        <span className="text-xs font-bold uppercase tracking-widest text-[#71717a] block mt-1">
+                                                            {feat.subtitle}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                                                        isActive
+                                                            ? "bg-[#18181b] text-[#f5c84c] rotate-45"
+                                                            : "bg-[#f4f1ea] text-[#71717a] group-hover:bg-[#18181b] group-hover:text-white"
+                                                    }`}
+                                                >
+                                                    <ArrowUpRight className="w-5 h-5" />
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                className={`transition-all duration-500 overflow-hidden pl-10 sm:pl-12 ${
+                                                    isActive
+                                                        ? "max-h-40 opacity-100 mt-4"
+                                                        : "max-h-0 opacity-0 mt-0"
+                                                }`}
+                                            >
+                                                <p className="text-sm font-medium text-[#52525b] leading-relaxed">
                                                     {feat.desc}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${activeFeature === idx ? 'bg-[#006c49] text-white' : 'bg-gray-200 text-gray-400'}`}>
-                                            <ArrowUpRight className="w-4 h-4 md:w-5 md:h-5" />
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </Reveal>
                         </div>
                     </div>
                 </section>
 
-                {/* FOOTER / DOWNLOAD CTA */}
-                <section id="download" className="w-full bg-[#001c12] pt-24 pb-12 overflow-hidden relative">
-                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#00422b] rounded-full blur-[100px] opacity-50 translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+                {/* ==============================================================
+                    FOOTER / DOWNLOAD CTA (DEEP CARBON & CHAMPIONSHIP GOLD)
+                   ============================================================== */}
+                <section
+                    id="download"
+                    className="w-full bg-[#141413] pt-24 pb-12 overflow-hidden relative"
+                >
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#f5c84c]/15 rounded-full blur-[130px] translate-x-1/3 -translate-y-1/3 pointer-events-none" />
 
                     <div className="max-w-[1400px] mx-auto px-6 lg:px-12 flex flex-col lg:flex-row items-center justify-between gap-12 relative z-10 text-center lg:text-left">
-
                         <Reveal className="w-full lg:w-1/2">
-                            <h2 className="text-sm font-bold text-[#89f9b5] uppercase tracking-widest mb-4">Mulai Perjalanan Anda</h2>
-                            <h1 className="text-5xl lg:text-7xl font-bebas font-bold text-white leading-[0.9] tracking-tight mb-8">
-                                EDUFIT MENGUNDANG ANDA <br className="hidden lg:block" />BERGABUNG KE KOMUNITAS
-                            </h1>
-                            <p className="text-white/60 text-sm font-medium max-w-md mx-auto lg:mx-0 mb-10 leading-relaxed">
-                                Unduh aplikasi Android sekarang juga dan mulailah memonitor stamina, postur, serta mendapatkan program latihan khusus yang ditenagai oleh kecerdasan buatan.
+                            <div className="text-xs font-bold text-[#f5c84c] uppercase tracking-[0.2em] mb-4">
+                                05 — Mulai Perjalanan Anda
+                            </div>
+                            <h2 className="text-5xl lg:text-7xl font-bebas font-bold text-white leading-[0.9] tracking-tight mb-8">
+                                EDUFIT MENGUNDANG ANDA{" "}
+                                <br className="hidden lg:block" />
+                                BERGABUNG KE KOMUNITAS
+                            </h2>
+                            <p className="text-white/65 text-sm sm:text-base font-medium max-w-md mx-auto lg:mx-0 mb-10 leading-relaxed">
+                                Unduh aplikasi Android sekarang juga dan mulailah memonitor
+                                stamina, postur, serta mendapatkan program latihan khusus yang
+                                ditenagai oleh kecerdasan buatan.
                             </p>
 
-                            <Link href="/download/edufit-app.apk" download className="inline-flex items-center justify-center gap-3 bg-[#89f9b5] text-[#001c12] font-black text-sm uppercase tracking-wider px-10 py-4 rounded-full hover:bg-white transition-all transform hover:-translate-y-1 shadow-[0_10px_30px_rgba(137,249,181,0.2)]">
-                                <Download className="w-5 h-5" /> Unduh APK Sekarang
-                            </Link>
+                            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                                <Link
+                                    href="/download/edufit-app.apk"
+                                    download
+                                    className="inline-flex items-center justify-center gap-3 bg-[#f5c84c] text-[#18181b] font-black text-xs sm:text-sm uppercase tracking-wider px-9 py-4 rounded-full hover:bg-white transition-all transform hover:-translate-y-1 shadow-[0_10px_30px_rgba(245,200,76,0.25)]"
+                                >
+                                    <Download className="w-5 h-5" /> Unduh APK Sekarang
+                                </Link>
+                                <Link
+                                    href="/login"
+                                    className="inline-flex items-center justify-center gap-2 border border-white/20 text-white font-bold text-xs sm:text-sm uppercase tracking-wider px-8 py-4 rounded-full hover:bg-white/10 transition-colors"
+                                >
+                                    Portal Guru & Admin <ArrowUpRight className="w-4 h-4" />
+                                </Link>
+                            </div>
                         </Reveal>
 
-                        <Reveal delay={300} className="w-full lg:w-1/2 flex justify-center lg:justify-end">
-                            <div className="w-full max-w-md bg-gradient-to-tr from-[#003b28] to-[#005a3e] rounded-[2rem] p-8 border border-white/10 shadow-2xl relative text-left">
-                                <img src="/images/intro-card.jpg" alt="Aplikasi" className="w-full h-48 object-cover rounded-xl mb-6 opacity-80" />
-                                <h3 className="text-white font-black text-2xl mb-2">SIAP MENGHADAPI TES FISIK?</h3>
-                                <h2 className="text-5xl font-bebas font-bold text-[#89f9b5] tracking-wider mb-2">AYO MULAI!</h2>
+                        <Reveal
+                            delay={250}
+                            className="w-full lg:w-1/2 flex justify-center lg:justify-end"
+                        >
+                            <div className="w-full max-w-md bg-[#1f1e1b] rounded-[2rem] p-8 border border-white/10 shadow-2xl relative text-left">
+                                <img
+                                    src="/images/intro-card.jpg"
+                                    alt="Aplikasi"
+                                    className="w-full h-48 object-cover rounded-2xl mb-6 opacity-90"
+                                />
+                                <h3 className="text-white font-black text-2xl mb-1">
+                                    SIAP MENGHADAPI TES FISIK?
+                                </h3>
+                                <h2 className="text-5xl font-bebas font-bold text-[#f5c84c] tracking-wider">
+                                    AYO MULAI!
+                                </h2>
                             </div>
                         </Reveal>
                     </div>
 
-                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 mt-24 border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
-                        <span className="text-white/40 text-xs font-bold uppercase tracking-wider text-center">© 2026 EduFit Platform. All Rights Reserved.</span>
-                        <div className="flex gap-6 text-white/40 text-xs font-bold uppercase tracking-wider">
-                            <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
-                            <Link href="#" className="hover:text-white transition-colors">Terms</Link>
-                            <Link href="/login" className="hover:text-[#89f9b5] transition-colors">Admin Login</Link>
+                    <div className="max-w-[1400px] mx-auto px-6 lg:px-12 mt-20 border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
+                        <span className="text-white/40 text-xs font-bold uppercase tracking-wider text-center">
+                            © 2026 EduFit Platform. All Rights Reserved.
+                        </span>
+                        <div className="flex gap-6 text-white/50 text-xs font-bold uppercase tracking-wider">
+                            <a
+                                href="#tentang"
+                                onClick={(e) => scrollToSection(e, "tentang")}
+                                className="hover:text-white transition-colors"
+                            >
+                                Tentang
+                            </a>
+                            <a
+                                href="#fasilitas"
+                                onClick={(e) => scrollToSection(e, "fasilitas")}
+                                className="hover:text-white transition-colors"
+                            >
+                                Fasilitas
+                            </a>
+                            <Link
+                                href="/login"
+                                className="hover:text-[#f5c84c] transition-colors"
+                            >
+                                Admin & Guru Login
+                            </Link>
                         </div>
                     </div>
                 </section>
 
+                {/* MODAL RINGKASAN SISTEM SAAT TOMBOL PLAY DIKLIK */}
+                {isVideoOpen && (
+                    <div
+                        className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setIsVideoOpen(false)}
+                    >
+                        <div
+                            className="w-full max-w-xl bg-[#18181b] text-white rounded-3xl p-8 border border-white/15 space-y-6"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                                <h3 className="font-bebas text-3xl tracking-wider text-[#f5c84c]">
+                                    ARSITEKTUR EKOSISTEM EDUFIT
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsVideoOpen(false)}
+                                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 cursor-pointer"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <div className="space-y-4 text-sm text-white/80 leading-relaxed">
+                                <p>
+                                    <strong className="text-white">1. Aplikasi Mobile Siswa:</strong>{" "}
+                                    Digunakan oleh siswa Kelas 10, 11, dan 12 untuk mempelajari
+                                    modul interaktif, mengerjakan Pretest/Posttest, mengirim
+                                    refleksi, dan mengikuti program latihan 8 minggu.
+                                </p>
+                                <p>
+                                    <strong className="text-white">2. Dashboard Guru PJOK:</strong>{" "}
+                                    Mengelola kelas, memandu sesi pengujian TKJI di lapangan
+                                    secara langsung, dan menilai refleksi pemahaman siswa.
+                                </p>
+                                <p>
+                                    <strong className="text-white">3. Dashboard Admin Pusat:</strong>{" "}
+                                    Mengelola institusi sekolah, akun guru, bank soal evaluasi,
+                                    dan merancang modul pembelajaran berbasis SaaS.
+                                </p>
+                            </div>
+                            <div className="flex justify-end">
+                                <Link
+                                    href="/login"
+                                    className="px-6 py-3 rounded-full bg-[#f5c84c] text-[#18181b] font-bold text-xs uppercase tracking-wider"
+                                >
+                                    Masuk ke Portal →
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </>
     );

@@ -5,7 +5,7 @@ export const instant = false;
 
 export const metadata = {
   title: "Materi & Refleksi | EduFit Admin",
-  description: "Kelola konten bahan ajar dan pertanyaan pemantik untuk refleksi.",
+  description: "Kelola konten bahan ajar, media interaktif, tabel norma, dan pertanyaan pemantik untuk refleksi siswa.",
 };
 
 export default function Page() {

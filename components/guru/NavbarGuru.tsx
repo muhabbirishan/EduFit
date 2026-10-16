@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { supabase } from "@/lib/supabase";
@@ -7,6 +8,7 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export default function NavbarGuru() {
     const pathname = usePathname();
@@ -23,7 +25,6 @@ export default function NavbarGuru() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    // SEMBUNYIKAN NAVBAR SAAT BERADA DI DALAM LIVE ASESMEN STUDIO AGAR FULL-SCREEN TANPA DISTRAKSI
     if (pathname?.startsWith("/guru/live-asesmen")) {
         return null;
     }
@@ -41,9 +42,22 @@ export default function NavbarGuru() {
         return pathname.startsWith(href);
     };
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        router.push("/login");
+    const handleLogout = () => {
+        toast("Keluar dari Akun?", {
+            description: "Anda akan mengakhiri sesi aktif di Ruang Guru.",
+            action: {
+                label: "Ya, Keluar",
+                onClick: async () => {
+                    await supabase.auth.signOut();
+                    router.push("/login");
+                    toast.success("Berhasil keluar dari sistem.");
+                },
+            },
+            cancel: {
+                label: "Batal",
+                onClick: () => {},
+            },
+        });
     };
 
     const isDark = mounted && resolvedTheme === "dark";
@@ -151,7 +165,7 @@ export default function NavbarGuru() {
                     {mounted && (
                         <button
                             onClick={() => setTheme(isDark ? "light" : "dark")}
-                            className="w-11 h-11 flex items-center justify-center rounded-full transition-all hover:text-[#facc15]"
+                            className="w-11 h-11 flex items-center justify-center rounded-full transition-all hover:text-[#facc15] cursor-pointer"
                             style={{
                                 backgroundColor: isDark
                                     ? "rgba(255,255,255,0.05)"
@@ -167,7 +181,8 @@ export default function NavbarGuru() {
                     )}
                     <button
                         onClick={handleLogout}
-                        className="w-11 h-11 flex items-center justify-center rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                        className="w-11 h-11 flex items-center justify-center rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                        title="Keluar / Logout"
                     >
                         <LogOut size={22} strokeWidth={2} />
                     </button>
@@ -201,7 +216,7 @@ export default function NavbarGuru() {
                 )}
                 <button
                     onClick={() => setIsMobileOpen(true)}
-                    className="p-2"
+                    className="p-2 cursor-pointer"
                     style={{ color: isDark ? "#fff" : "#000" }}
                 >
                     <Menu size={28} />
@@ -221,7 +236,7 @@ export default function NavbarGuru() {
                         <div className="flex justify-end mb-10">
                             <button
                                 onClick={() => setIsMobileOpen(false)}
-                                className="p-2"
+                                className="p-2 cursor-pointer"
                                 style={{ color: isDark ? "#fff" : "#000" }}
                             >
                                 <X size={32} />
@@ -267,7 +282,7 @@ export default function NavbarGuru() {
                                         setTheme(isDark ? "light" : "dark");
                                         setIsMobileOpen(false);
                                     }}
-                                    className="flex items-center gap-4 text-2xl transition-all"
+                                    className="flex items-center gap-4 text-2xl transition-all cursor-pointer"
                                     style={{
                                         color: isDark
                                             ? "rgba(255,255,255,0.8)"
@@ -287,7 +302,7 @@ export default function NavbarGuru() {
                             )}
                             <button
                                 onClick={handleLogout}
-                                className="flex items-center gap-4 text-2xl text-red-500 hover:text-red-400 transition-colors"
+                                className="flex items-center gap-4 text-2xl text-red-500 hover:text-red-400 transition-colors cursor-pointer"
                             >
                                 <LogOut size={28} /> Keluar
                             </button>

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* COLORS KUSTOM EDUFIT */
+  /* COLORS KUSTOM EDUFIT (TETAP DIPERTAHANKAN) */
   --color-primary: #032521;
   --color-on-primary: #ffffff;
   --color-primary-container: #1b3b36;
@@ -59,6 +59,7 @@
 
 @layer base {
   :root {
+    /* VARIABEL LAMA (TETAP DIPERTAHANKAN) */
     --bg-dashboard: #f8faf9;
     --card-surface: #ffffff;
     --text-main: #191c1c;
@@ -68,7 +69,6 @@
     --sidebar-icon: #84a59e;
     --sidebar-icon-active: #89f9b5;
     
-    /* Warna Pastel untuk Bento Cards (Sesuai Referensi 3) */
     --card-yellow: #fef0c7;
     --card-yellow-text: #93370d;
     --card-blue: #e0f2fe;
@@ -83,9 +83,73 @@
     --alert-text-main: #854d0e;
     --alert-text-sub: #713f12;
     --alert-icon: #a16207;
+
+    /* ======================================================================
+       BANK WARNA BARU: COLORFUL WARM LIGHT MODE
+       ====================================================================== */
+    --ref-canvas-bg: #f4f1ea;
+    --ref-canvas-gradient: radial-gradient(circle at 90% 8%, rgba(245, 200, 76, 0.32) 0%, rgba(244, 241, 234, 0.94) 45%, #efece4 100%);
+    --ref-card-bg: rgba(255, 255, 255, 0.92);
+    --ref-card-solid: #ffffff;
+    --ref-card-subtle: #f6f4ee;
+    --ref-card-border: rgba(24, 24, 27, 0.07);
+    --ref-card-shadow: 0 12px 32px -12px rgba(24, 24, 27, 0.06);
+
+    --ref-nav-shell: rgba(255, 255, 255, 0.9);
+    --ref-nav-active-bg: #18181b;
+    --ref-nav-active-text: #ffffff;
+    --ref-nav-idle-text: #52525b;
+
+    --ref-text-primary: #18181b;
+    --ref-text-secondary: #52525b;
+    --ref-text-muted: #71717a;
+
+    --ref-accent-gold: #f5c84c;
+    --ref-accent-gold-soft: #fef3c7;
+    --ref-accent-gold-text: #78350f;
+
+    /* Aksen Colorful untuk Kartu Light Mode */
+    --ref-tint-emerald-bg: #ecfdf5;
+    --ref-tint-emerald-border: #a7f3d0;
+    --ref-tint-emerald-icon: #10b981;
+    --ref-tint-emerald-text: #065f46;
+
+    --ref-tint-sky-bg: #f0f9ff;
+    --ref-tint-sky-border: #bae6fd;
+    --ref-tint-sky-icon: #0ea5e9;
+    --ref-tint-sky-text: #075985;
+
+    --ref-tint-rose-bg: #fff1f2;
+    --ref-tint-rose-border: #fecdd3;
+    --ref-tint-rose-icon: #f43f5e;
+    --ref-tint-rose-text: #9f1239;
+
+    --ref-tint-violet-bg: #f5f3ff;
+    --ref-tint-violet-border: #ddd6fe;
+    --ref-tint-violet-icon: #8b5cf6;
+    --ref-tint-violet-text: #5b21b6;
+
+    --ref-tint-amber-bg: #fffbeb;
+    --ref-tint-amber-border: #fde68a;
+    --ref-tint-amber-icon: #f59e0b;
+    --ref-tint-amber-text: #92400e;
+
+    --ref-dark-panel: #18181b;
+    --ref-dark-panel-sub: #27272a;
+    --ref-dark-panel-text: #fafafa;
+    --ref-dark-panel-muted: #a1a1aa;
+
+    --ref-stripe-pattern: repeating-linear-gradient(
+      90deg,
+      rgba(24, 24, 27, 0.09) 0px,
+      rgba(24, 24, 27, 0.09) 2px,
+      transparent 2px,
+      transparent 7px
+    );
   }
 
   .dark {
+    /* VARIABEL LAMA DARK MODE (TETAP DIPERTAHANKAN) */
     --bg-dashboard: #021614;
     --card-surface: #0a241f;
     --text-main: #f8faf9;
@@ -95,7 +159,6 @@
     --sidebar-icon: #414846;
     --sidebar-icon-active: #89f9b5;
 
-    /* Warna Pastel disesuaikan untuk Dark Mode */
     --card-yellow: #7a4510;
     --card-yellow-text: #fef0c7;
     --card-blue: #0c4a6e;
@@ -110,11 +173,84 @@
     --alert-text-main: #fef08a;
     --alert-text-sub: #fef9c3;
     --alert-icon: #fde047;
+
+    /* ======================================================================
+       BANK WARNA BARU: STRONG & BOLD DARK MODE
+       ====================================================================== */
+    --ref-canvas-bg: #090a0f;
+    --ref-canvas-gradient: radial-gradient(circle at 88% 8%, rgba(245, 200, 76, 0.16) 0%, rgba(13, 15, 20, 0.98) 45%, #07080c 100%);
+    --ref-card-bg: rgba(20, 22, 29, 0.94);
+    --ref-card-solid: #14161d;
+    --ref-card-subtle: #1d202a;
+    --ref-card-border: rgba(255, 255, 255, 0.1);
+    --ref-card-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.65);
+
+    --ref-nav-shell: rgba(20, 22, 29, 0.92);
+    --ref-nav-active-bg: #f5c84c;
+    --ref-nav-active-text: #111216;
+    --ref-nav-idle-text: #a1a1aa;
+
+    --ref-text-primary: #f8fafc;
+    --ref-text-secondary: #94a3b8;
+    --ref-text-muted: #64748b;
+
+    --ref-accent-gold: #f5c84c;
+    --ref-accent-gold-soft: rgba(245, 200, 76, 0.18);
+    --ref-accent-gold-text: #fde047;
+
+    /* Aksen Strong Dark Mode */
+    --ref-tint-emerald-bg: rgba(16, 185, 129, 0.12);
+    --ref-tint-emerald-border: rgba(52, 211, 153, 0.3);
+    --ref-tint-emerald-icon: #34d399;
+    --ref-tint-emerald-text: #6ee7b7;
+
+    --ref-tint-sky-bg: rgba(14, 165, 233, 0.12);
+    --ref-tint-sky-border: rgba(56, 189, 248, 0.3);
+    --ref-tint-sky-icon: #38bdf8;
+    --ref-tint-sky-text: #7dd3fc;
+
+    --ref-tint-rose-bg: rgba(244, 63, 94, 0.12);
+    --ref-tint-rose-border: rgba(251, 113, 133, 0.3);
+    --ref-tint-rose-icon: #fb7185;
+    --ref-tint-rose-text: #fda4af;
+
+    --ref-tint-violet-bg: rgba(139, 92, 246, 0.12);
+    --ref-tint-violet-border: rgba(167, 139, 250, 0.3);
+    --ref-tint-violet-icon: #a78bfa;
+    --ref-tint-violet-text: #c4b5fd;
+
+    --ref-tint-amber-bg: rgba(245, 158, 11, 0.12);
+    --ref-tint-amber-border: rgba(251, 191, 36, 0.3);
+    --ref-tint-amber-icon: #fbbf24;
+    --ref-tint-amber-text: #fde68a;
+
+    --ref-dark-panel: #0d0f14;
+    --ref-dark-panel-sub: #181b24;
+    --ref-dark-panel-text: #ffffff;
+    --ref-dark-panel-muted: #94a3b8;
+
+    --ref-stripe-pattern: repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.15) 0px,
+      rgba(255, 255, 255, 0.15) 2px,
+      transparent 2px,
+      transparent 7px
+    );
   }
 
   body {
-    background-color: var(--bg-dashboard);
-    color: var(--text-main);
-    transition: background-color 0.3s ease, color 0.3s ease;
+    background: var(--ref-canvas-gradient);
+    background-color: var(--ref-canvas-bg);
+    color: var(--ref-text-primary);
+    transition: background-color 0.35s ease, color 0.35s ease;
+    min-height: 100vh;
   }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
