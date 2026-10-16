@@ -10,9 +10,7 @@ import {
   ArrowLeft,
   ArrowUp,
   ArrowUpRight,
-  Award,
   BookOpen,
-  Check,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -26,22 +24,17 @@ import {
   HelpCircle,
   Image as ImageIcon,
   Layers,
-  Link as LinkIcon,
   ListOrdered,
   MessageSquareWarning,
   Play,
   Plus,
-  Search,
   Smartphone,
-  Sparkles,
   Table as TableIcon,
   Tablet,
   Trash2,
-  TrendingUp,
   UploadCloud,
-  Users,
   Video,
-  X,
+  X
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -117,13 +110,49 @@ export interface ContentBlock {
 const EDUFIT_BLOCKS_MARKER_START = "<!--EDUFIT_SAAS_BLOCKS_START:";
 const EDUFIT_BLOCKS_MARKER_END = ":EDUFIT_SAAS_BLOCKS_END-->";
 
+function safeUtf8ToBase64(str: string): string {
+  try {
+    if (typeof window === "undefined") return "";
+    const bytes = new TextEncoder().encode(str);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(
+        null,
+        Array.from(bytes.subarray(i, i + chunkSize))
+      );
+    }
+    return window.btoa(binary);
+  } catch {
+    try {
+      return typeof window !== "undefined"
+        ? window.btoa(unescape(encodeURIComponent(str)))
+        : "";
+    } catch {
+      return "";
+    }
+  }
+}
+
+function safeBase64ToUtf8(base64: string): string {
+  try {
+    if (typeof window === "undefined") return "";
+    const binary = window.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return decodeURIComponent(escape(window.atob(base64)));
+  }
+}
+
 function encodeBlocksToMarker(blocks: ContentBlock[]): string {
   try {
     const json = JSON.stringify(blocks);
-    const base64 =
-      typeof window !== "undefined"
-        ? window.btoa(unescape(encodeURIComponent(json)))
-        : "";
+    const base64 = safeUtf8ToBase64(json);
+    if (!base64) return "";
     return `${EDUFIT_BLOCKS_MARKER_START}${base64}${EDUFIT_BLOCKS_MARKER_END}`;
   } catch {
     return "";
@@ -140,7 +169,7 @@ function decodeBlocksFromMarker(htmlString: string): ContentBlock[] | null {
         startIdx + EDUFIT_BLOCKS_MARKER_START.length,
         endIdx
       );
-      const json = decodeURIComponent(escape(window.atob(base64)));
+      const json = safeBase64ToUtf8(base64);
       const parsed = JSON.parse(json);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     } catch {
@@ -156,6 +185,17 @@ function stripMarkerFromHtml(htmlString: string): string {
   return startIdx !== -1
     ? htmlString.substring(0, startIdx).trim()
     : htmlString;
+}
+
+function generateId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 // ============================================================================
@@ -225,6 +265,7 @@ export default function MateriPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [originalUnitName, setOriginalUnitName] = useState<string>("");
   const [unitName, setUnitName] = useState("");
   const [triggerQuestion, setTriggerQuestion] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
@@ -276,16 +317,17 @@ export default function MateriPage() {
           .from("master_materials")
           .select("*")
           .order("grade_level", { ascending: true })
+          .order("order_index", { ascending: true })
           .order("created_at", { ascending: true }),
         supabase
           .from("student_reflections")
-          .select("id, unit_name, score, grade"),
+          .select("id, unit_name, score, grade, material_id"),
       ]);
       if (matRes.error) throw matRes.error;
       setAllMaterials(matRes.data || []);
       setAllReflections(refRes.data || []);
     } catch (error: any) {
-      toast.error("Gagal menarik data materi");
+      toast.error("Gagal menarik data materi: " + (error?.message || ""));
     } finally {
       setIsLoading(false);
     }
@@ -305,7 +347,7 @@ export default function MateriPage() {
   // PEMBUAT BLOK DEFAULT YANG BERSIH & MUDAH DIPAHAMI ADMIN
   // ==========================================================================
   const createDefaultBlock = (type: BlockType): ContentBlock => {
-    const id = crypto.randomUUID();
+    const id = generateId();
     switch (type) {
       case "heading":
         return { id, type: "heading", title: "", value: "" };
@@ -365,7 +407,7 @@ export default function MateriPage() {
           value: "",
           tableVariants: [
             {
-              id: crypto.randomUUID(),
+              id: generateId(),
               label: "Umum",
               unitSubtitle: "",
               headers: [
@@ -401,7 +443,7 @@ export default function MateriPage() {
           value: "",
           tempoMethods: [
             {
-              id: crypto.randomUUID(),
+              id: generateId(),
               name: "Continuous Run",
               steps: [
                 { label: "Jogging", level: 2 },
@@ -413,7 +455,7 @@ export default function MateriPage() {
               ],
             },
             {
-              id: crypto.randomUUID(),
+              id: generateId(),
               name: "Interval",
               steps: [
                 { label: "Lari Cepat", level: 3 },
@@ -425,7 +467,7 @@ export default function MateriPage() {
               ],
             },
             {
-              id: crypto.randomUUID(),
+              id: generateId(),
               name: "Fartlek",
               steps: [
                 { label: "Jogging", level: 1 },
@@ -482,16 +524,40 @@ export default function MateriPage() {
   };
 
   const parseMaterialToBlocks = (mat: any): ContentBlock[] => {
-    if (
-      mat?.content_blocks &&
-      Array.isArray(mat.content_blocks) &&
-      mat.content_blocks.length > 0
-    ) {
-      return mat.content_blocks;
+    if (mat?.content_blocks) {
+      if (Array.isArray(mat.content_blocks) && mat.content_blocks.length > 0) {
+        return mat.content_blocks.map((b: any) => ({
+          ...b,
+          id: b?.id || generateId(),
+          value: b?.value ?? "",
+        }));
+      }
+      if (typeof mat.content_blocks === "string") {
+        try {
+          const parsedJson = JSON.parse(mat.content_blocks);
+          if (Array.isArray(parsedJson) && parsedJson.length > 0) {
+            return parsedJson.map((b: any) => ({
+              ...b,
+              id: b?.id || generateId(),
+              value: b?.value ?? "",
+            }));
+          }
+        } catch {
+          // Lanjut ke fallback HTML
+        }
+      }
     }
+
     const htmlString = mat?.content_text || "";
     const fromMarker = decodeBlocksFromMarker(htmlString);
-    if (fromMarker && fromMarker.length > 0) return fromMarker;
+    if (fromMarker && fromMarker.length > 0) {
+      return fromMarker.map((b: any) => ({
+        ...b,
+        id: b?.id || generateId(),
+        value: b?.value ?? "",
+      }));
+    }
+
     if (!htmlString.trim()) {
       return [createDefaultBlock("heading"), createDefaultBlock("paragraph")];
     }
@@ -515,14 +581,14 @@ export default function MateriPage() {
           (el.textContent || "").trim() === (strong.textContent || "").trim();
         if (isOnlyStrong) {
           blocks.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             type: "heading",
             title: strong.textContent || "",
             value: "",
           });
         } else {
           blocks.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             type: "paragraph",
             value: el.innerHTML
               .replace(/<br\s*\/?>/gi, "\n")
@@ -535,39 +601,57 @@ export default function MateriPage() {
           (li) => li.textContent || ""
         );
         blocks.push({
-          id: crypto.randomUUID(),
+          id: generateId(),
           type: "list",
           title: "",
           listStyle: node.nodeName === "OL" ? "number" : "bullet",
           value: "",
           items: items.length > 0 ? items : [""],
         });
+      } else if (node.nodeName === "BLOCKQUOTE") {
+        const el = node as HTMLElement;
+        blocks.push({
+          id: generateId(),
+          type: "callout",
+          title: "Catatan Penting",
+          calloutTone: "amber",
+          value: (el.textContent || "").trim(),
+        });
       }
     });
+
+    if (blocks.length === 0 && stripMarkerFromHtml(htmlString).trim()) {
+      blocks.push({
+        id: generateId(),
+        type: "paragraph",
+        value: stripMarkerFromHtml(htmlString).trim(),
+      });
+    }
+
     return blocks.length > 0 ? blocks : [createDefaultBlock("paragraph")];
   };
 
   const compileBlocksToHTML = (blocks: ContentBlock[]): string => {
     let html = "";
     blocks.forEach((b) => {
-      if (b.type === "heading" && (b.title || b.value).trim()) {
-        html += `<p><strong>${b.title || b.value}</strong></p>`;
-      } else if (b.type === "paragraph" && b.value.trim()) {
-        html += `<p>${b.value.replace(/\n/g, "<br/>")}</p>`;
+      const val = b.value || "";
+      if (b.type === "heading" && (b.title || val).trim()) {
+        html += `<p><strong>${b.title || val}</strong></p>`;
+      } else if (b.type === "paragraph" && val.trim()) {
+        html += `<p>${val.replace(/\n/g, "<br/>")}</p>`;
       } else if (b.type === "list" && b.items && b.items.length > 0) {
         if (b.title?.trim()) html += `<p><strong>${b.title}</strong></p>`;
         const tag =
           b.listStyle === "number" || b.listStyle === "alpha" ? "ol" : "ul";
         const listItems = b.items
-          .filter((i) => i.trim() !== "")
+          .filter((i) => String(i || "").trim() !== "")
           .map((i) => `<li>${i}</li>`)
           .join("");
         if (listItems) html += `<${tag}>${listItems}</${tag}>`;
       } else if (b.type === "collapsible") {
         if (b.title?.trim()) html += `<p><strong>${b.title}</strong></p>`;
         if (b.collapsibleMode === "text") {
-          if (b.value?.trim())
-            html += `<p>${b.value.replace(/\n/g, "<br/>")}</p>`;
+          if (val.trim()) html += `<p>${val.replace(/\n/g, "<br/>")}</p>`;
         } else {
           (b.collapsibleItems || []).forEach((ci) => {
             html += `<p><strong>${ci.label}:</strong> ${ci.text}</p>`;
@@ -586,20 +670,21 @@ export default function MateriPage() {
           html += `<p><strong>${b.tableTitle}</strong></p>`;
         const firstVar = b.tableVariants?.[0];
         if (firstVar) {
-          const ths = firstVar.headers.map((h) => `<th>${h}</th>`).join("");
-          const trs = firstVar.rows
-            .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`)
+          const ths = (firstVar.headers || [])
+            .map((h) => `<th>${h}</th>`)
+            .join("");
+          const trs = (firstVar.rows || [])
+            .map(
+              (r) =>
+                `<tr>${(r || []).map((c) => `<td>${c}</td>`).join("")}</tr>`
+            )
             .join("");
           html += `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
         }
       } else if (b.type === "callout") {
-        html += `<blockquote><strong>${b.title || "Catatan"}:</strong> ${
-          b.value
-        }</blockquote>`;
+        html += `<blockquote><strong>${b.title || "Catatan"}:</strong> ${val}</blockquote>`;
       } else if (b.type === "video") {
-        html += `<p><strong>${b.title || "Video Rujukan"}</strong>: ${
-          b.value || ""
-        }</p>`;
+        html += `<p><strong>${b.title || "Video Rujukan"}</strong>: ${val}</p>`;
       } else if (b.type === "quiz") {
         html += `<p><strong>Cek Pemahaman Unit:</strong> ${
           b.question || ""
@@ -611,19 +696,20 @@ export default function MateriPage() {
 
   const openAddForm = () => {
     setEditingId(null);
+    setOriginalUnitName("");
     setUnitName("");
     setTriggerQuestion("");
     setMediaUrl("");
     setImageUrl("");
     setContentBlocks([
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: "heading",
         title: "1. Memahami Konsep Dasar",
         value: "",
       },
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: "paragraph",
         value: "",
       },
@@ -633,6 +719,7 @@ export default function MateriPage() {
 
   const openEditForm = (mat: any) => {
     setEditingId(mat.id);
+    setOriginalUnitName(mat.unit_name || "");
     setActiveGrade(Number(mat.grade_level) || 10);
     setUnitName(mat.unit_name || "");
     setTriggerQuestion(mat.trigger_question || "");
@@ -713,66 +800,196 @@ export default function MateriPage() {
     setUploadingBlockId(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unitName.trim())
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    if (!unitName.trim()) {
       return toast.error("Judul Unit Materi wajib diisi.");
+    }
+
     setIsSubmitting(true);
-    const compiledHtml = compileBlocksToHTML(contentBlocks);
-    const fullPayload = {
-      grade_level: activeGrade,
-      unit_name: unitName.trim(),
-      trigger_question: triggerQuestion.trim(),
-      content_text: compiledHtml,
-      content_blocks: contentBlocks,
-      media_url: mediaUrl.trim(),
-      image_url: imageUrl.trim(),
-      updated_at: new Date().toISOString(),
-    };
 
     try {
-      let errorResult = null;
+      // Sanitasi blok agar bebas dari properti undefined saat dikirim ke kolom JSONB Supabase
+      const sanitizedBlocks: ContentBlock[] = JSON.parse(
+        JSON.stringify(
+          contentBlocks.map((b) => ({
+            ...b,
+            id: b.id || generateId(),
+            value: b.value ?? "",
+          }))
+        )
+      );
+
+      const compiledHtml = compileBlocksToHTML(sanitizedBlocks);
+      const nowIso = new Date().toISOString();
+
+      const fullPayload: Record<string, any> = {
+        grade_level: Number(activeGrade),
+        unit_name: unitName.trim(),
+        trigger_question: triggerQuestion.trim() || null,
+        content_text: compiledHtml,
+        content_blocks: sanitizedBlocks,
+        media_url: mediaUrl.trim() || null,
+        image_url: imageUrl.trim() || null,
+        updated_at: nowIso,
+      };
+
+      const legacyPayload: Record<string, any> = {
+        grade_level: Number(activeGrade),
+        unit_name: unitName.trim(),
+        trigger_question: triggerQuestion.trim() || null,
+        content_text: compiledHtml,
+        media_url: mediaUrl.trim() || null,
+        image_url: imageUrl.trim() || null,
+        updated_at: nowIso,
+      };
+
+      let savedRecord: any = null;
+
       if (editingId) {
-        const { error } = await supabase
+        // 1. Update utama berdasarkan ID
+        let { data, error } = await supabase
           .from("master_materials")
           .update(fullPayload)
-          .eq("id", editingId);
-        errorResult = error;
-      } else {
-        const { error } = await supabase
-          .from("master_materials")
-          .insert([fullPayload]);
-        errorResult = error;
-      }
-      if (errorResult) {
-        const legacyPayload = {
-          grade_level: activeGrade,
-          unit_name: unitName.trim(),
-          trigger_question: triggerQuestion.trim(),
-          content_text: compiledHtml,
-          media_url: mediaUrl.trim(),
-          image_url: imageUrl.trim(),
-          updated_at: new Date().toISOString(),
-        };
-        if (editingId) {
-          const { error: retryErr } = await supabase
+          .eq("id", editingId)
+          .select();
+
+        // Fallback jika skema kolom content_blocks bermasalah
+        if (error) {
+          const retry = await supabase
             .from("master_materials")
             .update(legacyPayload)
-            .eq("id", editingId);
-          if (retryErr) throw retryErr;
-        } else {
-          const { error: retryErr } = await supabase
-            .from("master_materials")
-            .insert([legacyPayload]);
-          if (retryErr) throw retryErr;
+            .eq("id", editingId)
+            .select();
+          if (retry.error) throw retry.error;
+          data = retry.data;
         }
+
+        // 2. Fallback pencarian berdasarkan grade_level & originalUnitName jika ID tidak cocok
+        if ((!data || data.length === 0) && originalUnitName) {
+          const byName = await supabase
+            .from("master_materials")
+            .update(fullPayload)
+            .eq("grade_level", Number(activeGrade))
+            .eq("unit_name", originalUnitName)
+            .select();
+
+          if (!byName.error && byName.data && byName.data.length > 0) {
+            data = byName.data;
+          }
+        }
+
+        // 3. Fallback Upsert jika baris belum ada atau tertahan namun memiliki ID valid
+        if (!data || data.length === 0) {
+          const upsertAttempt = await supabase
+            .from("master_materials")
+            .upsert([{ id: editingId, ...fullPayload }], { onConflict: "id" })
+            .select();
+
+          if (upsertAttempt.error) {
+            throw new Error(
+              `Database menolak perubahan (${upsertAttempt.error.message}). Pastikan Policy RLS UPDATE pada tabel master_materials sudah diaktifkan.`
+            );
+          }
+          if (!upsertAttempt.data || upsertAttempt.data.length === 0) {
+            throw new Error(
+              "Perubahan diblokir oleh Row Level Security (RLS) Supabase pada tabel master_materials. Jalankan policy akses penuh pada SQL Editor Supabase."
+            );
+          }
+          data = upsertAttempt.data;
+        }
+
+        savedRecord = data[0];
+
+        // Sinkronisasi nama unit pada student_reflections jika nama unit diubah
+        if (
+          originalUnitName &&
+          originalUnitName.trim() !== unitName.trim()
+        ) {
+          await supabase
+            .from("student_reflections")
+            .update({ unit_name: unitName.trim(), updated_at: nowIso })
+            .eq("unit_name", originalUnitName.trim());
+        }
+
+        // Jika materi ini merupakan evaluasi Pre-Test / Post-Test, sinkronkan judulnya di master_evaluations
+        const lowerTitle = unitName.trim().toLowerCase();
+        const lowerOrig = originalUnitName.trim().toLowerCase();
+        if (
+          lowerTitle.includes("pretest") ||
+          lowerTitle.includes("pre-test") ||
+          lowerTitle.includes("pre test") ||
+          lowerOrig.includes("pretest") ||
+          lowerOrig.includes("pre-test") ||
+          lowerOrig.includes("pre test")
+        ) {
+          await supabase
+            .from("master_evaluations")
+            .update({ title: unitName.trim() })
+            .eq("grade_level", Number(activeGrade))
+            .eq("type", "pretest");
+        } else if (
+          lowerTitle.includes("posttest") ||
+          lowerTitle.includes("post-test") ||
+          lowerTitle.includes("post test") ||
+          lowerOrig.includes("posttest") ||
+          lowerOrig.includes("post-test") ||
+          lowerOrig.includes("post test")
+        ) {
+          await supabase
+            .from("master_evaluations")
+            .update({ title: unitName.trim() })
+            .eq("grade_level", Number(activeGrade))
+            .eq("type", "posttest");
+        }
+      } else {
+        // Mode Tambah Materi Baru
+        let { data, error } = await supabase
+          .from("master_materials")
+          .insert([fullPayload])
+          .select();
+
+        if (error) {
+          const retry = await supabase
+            .from("master_materials")
+            .insert([legacyPayload])
+            .select();
+          if (retry.error) throw retry.error;
+          data = retry.data;
+        }
+
+        if (!data || data.length === 0) {
+          throw new Error(
+            "Gagal menambahkan materi karena diblokir oleh Row Level Security (RLS) Supabase."
+          );
+        }
+
+        savedRecord = data[0];
       }
+
+      // Perbarui state lokal secara instan agar UI langsung menampilkan perubahan terbaru
+      if (savedRecord) {
+        setAllMaterials((prev) => {
+          const exists = prev.some((item) => item.id === savedRecord.id);
+          if (exists) {
+            return prev.map((item) =>
+              item.id === savedRecord.id ? savedRecord : item
+            );
+          }
+          return [...prev, savedRecord];
+        });
+      }
+
       toast.success(
         "Modul materi berhasil disimpan & langsung aktif di aplikasi siswa!"
       );
+      await fetchMaterials();
       setViewMode("list");
     } catch (err: any) {
-      toast.error("Gagal menyimpan materi: " + (err?.message || ""));
+      toast.error(
+        "Gagal menyimpan materi: " +
+          (err?.message || "Periksa koneksi atau izin RLS database.")
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -785,9 +1002,18 @@ export default function MateriPage() {
       action: {
         label: "Hapus",
         onClick: async () => {
-          await supabase.from("master_materials").delete().eq("id", id);
-          toast.success("Materi dihapus");
-          fetchMaterials();
+          try {
+            const { error } = await supabase
+              .from("master_materials")
+              .delete()
+              .eq("id", id);
+            if (error) throw error;
+            setAllMaterials((prev) => prev.filter((m) => m.id !== id));
+            toast.success("Materi dihapus");
+            fetchMaterials();
+          } catch (err: any) {
+            toast.error("Gagal menghapus materi: " + (err?.message || ""));
+          }
         },
       },
       cancel: { label: "Batal" },
@@ -818,7 +1044,7 @@ export default function MateriPage() {
     const cloned: ContentBlock = JSON.parse(
       JSON.stringify(contentBlocks[index])
     );
-    cloned.id = crypto.randomUUID();
+    cloned.id = generateId();
     const copy = [...contentBlocks];
     copy.splice(index + 1, 0, cloned);
     setContentBlocks(copy);
@@ -2547,7 +2773,7 @@ export default function MateriPage() {
                                   if (checked && variants.length === 1) {
                                     variants[0].label = "Putra";
                                     variants.push({
-                                      id: crypto.randomUUID(),
+                                      id: generateId(),
                                       label: "Putri",
                                       unitSubtitle: "",
                                       headers: [...variants[0].headers],
@@ -2785,7 +3011,7 @@ export default function MateriPage() {
                                       const next = [
                                         ...methods,
                                         {
-                                          id: crypto.randomUUID(),
+                                          id: generateId(),
                                           name: `Metode ${methods.length + 1}`,
                                           steps: [
                                             { label: "Tahap 1", level: 2 },
@@ -2849,7 +3075,7 @@ export default function MateriPage() {
                                       {activeMethod.steps.map((st, sIdx) => (
                                         <div
                                           key={sIdx}
-                                          className="p-2.5 rounded-xl border space-y-2"
+                                            className="p-2.5 rounded-xl border space-y-2"
                                           style={{
                                             backgroundColor:
                                               "var(--ref-card-subtle)",

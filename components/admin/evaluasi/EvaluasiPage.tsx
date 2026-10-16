@@ -110,14 +110,22 @@ export default function EvaluasiPage() {
           .from("master_evaluations")
           .select("*, question_bank(count)")
           .order("grade_level", { ascending: true })
-          .order("type", { ascending: false }),
+          .order("type", { ascending: false })
+          .order("created_at", { ascending: true }),
         supabase
           .from("student_evaluation_scores")
           .select("evaluation_id, score"),
       ]);
 
       if (evalRes.error) throw evalRes.error;
-      setEvaluations(evalRes.data || []);
+      const evalList = evalRes.data || [];
+      setEvaluations(evalList);
+
+      // Sinkronkan activeEval jika sedang membuka bank soal
+      if (activeEval?.id) {
+        const updatedActive = evalList.find((item) => item.id === activeEval.id);
+        if (updatedActive) setActiveEval(updatedActive);
+      }
 
       const statMap: Record<string, { sum: number; count: number }> = {};
       (scoreRes.data || []).forEach((s: any) => {
@@ -137,7 +145,9 @@ export default function EvaluasiPage() {
       });
       setSubmissionStats(finalStats);
     } catch (error: any) {
-      toast.error("Gagal menarik data evaluasi");
+      toast.error(
+        "Gagal menarik data evaluasi: " + (error?.message || "Periksa koneksi")
+      );
     } finally {
       setIsLoading(false);
     }
@@ -148,17 +158,21 @@ export default function EvaluasiPage() {
   }, []);
 
   const fetchQuestions = async (evalId: string) => {
+    if (!evalId) return;
     setIsLoadingQuestions(true);
     try {
       const { data, error } = await supabase
         .from("question_bank")
         .select("*")
         .eq("evaluation_id", evalId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true });
       if (error) throw error;
       setQuestions(data || []);
     } catch (error: any) {
-      toast.error("Gagal menarik daftar soal");
+      toast.error(
+        "Gagal menarik daftar soal: " + (error?.message || "Periksa koneksi")
+      );
     } finally {
       setIsLoadingQuestions(false);
     }
@@ -183,8 +197,8 @@ export default function EvaluasiPage() {
   const openCreateEvalModal = () => {
     setEditingEvalId(null);
     setEvalFormData({
-      grade_level: selectedGrade === "all" ? 10 : selectedGrade,
-      type: "pretest",
+      grade_level: selectedGrade === "all" ? 10 : Number(selectedGrade),
+      type: selectedType === "all" ? "pretest" : selectedType,
       title: "",
     });
     setIsEvalModalOpen(true);
@@ -195,7 +209,12 @@ export default function EvaluasiPage() {
     setEditingEvalId(ev.id);
     setEvalFormData({
       grade_level: Number(ev.grade_level) || 10,
-      type: ev.type || "pretest",
+      type:
+        String(ev.type || "pretest")
+          .trim()
+          .toLowerCase() === "posttest"
+          ? "posttest"
+          : "pretest",
       title: ev.title || "",
     });
     setIsEvalModalOpen(true);
@@ -208,29 +227,78 @@ export default function EvaluasiPage() {
     }
     setIsSubmittingEval(true);
     try {
+      const normalizedType =
+        String(evalFormData.type || "pretest")
+          .trim()
+          .toLowerCase() === "posttest"
+          ? "posttest"
+          : "pretest";
+
       const payload = {
         grade_level: Number(evalFormData.grade_level),
-        type: evalFormData.type,
+        type: normalizedType,
         title: evalFormData.title.trim(),
       };
+
       if (editingEvalId) {
-        const { error } = await supabase
+        // 1. Update berdasarkan ID dengan verifikasi .select()
+        let { data, error } = await supabase
           .from("master_evaluations")
           .update(payload)
-          .eq("id", editingEvalId);
+          .eq("id", editingEvalId)
+          .select("*, question_bank(count)");
+
         if (error) throw error;
+
+        // 2. Fallback Upsert jika baris tidak ter-update
+        if (!data || data.length === 0) {
+          const upsertRes = await supabase
+            .from("master_evaluations")
+            .upsert([{ id: editingEvalId, ...payload }], { onConflict: "id" })
+            .select("*, question_bank(count)");
+
+          if (upsertRes.error) throw upsertRes.error;
+          if (!upsertRes.data || upsertRes.data.length === 0) {
+            throw new Error(
+              "Perubahan diblokir oleh Row Level Security (RLS) Supabase pada tabel master_evaluations. Jalankan SQL Policy di Supabase."
+            );
+          }
+          data = upsertRes.data;
+        }
+
+        const updatedRow = data[0];
+        setEvaluations((prev) =>
+          prev.map((item) => (item.id === editingEvalId ? updatedRow : item))
+        );
+        if (activeEval?.id === editingEvalId) {
+          setActiveEval(updatedRow);
+        }
+
         toast.success("Program evaluasi berhasil diperbarui!");
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("master_evaluations")
-          .insert([payload]);
+          .insert([payload])
+          .select("*, question_bank(count)");
+
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error(
+            "Penambahan paket evaluasi diblokir oleh RLS Supabase."
+          );
+        }
+
+        setEvaluations((prev) => [...prev, data[0]]);
         toast.success("Program evaluasi baru berhasil dibuat!");
       }
+
       setIsEvalModalOpen(false);
-      fetchEvaluations();
+      await fetchEvaluations();
     } catch (err: any) {
-      toast.error("Gagal menyimpan program evaluasi");
+      toast.error(
+        "Gagal menyimpan program evaluasi: " +
+          (err?.message || "Periksa kebijakan RLS database")
+      );
     } finally {
       setIsSubmittingEval(false);
     }
@@ -243,19 +311,62 @@ export default function EvaluasiPage() {
       action: {
         label: "Hapus",
         onClick: async () => {
-          await supabase
-            .from("question_bank")
-            .delete()
-            .eq("evaluation_id", ev.id);
-          const { error } = await supabase
-            .from("master_evaluations")
-            .delete()
-            .eq("id", ev.id);
-          if (error) {
-            toast.error("Gagal menghapus paket evaluasi");
-          } else {
-            toast.success("Paket evaluasi dihapus");
+          try {
+            // 1. Ambil semua question_id & student_evaluation_scores terkait agar tidak terblokir Foreign Key
+            const [qRes, scoreRes] = await Promise.all([
+              supabase
+                .from("question_bank")
+                .select("id")
+                .eq("evaluation_id", ev.id),
+              supabase
+                .from("student_evaluation_scores")
+                .select("id")
+                .eq("evaluation_id", ev.id),
+            ]);
+
+            const qIds = (qRes.data || []).map((q: any) => q.id);
+            const scoreIds = (scoreRes.data || []).map((s: any) => s.id);
+
+            // 2. Bersihkan referensi di student_answers terlebih dahulu
+            if (qIds.length > 0) {
+              await supabase
+                .from("student_answers")
+                .delete()
+                .in("question_id", qIds);
+            }
+            if (scoreIds.length > 0) {
+              await supabase
+                .from("student_answers")
+                .delete()
+                .in("student_evaluation_id", scoreIds);
+              await supabase
+                .from("student_evaluation_scores")
+                .delete()
+                .in("id", scoreIds);
+            }
+
+            // 3. Hapus seluruh butir soal di question_bank
+            const { error: qDelErr } = await supabase
+              .from("question_bank")
+              .delete()
+              .eq("evaluation_id", ev.id);
+            if (qDelErr) throw qDelErr;
+
+            // 4. Hapus paket evaluasi di master_evaluations
+            const { error } = await supabase
+              .from("master_evaluations")
+              .delete()
+              .eq("id", ev.id);
+
+            if (error) throw error;
+
+            setEvaluations((prev) => prev.filter((item) => item.id !== ev.id));
+            toast.success("Paket evaluasi berhasil dihapus");
             fetchEvaluations();
+          } catch (err: any) {
+            toast.error(
+              "Gagal menghapus paket evaluasi: " + (err?.message || "")
+            );
           }
         },
       },
@@ -289,48 +400,130 @@ export default function EvaluasiPage() {
   };
 
   const openEditQuestionModal = (q: any) => {
+    const cleanAns = String(q.correct_answer || "A")
+      .trim()
+      .toUpperCase();
     setEditingQuestionId(q.id);
     setFormData({
-      learning_objective_code: q.learning_objective_code || "X-1",
+      learning_objective_code:
+        String(q.learning_objective_code || "").trim() ||
+        getDefaultTpCode(Number(activeEval?.grade_level || 10)),
       question_text: q.question_text || "",
       option_a: q.option_a || "",
       option_b: q.option_b || "",
       option_c: q.option_c || "",
       option_d: q.option_d || "",
-      correct_answer: q.correct_answer || "A",
+      correct_answer: ["A", "B", "C", "D"].includes(cleanAns) ? cleanAns : "A",
     });
     setIsQuestionModalOpen(true);
   };
 
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeEval?.id) {
+      return toast.error("Paket evaluasi tidak ditemukan.");
+    }
+    if (!formData.question_text.trim()) {
+      return toast.error("Rumusan pertanyaan wajib diisi.");
+    }
+
     setIsSubmittingQuestion(true);
     try {
+      const cleanAnswer = String(formData.correct_answer || "A")
+        .trim()
+        .toUpperCase();
+      const validAnswer = ["A", "B", "C", "D"].includes(cleanAnswer)
+        ? cleanAnswer
+        : "A";
+
       const payload = {
-        ...formData,
-        learning_objective_code: formData.learning_objective_code
-          .trim()
-          .toUpperCase(),
         evaluation_id: activeEval.id,
+        learning_objective_code:
+          String(formData.learning_objective_code || "")
+            .trim()
+            .toUpperCase() ||
+          getDefaultTpCode(Number(activeEval?.grade_level || 10)),
+        question_text: formData.question_text.trim(),
+        option_a: formData.option_a.trim() || "Isi manual",
+        option_b: formData.option_b.trim() || "Isi manual",
+        option_c: formData.option_c.trim() || "Isi manual",
+        option_d: formData.option_d.trim() || "Isi manual",
+        correct_answer: validAnswer,
       };
+
       if (editingQuestionId) {
-        const { error } = await supabase
+        // 1. Update butir soal dengan verifikasi .select()
+        let { data, error } = await supabase
           .from("question_bank")
           .update(payload)
-          .eq("id", editingQuestionId);
+          .eq("id", editingQuestionId)
+          .select();
+
         if (error) throw error;
+
+        // 2. Fallback Upsert jika update terhalang atau 0 baris kembali
+        if (!data || data.length === 0) {
+          const upsertRes = await supabase
+            .from("question_bank")
+            .upsert([{ id: editingQuestionId, ...payload }], {
+              onConflict: "id",
+            })
+            .select();
+
+          if (upsertRes.error) throw upsertRes.error;
+          if (!upsertRes.data || upsertRes.data.length === 0) {
+            throw new Error(
+              "Perubahan soal diblokir oleh Row Level Security (RLS) Supabase pada tabel question_bank."
+            );
+          }
+          data = upsertRes.data;
+        }
+
+        const updatedQ = data[0];
+        // Perbarui state lokal secara langsung agar tampilan kartu soal langsung berubah
+        setQuestions((prev) =>
+          prev.map((q) => (q.id === editingQuestionId ? updatedQ : q))
+        );
+
+        // Jika kunci jawaban berubah, sinkronkan status is_correct pada jawaban siswa yang sudah masuk
+        await supabase
+          .from("student_answers")
+          .update({ is_correct: true })
+          .eq("question_id", editingQuestionId)
+          .eq("selected_option", validAnswer);
+
+        await supabase
+          .from("student_answers")
+          .update({ is_correct: false })
+          .eq("question_id", editingQuestionId)
+          .neq("selected_option", validAnswer);
+
         toast.success("Butir soal berhasil diperbarui!");
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("question_bank")
-          .insert([payload]);
+          .insert([payload])
+          .select();
+
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error(
+            "Penambahan soal diblokir oleh Row Level Security (RLS) Supabase."
+          );
+        }
+
+        setQuestions((prev) => [...prev, data[0]]);
         toast.success("Butir soal baru berhasil ditambahkan!");
       }
-      fetchQuestions(activeEval.id);
+
       setIsQuestionModalOpen(false);
+      await fetchQuestions(activeEval.id);
+      fetchEvaluations();
     } catch (err: any) {
-      toast.error("Gagal menyimpan soal");
+      toast.error(
+        "Gagal menyimpan soal: " +
+          (err?.message || "Periksa koneksi atau izin RLS database")
+      );
     } finally {
       setIsSubmittingQuestion(false);
     }
@@ -342,9 +535,27 @@ export default function EvaluasiPage() {
       action: {
         label: "Hapus",
         onClick: async () => {
-          await supabase.from("question_bank").delete().eq("id", id);
-          toast.success("Soal berhasil dihapus");
-          fetchQuestions(activeEval.id);
+          try {
+            // Hapus terlebih dahulu histori jawaban siswa pada butir soal ini agar tidak terkena Foreign Key Constraint
+            await supabase
+              .from("student_answers")
+              .delete()
+              .eq("question_id", id);
+
+            const { error } = await supabase
+              .from("question_bank")
+              .delete()
+              .eq("id", id);
+
+            if (error) throw error;
+
+            setQuestions((prev) => prev.filter((q) => q.id !== id));
+            toast.success("Soal berhasil dihapus");
+            await fetchQuestions(activeEval.id);
+            fetchEvaluations();
+          } catch (err: any) {
+            toast.error("Gagal menghapus soal: " + (err?.message || ""));
+          }
         },
       },
       cancel: { label: "Batal" },
@@ -357,8 +568,11 @@ export default function EvaluasiPage() {
   const filteredEvaluations = useMemo(() => {
     return evaluations.filter((ev) => {
       const matchGrade =
-        selectedGrade === "all" || Number(ev.grade_level) === selectedGrade;
-      const matchType = selectedType === "all" || ev.type === selectedType;
+        selectedGrade === "all" ||
+        Number(ev.grade_level) === Number(selectedGrade);
+      const matchType =
+        selectedType === "all" ||
+        String(ev.type || "").toLowerCase() === selectedType;
       return matchGrade && matchType;
     });
   }, [evaluations, selectedGrade, selectedType]);
@@ -384,7 +598,9 @@ export default function EvaluasiPage() {
         String(item.question_text || "").toLowerCase().includes(q) ||
         String(item.learning_objective_code || "").toLowerCase().includes(q) ||
         String(item.option_a || "").toLowerCase().includes(q) ||
-        String(item.option_b || "").toLowerCase().includes(q)
+        String(item.option_b || "").toLowerCase().includes(q) ||
+        String(item.option_c || "").toLowerCase().includes(q) ||
+        String(item.option_d || "").toLowerCase().includes(q)
       );
     });
   }, [questions, selectedTpFilter, questionSearch]);
@@ -432,7 +648,7 @@ export default function EvaluasiPage() {
     [evaluations]
   );
 
-  // Target ideal: 30 soal per paket evaluasi
+  // Target ideal: 25 soal per paket evaluasi
   const bankReadinessPct = useMemo(() => {
     if (evaluations.length === 0) return 0;
     const idealTotal = evaluations.length * 25;
@@ -460,7 +676,7 @@ export default function EvaluasiPage() {
           `"${String(q.option_b || "").replace(/"/g, '""')}"`,
           `"${String(q.option_c || "").replace(/"/g, '""')}"`,
           `"${String(q.option_d || "").replace(/"/g, '""')}"`,
-          `"${q.correct_answer || "A"}"`,
+          `"${String(q.correct_answer || "A").trim()}"`,
         ]),
       ];
       const csvContent =
@@ -570,7 +786,7 @@ export default function EvaluasiPage() {
 
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-3 opacity-50">
               <Database size={16} /> Bank Soal Kelas {activeEval.grade_level} •{" "}
-              {activeEval.type.toUpperCase()}
+              {String(activeEval.type || "").toUpperCase()}
             </div>
 
             <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-tight">
@@ -709,128 +925,134 @@ export default function EvaluasiPage() {
               </p>
             </div>
           ) : (
-            filteredQuestions.map((q, index) => (
-              <div
-                key={q.id}
-                className="p-8 rounded-[2.5rem] border flex flex-col justify-between gap-6 transition-transform hover:-translate-y-0.5 relative overflow-hidden group shadow-sm"
-                style={{
-                  backgroundColor: isDark ? "#111111" : "#ffffff",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.05)",
-                }}
-              >
+            filteredQuestions.map((q, index) => {
+              const normalizedCorrect = String(q.correct_answer || "A")
+                .trim()
+                .toUpperCase();
+
+              return (
                 <div
-                  className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
+                  key={q.id}
+                  className="p-8 rounded-[2.5rem] border flex flex-col justify-between gap-6 transition-transform hover:-translate-y-0.5 relative overflow-hidden group shadow-sm"
                   style={{
-                    backgroundImage:
-                      "radial-gradient(currentColor 2px, transparent 2px)",
-                    backgroundSize: "24px 24px",
-                  }}
-                />
-
-                <div className="relative z-10">
-                  <div className="flex justify-between items-center mb-5">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="w-9 h-9 rounded-2xl text-xs font-bold flex items-center justify-center"
-                        style={{
-                          backgroundColor: "var(--ref-dark-panel)",
-                          color: "#facc15",
-                        }}
-                      >
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span className="text-xs font-bold uppercase tracking-widest opacity-60">
-                        Kode TP: {q.learning_objective_code || "UMUM"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openEditQuestionModal(q)}
-                        className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: isDark
-                            ? "rgba(255,255,255,0.06)"
-                            : "rgba(0,0,0,0.05)",
-                        }}
-                        title="Edit Soal"
-                      >
-                        <Edit3 size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteQuestion(q.id)}
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/15 transition-colors cursor-pointer"
-                        title="Hapus Soal"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-lg font-medium leading-relaxed mb-6">
-                    {q.question_text}
-                  </p>
-
-                  {/* 4 Opsi Jawaban A, B, C, D */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {["A", "B", "C", "D"].map((optKey) => {
-                      const isCorrect =
-                        String(q.correct_answer || "A").toUpperCase() ===
-                        optKey;
-                      const optVal =
-                        q[`option_${optKey.toLowerCase()}`] || "—";
-                      return (
-                        <div
-                          key={optKey}
-                          className="p-3.5 rounded-2xl text-xs flex items-start gap-2.5 border"
-                          style={{
-                            backgroundColor: isCorrect
-                              ? "rgba(16, 185, 129, 0.12)"
-                              : isDark
-                              ? "rgba(255,255,255,0.03)"
-                              : "rgba(0,0,0,0.02)",
-                            borderColor: isCorrect
-                              ? "rgba(16, 185, 129, 0.4)"
-                              : isDark
-                              ? "rgba(255,255,255,0.06)"
-                              : "rgba(0,0,0,0.06)",
-                          }}
-                        >
-                          <span
-                            className={`font-extrabold shrink-0 ${
-                              isCorrect ? "text-emerald-500" : "opacity-60"
-                            }`}
-                          >
-                            {optKey}.
-                          </span>
-                          <span className="font-medium leading-relaxed break-words">
-                            {optVal}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div
-                  className="relative z-10 pt-4 border-t flex items-center justify-between text-xs font-bold uppercase tracking-widest"
-                  style={{
+                    backgroundColor: isDark ? "#111111" : "#ffffff",
                     borderColor: isDark
                       ? "rgba(255,255,255,0.08)"
-                      : "rgba(0,0,0,0.08)",
+                      : "rgba(0,0,0,0.05)",
                   }}
                 >
-                  <span className="opacity-50">Kunci Jawaban Terverifikasi</span>
-                  <span className="text-emerald-500 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} /> Opsi {q.correct_answer}
-                  </span>
+                  <div
+                    className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
+                    style={{
+                      backgroundImage:
+                        "radial-gradient(currentColor 2px, transparent 2px)",
+                      backgroundSize: "24px 24px",
+                    }}
+                  />
+
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-center mb-5">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-9 h-9 rounded-2xl text-xs font-bold flex items-center justify-center"
+                          style={{
+                            backgroundColor: "var(--ref-dark-panel)",
+                            color: "#facc15",
+                          }}
+                        >
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className="text-xs font-bold uppercase tracking-widest opacity-60">
+                          Kode TP: {q.learning_objective_code || "UMUM"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditQuestionModal(q)}
+                          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer"
+                          style={{
+                            backgroundColor: isDark
+                              ? "rgba(255,255,255,0.06)"
+                              : "rgba(0,0,0,0.05)",
+                          }}
+                          title="Edit Soal"
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/15 transition-colors cursor-pointer"
+                          title="Hapus Soal"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-lg font-medium leading-relaxed mb-6">
+                      {q.question_text}
+                    </p>
+
+                    {/* 4 Opsi Jawaban A, B, C, D */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {["A", "B", "C", "D"].map((optKey) => {
+                        const isCorrect = normalizedCorrect === optKey;
+                        const optVal =
+                          q[`option_${optKey.toLowerCase()}`] || "—";
+                        return (
+                          <div
+                            key={optKey}
+                            className="p-3.5 rounded-2xl text-xs flex items-start gap-2.5 border"
+                            style={{
+                              backgroundColor: isCorrect
+                                ? "rgba(16, 185, 129, 0.12)"
+                                : isDark
+                                ? "rgba(255,255,255,0.03)"
+                                : "rgba(0,0,0,0.02)",
+                              borderColor: isCorrect
+                                ? "rgba(16, 185, 129, 0.4)"
+                                : isDark
+                                ? "rgba(255,255,255,0.06)"
+                                : "rgba(0,0,0,0.06)",
+                            }}
+                          >
+                            <span
+                              className={`font-extrabold shrink-0 ${
+                                isCorrect ? "text-emerald-500" : "opacity-60"
+                              }`}
+                            >
+                              {optKey}.
+                            </span>
+                            <span className="font-medium leading-relaxed break-words">
+                              {optVal}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div
+                    className="relative z-10 pt-4 border-t flex items-center justify-between text-xs font-bold uppercase tracking-widest"
+                    style={{
+                      borderColor: isDark
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    <span className="opacity-50">
+                      Kunci Jawaban Terverifikasi
+                    </span>
+                    <span className="text-emerald-500 flex items-center gap-1.5">
+                      <CheckCircle2 size={14} /> Opsi {normalizedCorrect}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -878,8 +1100,9 @@ export default function EvaluasiPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       {tpSuggestions.map((code) => {
                         const active =
-                          formData.learning_objective_code.toUpperCase() ===
-                          code;
+                          formData.learning_objective_code
+                            .trim()
+                            .toUpperCase() === code;
                         return (
                           <button
                             key={code}
@@ -996,7 +1219,10 @@ export default function EvaluasiPage() {
                       }}
                     >
                       {["A", "B", "C", "D"].map((ans) => {
-                        const active = formData.correct_answer === ans;
+                        const active =
+                          String(formData.correct_answer || "A")
+                            .trim()
+                            .toUpperCase() === ans;
                         return (
                           <button
                             key={ans}
@@ -1734,7 +1960,7 @@ export default function EvaluasiPage() {
 
                 <div className="flex justify-between items-start relative z-10">
                   <span className="text-xs font-bold tracking-widest uppercase opacity-65">
-                    Kelas {ev.grade_level} • {ev.type.toUpperCase()}
+                    Kelas {ev.grade_level} • {String(ev.type || "").toUpperCase()}
                   </span>
 
                   <div className="flex items-center gap-1.5">
