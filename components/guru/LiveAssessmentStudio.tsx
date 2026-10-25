@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type PosType =
@@ -49,6 +49,7 @@ interface StudentRow {
     full_name: string;
     email: string;
     gender: string;
+    hasCompletedPreTest: boolean;
     metrics?: any;
 }
 
@@ -140,16 +141,13 @@ export default function LiveAssessmentStudio() {
         null
     );
 
-    // Modal Proteksi Salah Klik / Remedial
     const [remedialModalStudent, setRemedialModalStudent] =
         useState<StudentRow | null>(null);
 
-    // Timer 60 Detik untuk Sit-Up / Pull-Up
     const [countdown, setCountdown] = useState<number>(60);
     const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Master Stopwatch Lari Guru
     const [runElapsedMs, setRunElapsedMs] = useState<number>(0);
     const [runStartedAtIso, setRunStartedAtIso] = useState<string | null>(null);
     const runTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -163,7 +161,6 @@ export default function LiveAssessmentStudio() {
             document.removeEventListener("fullscreenchange", onFsChange);
     }, []);
 
-    // Tutup dropdown kelas otomatis jika klik di luar area dropdown
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
             if (
@@ -190,7 +187,6 @@ export default function LiveAssessmentStudio() {
         } catch (_) {}
     };
 
-    // Tarik daftar kelas yang diampu Guru (Prioritaskan Kelas 12 di urutan teratas)
     useEffect(() => {
         async function fetchTeacherClasses() {
             setIsLoading(true);
@@ -253,7 +249,6 @@ export default function LiveAssessmentStudio() {
         };
     }, [command, runStartedAtIso, isRunPos]);
 
-    // Realtime Subscription Ganda: Database + Sinyal Angkat Tangan + Notifikasi Otomatis Siswa Finis Lari
     useEffect(() => {
         if (!selectedClass?.id) return;
         loadStudioData(selectedClass.id, true);
@@ -306,7 +301,7 @@ export default function LiveAssessmentStudio() {
                             prev.includes(sId) ? prev : [...prev, sId]
                         );
                         toast.success(
-                            `✋ ${sName} sudah angkat tangan & siap di garis start!`
+                            `${sName} sudah angkat tangan dan siap di garis start.`
                         );
                     }
                 }
@@ -334,7 +329,7 @@ export default function LiveAssessmentStudio() {
                         } selesai ${posName} dengan waktu ${
                             info.time_label
                         } (Skor ${info.score}/5)`;
-                        toast.success(`🏁 FINIS OTOMATIS: ${msg}`, {
+                        toast.success(`FINIS OTOMATIS: ${msg}`, {
                             duration: 6000,
                         });
                         setLiveFinishFeed((prev) => [
@@ -466,17 +461,55 @@ export default function LiveAssessmentStudio() {
                 return;
             }
 
-            const [profRes, metRes] = await Promise.all([
-                supabase
-                    .from("user_profiles")
-                    .select("id, full_name, email, gender")
-                    .in("id", studentIds),
-                supabase
-                    .from("student_physical_metrics")
-                    .select("*")
-                    .in("student_id", studentIds)
-                    .order("created_at", { ascending: false }),
-            ]);
+            const [profRes, metRes, evalScoreRes, masterEvalRes] =
+                await Promise.all([
+                    supabase
+                        .from("user_profiles")
+                        .select("id, full_name, email, gender")
+                        .in("id", studentIds),
+                    supabase
+                        .from("student_physical_metrics")
+                        .select("*")
+                        .in("student_id", studentIds)
+                        .order("created_at", { ascending: false }),
+                    supabase
+                        .from("student_evaluation_scores")
+                        .select(
+                            "student_id, evaluation_id, score, status, master_evaluations(type, title)"
+                        )
+                        .in("student_id", studentIds),
+                    supabase
+                        .from("master_evaluations")
+                        .select("id, type, title"),
+                ]);
+
+            const preEvalIdSet = new Set<string>();
+            (masterEvalRes.data || []).forEach((ev: any) => {
+                const t = String(ev.type || "").trim().toLowerCase();
+                const ttl = String(ev.title || "").trim().toLowerCase();
+                if (t.includes("pre") || ttl.includes("pre")) {
+                    preEvalIdSet.add(ev.id);
+                }
+            });
+
+            // Kumpulkan ID siswa yang sudah menyelesaikan Tahap 01 (Pre-Test)
+            const preTestDoneStudentIds = new Set<string>();
+            (evalScoreRes.data || []).forEach((row: any) => {
+                const evType = String(row.master_evaluations?.type || "")
+                    .trim()
+                    .toLowerCase();
+                const evTitle = String(row.master_evaluations?.title || "")
+                    .trim()
+                    .toLowerCase();
+                const isPre =
+                    preEvalIdSet.has(row.evaluation_id) ||
+                    evType.includes("pre") ||
+                    evTitle.includes("pre");
+
+                if (isPre && row.score !== null && row.score !== undefined) {
+                    preTestDoneStudentIds.add(row.student_id);
+                }
+            });
 
             const latestMetrics: Record<string, any> = {};
             const detectedReadyIds: string[] = [];
@@ -521,6 +554,7 @@ export default function LiveAssessmentStudio() {
                         gender: (p.gender || m?.gender || "L")
                             .toString()
                             .toUpperCase(),
+                        hasCompletedPreTest: preTestDoneStudentIds.has(p.id),
                         metrics: m,
                     };
                 }
@@ -624,6 +658,14 @@ export default function LiveAssessmentStudio() {
             return;
         }
 
+        // Sesuai Alur Kelas 12: Siswa wajib menyelesaikan Tahap 01 (Pre-Test) sebelum mengikuti ujian fisik TKJI (Tahap 02)
+        if (!st.hasCompletedPreTest) {
+            toast.error(
+                `${st.full_name} belum menyelesaikan Tahap 01 (Evaluasi Awal / Pre-Test). Siswa wajib menyelesaikan Pre-Test sebelum mengikuti ujian fisik TKJI.`
+            );
+            return;
+        }
+
         if (
             isPosDone(st.metrics, activePos) ||
             isStudentAllComplete(st.metrics)
@@ -723,6 +765,7 @@ export default function LiveAssessmentStudio() {
     function callNextWaveOfFive() {
         const unfinishedOnCurrentPos = students.filter(
             (st: StudentRow) =>
+                st.hasCompletedPreTest &&
                 !isPosDone(st.metrics, activePos) &&
                 st.metrics?.field_status !== "MEDIS_TUNDA"
         );
@@ -731,8 +774,8 @@ export default function LiveAssessmentStudio() {
             .slice(0, 5)
             .map((s: StudentRow) => s.student_id);
         if (nextFiveIds.length === 0) {
-            toast.success(
-                `Seluruh siswa aktif di kelas ini sudah dinilai pada ${activePos}!`
+            toast.warning(
+                `Tidak ada siswa di antrean yang sudah menyelesaikan Pre-Test untuk dinilai pada ${activePos}!`
             );
             return;
         }
@@ -742,7 +785,7 @@ export default function LiveAssessmentStudio() {
             activePos,
             "READY",
             nextFiveIds,
-            `Undangan sistem dikirim ke ${nextFiveIds.length} siswa! Menunggu konfirmasi angkat tangan.`
+            `Undangan sistem dikirim ke ${nextFiveIds.length} siswa yang telah tuntas Pre-Test!`
         );
     }
 
@@ -750,13 +793,16 @@ export default function LiveAssessmentStudio() {
         const unfinishedIds = students
             .filter(
                 (st: StudentRow) =>
+                    st.hasCompletedPreTest &&
                     !isPosDone(st.metrics, activePos) &&
                     st.metrics?.field_status !== "MEDIS_TUNDA"
             )
             .map((s) => s.student_id);
 
         if (unfinishedIds.length === 0) {
-            toast.success(`Seluruh siswa sudah selesai pada ${activePos}!`);
+            toast.warning(
+                `Tidak ada siswa yang memenuhi syarat (Selesai Pre-Test) untuk dipanggil pada ${activePos}!`
+            );
             return;
         }
 
@@ -765,7 +811,7 @@ export default function LiveAssessmentStudio() {
             activePos,
             "READY",
             unfinishedIds,
-            `Memanggil ${unfinishedIds.length} siswa yang belum dinilai pada ${activePos}!`
+            `Memanggil ${unfinishedIds.length} siswa yang siap diuji pada ${activePos}!`
         );
     }
 
@@ -792,9 +838,10 @@ export default function LiveAssessmentStudio() {
         if (weight > 0 && height > 0) {
             const hm = height / 100.0;
             bmi = parseFloat((weight / (hm * hm)).toFixed(2));
-            if (bmi < 17.0) bmiCategory = "Kurus";
-            else if (bmi <= 24.4) bmiCategory = "Normal";
-            else if (bmi <= 28.8) bmiCategory = "Overweight";
+            if (bmi < 17.0) bmiCategory = "Sangat Kurus";
+            else if (bmi < 18.5) bmiCategory = "Kurus";
+            else if (bmi <= 24.9) bmiCategory = "Normal";
+            else if (bmi <= 29.9) bmiCategory = "Overweight";
             else bmiCategory = "Obesitas";
         }
 
@@ -1049,7 +1096,11 @@ export default function LiveAssessmentStudio() {
             endurance_run_score: calc.s5 || null,
             total_tkji_score: calc.totalTkji,
             tkji_category: calc.tkjiCategory,
-            field_status: st.metrics?.is_remedial ? "REMEDIAL" : "NORMAL",
+            field_status: calc.allSixComplete
+                ? "NORMAL"
+                : st.metrics?.is_remedial
+                ? "REMEDIAL"
+                : "NORMAL",
         };
 
         const { error } = st.metrics?.id
@@ -1082,9 +1133,9 @@ export default function LiveAssessmentStudio() {
 
             if (calc.allSixComplete) {
                 const statusLabel = st.metrics?.is_remedial
-                    ? `REMEDIAL #${st.metrics?.attempt_count || 2} (Skor Awal: ${
-                          st.metrics?.original_tkji_score ?? "-"
-                      })`
+                    ? `REMEDIAL #${
+                          st.metrics?.attempt_count || 2
+                      } (Skor Awal: ${st.metrics?.original_tkji_score ?? "-"})`
                     : "MURNI • ASLI";
                 const msg = `Seluruh 6 Pos ${st.full_name} Selesai! Total TKJI: ${calc.totalTkji}/25 [${calc.tkjiCategory} • ${statusLabel}] & IMT: ${calc.bmi} (${calc.bmiCategory}) telah tampil di HP siswa!`;
                 setCelebrationBanner(msg);
@@ -1170,7 +1221,6 @@ export default function LiveAssessmentStudio() {
         toast.success("Rekap pengukuran TKJI & IMT berhasil diunduh!");
     };
 
-    // Kalkulasi Statistik Telemetri Kelas untuk Bar Atas (DNA Masterpiece)
     const classAvgTkji = useMemo(() => {
         const scored = students.filter(
             (s) => (Number(s.metrics?.total_tkji_score) || 0) > 0
@@ -1219,9 +1269,6 @@ export default function LiveAssessmentStudio() {
 
     const bentoColors = ["#fef08a", "#bbf7d0", "#fed7aa", "#bae6fd"];
 
-    // ==========================================================================
-    // RENDERER BARIS SISWA DENGAN PSIKOLOGI WARNA TOMBOL YANG BENAR
-    // ==========================================================================
     const renderStudentRow = (
         st: StudentRow,
         idx: number,
@@ -1257,16 +1304,26 @@ export default function LiveAssessmentStudio() {
                         <button
                             type="button"
                             onClick={() => handleRequestToggleWave(st)}
-                            className="px-5 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 border transition-all shrink-0 w-fit cursor-pointer hover:scale-[1.02]"
+                            className={`px-5 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 border transition-all shrink-0 w-fit cursor-pointer ${
+                                !st.hasCompletedPreTest
+                                    ? "opacity-50"
+                                    : "hover:scale-[1.02]"
+                            }`}
                             style={{
-                                backgroundColor: isCalled
+                                backgroundColor: !st.hasCompletedPreTest
+                                    ? "transparent"
+                                    : isCalled
                                     ? "rgba(239, 68, 68, 0.12)"
                                     : allComplete
                                     ? "transparent"
                                     : isDark
                                     ? "#1e2028"
                                     : "#18181b",
-                                color: isCalled
+                                color: !st.hasCompletedPreTest
+                                    ? isDark
+                                        ? "#94a3b8"
+                                        : "#71717a"
+                                    : isCalled
                                     ? "#ef4444"
                                     : allComplete
                                     ? isDark
@@ -1280,12 +1337,20 @@ export default function LiveAssessmentStudio() {
                                     : "rgba(0,0,0,0.12)",
                             }}
                         >
-                            <UserCheck size={15} />
-                            {isCalled
-                                ? "Keluarkan"
-                                : allComplete
-                                ? "Uji Remedial?"
-                                : `Panggil #${idx + 1}`}
+                            {!st.hasCompletedPreTest ? (
+                                <>
+                                    <Lock size={14} /> Belum Pre-Test
+                                </>
+                            ) : (
+                                <>
+                                    <UserCheck size={15} />
+                                    {isCalled
+                                        ? "Keluarkan"
+                                        : allComplete
+                                        ? "Uji Remedial?"
+                                        : `Panggil #${idx + 1}`}
+                                </>
+                            )}
                         </button>
 
                         <div className="space-y-2">
@@ -1620,12 +1685,9 @@ export default function LiveAssessmentStudio() {
 
     return (
         <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            {/* ====================================================================
-                ZONA 1: ARCHITECTURAL HERO HEADER, TOP UTILITY BAR, & 3 GIANT NAKED NUMBERS
-               ==================================================================== */}
+            {/* ZONA 1: ARCHITECTURAL HERO HEADER, TOP UTILITY BAR, & 3 GIANT NAKED NUMBERS */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-30">
                 <div className="max-w-3xl">
-                    {/* Top Utility Controls */}
                     <div className="flex flex-wrap items-center gap-2.5 mb-6">
                         <button
                             type="button"
@@ -1747,7 +1809,6 @@ export default function LiveAssessmentStudio() {
                     </h1>
                 </div>
 
-                {/* 3 ANGKA RAKSASA TERBUKA (DNA THE PEAK MASTERPIECE ADMINISTRATOR) */}
                 <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
                     <div>
                         <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
@@ -1776,11 +1837,8 @@ export default function LiveAssessmentStudio() {
                 </div>
             </div>
 
-            {/* ====================================================================
-                ZONA 2: 4 BAR TELEMETRI LAPANGAN (MURNI STRIPED TRACK TANPA PILL BORDER!)
-               ==================================================================== */}
+            {/* ZONA 2: 4 BAR TELEMETRI LAPANGAN */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-20">
-                {/* Bar 1: Status Komando Sesi */}
                 <div className="lg:col-span-3 space-y-2">
                     <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
                         <span>Status Sesi</span>
@@ -1802,7 +1860,6 @@ export default function LiveAssessmentStudio() {
                     </div>
                 </div>
 
-                {/* Bar 2: Konfirmasi Angkat Tangan Siswa (#facc15 Tajam) */}
                 <div className="lg:col-span-3 space-y-2">
                     <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
                         <span>Kesiapan Gelombang</span>
@@ -1824,7 +1881,6 @@ export default function LiveAssessmentStudio() {
                     </div>
                 </div>
 
-                {/* Bar 3: Striped Track Murni (TANPA PILL BORDER ANGKA!) */}
                 <div className="sm:col-span-2 lg:col-span-4 space-y-2">
                     <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
                         <span>Ketuntasan {activePos}</span>
@@ -1857,7 +1913,6 @@ export default function LiveAssessmentStudio() {
                     </div>
                 </div>
 
-                {/* Bar 4: Rata-rata Skor TKJI Kelas */}
                 <div className="sm:col-span-2 lg:col-span-2 space-y-2">
                     <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
                         <span>Rata-rata TKJI</span>
@@ -1932,11 +1987,8 @@ export default function LiveAssessmentStudio() {
                 )}
             </AnimatePresence>
 
-            {/* ====================================================================
-                ZONA 3: TRIO KARTU BENTO LEBAR (3 KOLOM x col-span-4 • min-h-[400px])
-               ==================================================================== */}
+            {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-                {/* BENTO 1 (PATTERN POLKADOT + DROPDOWN z-30 ANTI TEMBUS) */}
                 <div
                     className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[400px] border group"
                     style={{
@@ -1955,14 +2007,13 @@ export default function LiveAssessmentStudio() {
                         }}
                     />
 
-                    {/* Z-30 AGAR DROPDOWN SELALU DI ATAS TOMBOL BAWAH */}
                     <div className="relative z-30">
                         <h2 className="text-3xl font-light tracking-tight mb-2">
                             Manajemen Gelombang
                         </h2>
                         <p className="text-sm mb-6 leading-relaxed font-medium opacity-50">
-                            Pilih kelas dan panggil gelombang siswa ke panggung
-                            ujian lapangan.
+                            Pilih kelas dan panggil gelombang siswa yang sudah
+                            lulus Pre-Test ke lapangan.
                         </p>
 
                         <div
@@ -2143,7 +2194,7 @@ export default function LiveAssessmentStudio() {
                     </div>
                 </div>
 
-                {/* BENTO 2 (PATTERN GRID MILIMETER): PILIH POS PENGUKURAN AKTIF */}
+                {/* BENTO 2: PILIH POS PENGUKURAN AKTIF */}
                 <div
                     className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[400px] border group"
                     style={{
@@ -2239,7 +2290,7 @@ export default function LiveAssessmentStudio() {
                     </div>
                 </div>
 
-                {/* BENTO 3 (PATTERN GARIS DIAGONAL + CIRCULAR GAUGE DENGAN TEKS DI BAWAH CHART!) */}
+                {/* BENTO 3: CIRCULAR GAUGE */}
                 <div
                     className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[400px] border group"
                     style={{
@@ -2271,7 +2322,6 @@ export default function LiveAssessmentStudio() {
                         </span>
                     </div>
 
-                    {/* Circular SVG Tick-Mark Gauge: HANYA ANGKA DI DALAM LINGKARAN, TEKS LABEL DI BAWAH LINGKARAN */}
                     {(() => {
                         const radius = 58;
                         const circumference = 2 * Math.PI * radius;
@@ -2281,7 +2331,7 @@ export default function LiveAssessmentStudio() {
                                 activePos === "RUN_60M" ? 12 : 300;
                             progressPct = Math.min(
                                 100,
-                                ((runElapsedMs / 1000) / targetSec) * 100
+                                (runElapsedMs / 1000 / targetSec) * 100
                             );
                         } else if (isTimedManualPos) {
                             progressPct = ((60 - countdown) / 60) * 100;
@@ -2335,7 +2385,6 @@ export default function LiveAssessmentStudio() {
                                             className="transition-all duration-300"
                                         />
                                     </svg>
-                                    {/* HANYA ANGKA / WAKTU DI DALAM LINGKARAN */}
                                     <div className="absolute inset-0 flex items-center justify-center">
                                         <span className="text-4xl font-light tracking-tighter leading-none">
                                             {isRunPos
@@ -2346,7 +2395,6 @@ export default function LiveAssessmentStudio() {
                                         </span>
                                     </div>
                                 </div>
-                                {/* TEKS KETERANGAN WAJIB BERADA DI BAWAH LINGKARAN */}
                                 <span className="text-xs font-semibold opacity-60 mt-3 text-center">
                                     {bottomLabelText}
                                 </span>
@@ -2354,7 +2402,6 @@ export default function LiveAssessmentStudio() {
                         );
                     })()}
 
-                    {/* Tombol Eksekusi Stopwatch/Timer */}
                     <div className="relative z-10">
                         {isRunPos ? (
                             <div className="grid grid-cols-3 gap-2.5">
@@ -2467,9 +2514,7 @@ export default function LiveAssessmentStudio() {
                 </div>
             </div>
 
-            {/* ====================================================================
-                ZONA 4: PANGGUNG GELOMBANG AKTIF & ANTREAN SISWA
-               ==================================================================== */}
+            {/* ZONA 4: PANGGUNG GELOMBANG AKTIF & ANTREAN SISWA */}
             {calledStudentsList.length > 0 && (
                 <div
                     className="rounded-[2.5rem] border-2 mb-8 overflow-hidden shadow-lg relative z-10"
@@ -2501,7 +2546,6 @@ export default function LiveAssessmentStudio() {
                 </div>
             )}
 
-            {/* ZONA 2: DAFTAR ANTREAN SISWA */}
             <div
                 className="rounded-[2.5rem] border mb-10 overflow-hidden relative z-10 shadow-sm"
                 style={{
@@ -2547,9 +2591,7 @@ export default function LiveAssessmentStudio() {
                 )}
             </div>
 
-            {/* ====================================================================
-                ZONA 5: GRID KARTU BESAR PASTEL / DARK UNTUK SISWA TUNTAS 6/6 POS
-               ==================================================================== */}
+            {/* ZONA 5: GRID KARTU BESAR PASTEL / DARK UNTUK SISWA TUNTAS 6/6 POS */}
             {completedStudentsList.length > 0 && (
                 <div className="space-y-6 relative z-10">
                     <div className="flex items-center justify-between">

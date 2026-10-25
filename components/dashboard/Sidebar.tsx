@@ -16,6 +16,7 @@ import {
     Menu,
     Moon,
     RefreshCw,
+    Smartphone, // <-- Tambahan icon untuk Tampilan App
     Sun,
     Target,
     X
@@ -44,7 +45,7 @@ export default function Sidebar({
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [logoError, setLogoError] = useState(false);
 
-    // State Popover Aktivitas Real-time Database (Agar tombol lonceng punya fungsi nyata)
+    // State Popover Aktivitas Real-time Database
     const [notifOpen, setNotifOpen] = useState(false);
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
@@ -127,6 +128,7 @@ export default function Sidebar({
         if (next) fetchRecentActivity();
     };
 
+    // Pendaftaran Rute Navbar Admin (Tampilan App ditambahkan di sini)
     const menuItems = [
         { icon: Home, label: "Dashboard", href: "/admin" },
         { icon: Building2, label: "Institusi", href: "/admin/institusi" },
@@ -135,7 +137,8 @@ export default function Sidebar({
         { icon: Activity, label: "Praktik", href: "/admin/praktik" },
         { icon: Target, label: "Instrumen", href: "/admin/instrumen" },
         { icon: Dumbbell, label: "Program", href: "/admin/program" },
-        { icon: Archive, label: "Arsip", href: "/admin/arsip" }
+        { icon: Archive, label: "Arsip", href: "/admin/arsip" },
+        { icon: Smartphone, label: "Tampilan UI", href: "/admin/tampilan-app" }
     ];
 
     const handleLogout = () => {
@@ -167,7 +170,7 @@ export default function Sidebar({
             className="sticky top-0 z-[70] w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 pt-4 pb-2 transition-all duration-300"
         >
             <div className="flex items-center justify-between gap-4">
-                {/* 1. KIRI: LOGO ONLY TANPA WADAH BORDER & DIPERBESAR 3X LIPAT */}
+                {/* 1. KIRI: LOGO ONLY */}
                 <Link
                     href="/admin"
                     className="flex items-center shrink-0 py-1 transition-transform hover:scale-[1.03] focus:outline-none"
@@ -191,7 +194,7 @@ export default function Sidebar({
 
                 {/* 2. TENGAH: KAPSUL NAVIGASI UTAMA */}
                 <nav
-                    className="hidden xl:flex items-center p-1.5 rounded-2xl backdrop-blur-xl border"
+                    className="hidden xl:flex items-center p-1.5 rounded-2xl backdrop-blur-xl border overflow-x-auto no-scrollbar"
                     style={{
                         backgroundColor: "var(--ref-nav-shell)",
                         borderColor: "var(--ref-card-border)",
@@ -209,7 +212,7 @@ export default function Sidebar({
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className="relative px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-colors whitespace-nowrap flex items-center gap-2 group"
+                                className="relative px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-colors whitespace-nowrap flex items-center gap-2 group"
                                 style={{
                                     color: isActive
                                         ? "var(--ref-nav-active-text)"
@@ -386,7 +389,7 @@ export default function Sidebar({
                 </div>
             </div>
 
-            {/* DRAWER MENU MOBILE & TABLET (IKON BERPUSAT / CENTERED DI MOBILE) */}
+            {/* DRAWER MENU MOBILE & TABLET */}
             <AnimatePresence>
                 {mobileMenuOpen && (
                     <motion.div
