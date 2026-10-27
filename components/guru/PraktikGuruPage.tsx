@@ -1,12 +1,13 @@
 // @ts-nocheck
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
   ArrowUpRight,
+  Bell,
   BookOpen,
   BrainCircuit,
   CheckCircle2,
@@ -16,10 +17,11 @@ import {
   MessageSquare,
   Save,
   Search,
-  Sparkles,
+  SlidersHorizontal,
   Users,
   X,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const GRADE_OPTIONS = [
@@ -27,6 +29,13 @@ const GRADE_OPTIONS = [
   { grade: "B", score: 75, label: "Baik" },
   { grade: "C", score: 50, label: "Cukup" },
   { grade: "D", score: 25, label: "Perlu Bimbingan" },
+];
+
+const BENTO_SHOWCASE_CLASSES = [
+  "bento-showcase-0",
+  "bento-showcase-1",
+  "bento-showcase-2",
+  "bento-showcase-3",
 ];
 
 interface MaterialUnit {
@@ -61,15 +70,55 @@ interface StudentPracticeRow {
   unitStates: Record<string, UnitEvaluationState>;
 }
 
+interface IslandNotification {
+  id: number;
+  message: string;
+  subtitle?: string;
+  type: "success" | "error" | "info";
+}
+
 export default function PraktikGuruPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Dynamic Island Alert State
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerDynamicIsland = useCallback(
+    (
+      message: string,
+      subtitle?: string,
+      type: "success" | "error" | "info" = "info"
+    ) => {
+      if (islandTimerRef.current) clearTimeout(islandTimerRef.current);
+      setIslandAlert({
+        id: Date.now(),
+        message,
+        subtitle,
+        type,
+      });
+      islandTimerRef.current = setTimeout(() => {
+        setIslandAlert(null);
+      }, 3400);
+    },
+    []
+  );
+
   const [classes, setClasses] = useState<any[]>([]);
   const [gradeFilter, setGradeFilter] = useState<number | "all">("all");
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
   const classDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "submitted" | "graded" | "empty">("all");
-  const [gaugeMode, setGaugeMode] = useState<"koreksi" | "nilai" | "praktik">("koreksi");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "submitted" | "graded" | "empty"
+  >("all");
+  const [gaugeMode, setGaugeMode] = useState<"koreksi" | "nilai" | "praktik">(
+    "koreksi"
+  );
   const [selectedUnitBar, setSelectedUnitBar] = useState<string | null>(null);
 
   const [materials, setMaterials] = useState<MaterialUnit[]>([]);
@@ -82,14 +131,20 @@ export default function PraktikGuruPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [lastSyncTime, setLastSyncTime] = useState<string>("");
 
-  const [selectedStudent, setSelectedStudent] = useState<StudentPracticeRow | null>(null);
-  const [evalData, setEvalData] = useState<Record<string, UnitEvaluationState>>({});
+  const [selectedStudent, setSelectedStudent] =
+    useState<StudentPracticeRow | null>(null);
+  const [evalData, setEvalData] = useState<
+    Record<string, UnitEvaluationState>
+  >({});
   const [savingUnit, setSavingUnit] = useState<string | null>(null);
   const [isSavingAll, setIsSavingAll] = useState(false);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (classDropdownRef.current && !classDropdownRef.current.contains(e.target as Node)) {
+      if (
+        classDropdownRef.current &&
+        !classDropdownRef.current.contains(e.target as Node)
+      ) {
         setIsClassDropdownOpen(false);
       }
     };
@@ -137,10 +192,14 @@ export default function PraktikGuruPage() {
 
   const handleGradeFilterChange = (g: number | "all") => {
     setGradeFilter(g);
-    const nextList = g === "all" ? classes : classes.filter((c) => Number(c.grade_level) === g);
+    const nextList =
+      g === "all"
+        ? classes
+        : classes.filter((c) => Number(c.grade_level) === g);
     if (
       nextList.length > 0 &&
-      (!selectedClass || (g !== "all" && Number(selectedClass.grade_level) !== g))
+      (!selectedClass ||
+        (g !== "all" && Number(selectedClass.grade_level) !== g))
     ) {
       setSelectedClass(nextList[0]);
     }
@@ -183,12 +242,16 @@ export default function PraktikGuruPage() {
       const [refRes, progRes, pracRes] = await Promise.all([
         supabase
           .from("student_reflections")
-          .select("id, student_id, material_id, unit_name, answer_text, feedback_text, grade, score, updated_at")
+          .select(
+            "id, student_id, material_id, unit_name, answer_text, feedback_text, grade, score, updated_at"
+          )
           .in("student_id", studentIds)
           .order("updated_at", { ascending: false }),
         supabase
           .from("student_material_progress")
-          .select("id, student_id, material_id, status, student_reflection, teacher_feedback, completed_at")
+          .select(
+            "id, student_id, material_id, status, student_reflection, teacher_feedback, completed_at"
+          )
           .in("student_id", studentIds),
         supabase
           .from("optional_practices")
@@ -207,7 +270,9 @@ export default function PraktikGuruPage() {
         })
       );
     } catch (error: any) {
-      toast.error("Gagal memuat ekosistem materi", { description: error.message });
+      toast.error("Gagal memuat ekosistem materi", {
+        description: error.message,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -223,7 +288,8 @@ export default function PraktikGuruPage() {
     return rawStudents
       .map((sc: any) => {
         const studentId = sc.student_id;
-        const studentName = sc.user_profiles?.full_name || "Siswa Tidak Diketahui";
+        const studentName =
+          sc.user_profiles?.full_name || "Siswa Tidak Diketahui";
 
         const myRefs = rawReflections.filter((r) => r.student_id === studentId);
         const myProgs = rawProgress.filter((p) => p.student_id === studentId);
@@ -239,18 +305,23 @@ export default function PraktikGuruPage() {
           const refMatch = myRefs.find(
             (r) =>
               (r.material_id && r.material_id === mat.id) ||
-              (r.unit_name || "").trim().toLowerCase() === (mat.unit_name || "").trim().toLowerCase()
+              (r.unit_name || "").trim().toLowerCase() ===
+                (mat.unit_name || "").trim().toLowerCase()
           );
 
           const progMatch = myProgs.find((p) => p.material_id === mat.id);
           const pracMatch = myPracs.find(
-            (p) => (p.unit_name || "").trim().toLowerCase() === (mat.unit_name || "").trim().toLowerCase()
+            (p) =>
+              (p.unit_name || "").trim().toLowerCase() ===
+              (mat.unit_name || "").trim().toLowerCase()
           );
 
-          const rawAnswer = refMatch?.answer_text || progMatch?.student_reflection || "";
+          const rawAnswer =
+            refMatch?.answer_text || progMatch?.student_reflection || "";
           const isAutoPlaceholder = rawAnswer === "Dinilai langsung oleh Guru";
 
-          const feedback = refMatch?.feedback_text || progMatch?.teacher_feedback || "";
+          const feedback =
+            refMatch?.feedback_text || progMatch?.teacher_feedback || "";
           const practiceNote = pracMatch?.teacher_note || "";
 
           const rawScore =
@@ -268,7 +339,8 @@ export default function PraktikGuruPage() {
             else grade = "D";
           }
 
-          const hasStudentAnswer = Boolean(rawAnswer && rawAnswer.trim() !== "") && !isAutoPlaceholder;
+          const hasStudentAnswer =
+            Boolean(rawAnswer && rawAnswer.trim() !== "") && !isAutoPlaceholder;
           const isGraded = Boolean(grade || rawScore !== null);
 
           if (hasStudentAnswer) answeredCount++;
@@ -300,7 +372,8 @@ export default function PraktikGuruPage() {
           };
         });
 
-        const avgScore = gradedCount > 0 ? Math.round(scoreSum / gradedCount) : 0;
+        const avgScore =
+          gradedCount > 0 ? Math.round(scoreSum / gradedCount) : 0;
         const dominantGrade =
           gradedCount === 0
             ? "—"
@@ -375,27 +448,47 @@ export default function PraktikGuruPage() {
     const answeredStudentsCount = studentsData.filter(
       (s) => s.answeredCount > 0 || s.gradedCount > 0
     ).length;
-    const pendingStudentsCount = studentsData.filter((s) => s.status === "submitted").length;
-    const gradedStudentsCount = studentsData.filter((s) => s.status === "graded").length;
-    const emptyStudentsCount = studentsData.filter((s) => s.status === "empty").length;
+    const pendingStudentsCount = studentsData.filter(
+      (s) => s.status === "submitted"
+    ).length;
+    const gradedStudentsCount = studentsData.filter(
+      (s) => s.status === "graded"
+    ).length;
+    const emptyStudentsCount = studentsData.filter(
+      (s) => s.status === "empty"
+    ).length;
 
     const answerCoveragePct =
       totalSiswa > 0 && totalUnits > 0
-        ? Math.min(100, Math.round((totalAnsweredCells / totalTargetCells) * 100))
+        ? Math.min(
+            100,
+            Math.round((totalAnsweredCells / totalTargetCells) * 100)
+          )
         : 0;
 
-    const activeSubmissionCells = Math.max(totalAnsweredCells, totalGradedCells);
+    const activeSubmissionCells = Math.max(
+      totalAnsweredCells,
+      totalGradedCells
+    );
     const gradedRatePct =
       activeSubmissionCells > 0
-        ? Math.min(100, Math.round((totalGradedCells / activeSubmissionCells) * 100))
+        ? Math.min(
+            100,
+            Math.round((totalGradedCells / activeSubmissionCells) * 100)
+          )
         : 0;
 
     const avgClassScore =
-      totalGradedCells > 0 ? Math.round(sumAllGradedScores / totalGradedCells) : 0;
+      totalGradedCells > 0
+        ? Math.round(sumAllGradedScores / totalGradedCells)
+        : 0;
 
     const practiceCoveragePct =
       totalSiswa > 0 && totalUnits > 0
-        ? Math.min(100, Math.round((totalPracticeNotes / totalTargetCells) * 100))
+        ? Math.min(
+            100,
+            Math.round((totalPracticeNotes / totalTargetCells) * 100)
+          )
         : 0;
 
     const unitBars = materials.map((mat, idx) => {
@@ -421,10 +514,13 @@ export default function PraktikGuruPage() {
         }
       });
 
-      const avgUnitScore = unitGraded > 0 ? Math.round(unitScoreSum / unitGraded) : 0;
+      const avgUnitScore =
+        unitGraded > 0 ? Math.round(unitScoreSum / unitGraded) : 0;
       const participationPct =
         totalSiswa > 0
-          ? Math.round((Math.max(unitAnswered, unitGraded) / totalSiswa) * 100)
+          ? Math.round(
+              (Math.max(unitAnswered, unitGraded) / totalSiswa) * 100
+            )
           : 0;
 
       return {
@@ -477,7 +573,11 @@ export default function PraktikGuruPage() {
     setEvalData(clonedStates);
   };
 
-  const handleGradeSelect = (unitName: string, grade: string, score: number) => {
+  const handleGradeSelect = (
+    unitName: string,
+    grade: string,
+    score: number
+  ) => {
     setEvalData((prev) => ({
       ...prev,
       [unitName]: {
@@ -534,15 +634,17 @@ export default function PraktikGuruPage() {
         .eq("id", existingRef.id);
       if (updErr) throw updErr;
     } else if (data.grade || data.score !== null || data.feedback.trim()) {
-      const { error: insErr } = await supabase.from("student_reflections").insert({
-        student_id: studentId,
-        material_id: mat.id,
-        unit_name: mat.unit_name,
-        answer_text: data.answer || "Dinilai langsung oleh Guru",
-        feedback_text: data.feedback,
-        grade: data.grade || null,
-        score: data.score,
-      });
+      const { error: insErr } = await supabase
+        .from("student_reflections")
+        .insert({
+          student_id: studentId,
+          material_id: mat.id,
+          unit_name: mat.unit_name,
+          answer_text: data.answer || "Dinilai langsung oleh Guru",
+          feedback_text: data.feedback,
+          grade: data.grade || null,
+          score: data.score,
+        });
       if (insErr) throw insErr;
     }
 
@@ -598,12 +700,18 @@ export default function PraktikGuruPage() {
     setSavingUnit(mat.unit_name);
     try {
       await persistUnitEvaluation(selectedStudent.id, mat, data);
-      toast.success(
-        `Evaluasi "${mat.unit_name}" (${data.grade ? `Predikat ${data.grade}` : "Tersimpan"}) berhasil disimpan!`
+      triggerDynamicIsland(
+        `Evaluasi Unit Tersimpan`,
+        `${mat.unit_name} (${
+          data.grade ? `Predikat ${data.grade}` : "Tersimpan"
+        }) — ${selectedStudent.name}`,
+        "success"
       );
       await fetchClassPracticeEcosystem(selectedClass);
     } catch (err: any) {
-      toast.error("Gagal menyimpan evaluasi unit", { description: err.message });
+      toast.error("Gagal menyimpan evaluasi unit", {
+        description: err.message,
+      });
     } finally {
       setSavingUnit(null);
     }
@@ -625,7 +733,11 @@ export default function PraktikGuruPage() {
           await persistUnitEvaluation(selectedStudent.id, mat, data);
         }
       }
-      toast.success(`Seluruh evaluasi materi ${selectedStudent.name} tersimpan!`);
+      triggerDynamicIsland(
+        `Seluruh Unit Tersimpan`,
+        `Evaluasi materi & praktik untuk ${selectedStudent.name} selesai diperbarui.`,
+        "success"
+      );
       await fetchClassPracticeEcosystem(selectedClass);
       setSelectedStudent(null);
     } catch (err: any) {
@@ -640,7 +752,9 @@ export default function PraktikGuruPage() {
       toast.error("Tidak ada data siswa untuk diekspor");
       return;
     }
-    const unitHeaders = materials.map((m, i) => `Unit ${i + 1} (${m.unit_name})`);
+    const unitHeaders = materials.map(
+      (m, i) => `Unit ${i + 1} (${m.unit_name})`
+    );
     const headers = [
       "Nama Siswa",
       "Kelas",
@@ -685,12 +799,18 @@ export default function PraktikGuruPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Rekap evaluasi materi berhasil diunduh");
+    triggerDynamicIsland(
+      "Rekap Evaluasi Materi Diunduh",
+      `Laporan CSV kelas ${selectedClass?.name || ""} berhasil diekspor.`,
+      "success"
+    );
   };
 
   const filteredData = useMemo(() => {
     return studentsData.filter((row) => {
-      const matchName = row.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchName = row.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
       if (!matchName) return false;
       if (statusFilter === "graded") return row.status === "graded";
       if (statusFilter === "submitted") return row.status === "submitted";
@@ -698,6 +818,8 @@ export default function PraktikGuruPage() {
       return true;
     });
   }, [studentsData, searchQuery, statusFilter]);
+
+  if (!mounted) return null;
 
   const highestUnitBar = stats.unitBars.reduce(
     (max, item) => (item.displayPct > max.displayPct ? item : max),
@@ -726,47 +848,112 @@ export default function PraktikGuruPage() {
     circumference - (Math.max(10, activeGaugePct) / 100) * circumference;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in duration-500">
+    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {/* ====================================================================
-          ZONA 1: HERO HEADER & 3 NAKED NUMBERS
+          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
          ==================================================================== */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-10">
-        <div className="max-w-3xl">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-4 opacity-50">
-            <Activity size={16} />
-            {selectedClass
-              ? `Pemantik Materi & Jurnal • ${selectedClass.name} (Kelas ${selectedClass.grade_level}) • Sinkron ${lastSyncTime || "Aktif"}`
-              : "Evaluasi Pemantik Materi & Praktik Lapangan"}
+      <AnimatePresence>
+        {islandAlert && (
+          <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
+            <motion.div
+              key={islandAlert.id}
+              initial={{ opacity: 0, scale: 0.86, y: -18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -12 }}
+              transition={{
+                type: "spring",
+                stiffness: 420,
+                damping: 26,
+              }}
+              onClick={() => setIslandAlert(null)}
+              className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
+                islandAlert.type === "success"
+                  ? "dynamic-island-success"
+                  : islandAlert.type === "error"
+                  ? "dynamic-island-error"
+                  : "dynamic-island-info"
+              }`}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  islandAlert.type === "success"
+                    ? "dynamic-island-icon-success"
+                    : islandAlert.type === "error"
+                    ? "dynamic-island-icon-error"
+                    : "dynamic-island-icon-info"
+                }`}
+              >
+                {islandAlert.type === "success" ? (
+                  <CheckCircle2 size={16} />
+                ) : islandAlert.type === "error" ? (
+                  <AlertCircle size={16} />
+                ) : (
+                  <Bell size={16} />
+                )}
+              </div>
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-bold text-white leading-tight truncate">
+                  {islandAlert.message}
+                </p>
+                {islandAlert.subtitle && (
+                  <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                    {islandAlert.subtitle}
+                  </p>
+                )}
+              </div>
+            </motion.div>
           </div>
-          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-tight">
+        )}
+      </AnimatePresence>
+
+      {/* ====================================================================
+          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
+         ==================================================================== */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
+        <div className="max-w-3xl">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+            <span className="font-mono text-gold-accent">
+              00 / KOREKSI PEMANTIK & JURNAL PRAKTIK
+            </span>
+            <span>—</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Activity size={15} />
+              {selectedClass
+                ? `${selectedClass.name} (Kelas ${selectedClass.grade_level}) · Sinkron ${
+                    lastSyncTime || "Aktif"
+                  }`
+                : "Evaluasi Pemantik Materi & Praktik Lapangan"}
+            </span>
+          </div>
+          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
             Evaluasi <br />
             <span className="font-semibold">Materi & Praktik</span>
           </h1>
         </div>
 
-        <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
+        <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : stats.totalSiswa}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Siswa Terdaftar
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              01 / Siswa Terdaftar
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none text-emerald-500">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading ? "—" : stats.answeredStudentsCount}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Siswa Aktif
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              02 / Siswa Aktif
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : `${stats.avgClassScore}%`}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Rata-Rata Nilai
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              03 / Rata-Rata Nilai
             </div>
           </div>
         </div>
@@ -775,23 +962,19 @@ export default function PraktikGuruPage() {
       {/* ====================================================================
           ZONA 2: TELEMETRI 4 BAR
          ==================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Partisipasi Pemantik</span>
-            <span>{stats.totalAnsweredCells} Terkumpul</span>
+            <span className="font-mono">
+              {stats.totalAnsweredCells} TERKUMPUL
+            </span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-dark-panel)",
-              color: "var(--ref-dark-panel-text)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
+            <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${stats.answerCoveragePct}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
               Cakupan
             </span>
           </div>
@@ -800,20 +983,14 @@ export default function PraktikGuruPage() {
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Indeks Nilai Modul</span>
-            <span>Skala A–D</span>
+            <span className="font-mono">SKALA A–D</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "#facc15",
-              color: "#18181b",
-            }}
-          >
-            <span className="text-2xl font-semibold tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-gold">
+            <span className="text-2xl font-semibold font-mono tracking-tight">
               {isLoading ? "—" : `${stats.avgClassScore}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider">
-              {stats.totalGradedCells} Unit Selesai
+            <span className="text-[11px] font-bold font-mono uppercase tracking-wider">
+              {stats.totalGradedCells} UNIT SELESAI
             </span>
           </div>
         </div>
@@ -821,28 +998,15 @@ export default function PraktikGuruPage() {
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Progres Koreksi Guru</span>
-            <span>
-              {stats.gradedStudentsCount} dari {stats.totalSiswa} Siswa Tuntas
+            <span className="font-mono">
+              {stats.gradedStudentsCount}/{stats.totalSiswa} SISWA TUNTAS
             </span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 border relative overflow-hidden flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              backgroundImage: "var(--ref-stripe-pattern)",
-            }}
-          >
-            <span
-              className="text-2xl font-light tracking-tight relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+            <span className="text-2xl font-light font-mono tracking-tight relative z-10">
               {isLoading ? "—" : `${stats.gradedRatePct}%`}
             </span>
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest opacity-60 relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
+            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
               {stats.pendingStudentsCount > 0
                 ? `${stats.pendingStudentsCount} Perlu Koreksi`
                 : "Terkoreksi"}
@@ -853,16 +1017,12 @@ export default function PraktikGuruPage() {
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kurikulum Unit</span>
-            <span>Tingkat {selectedClass?.grade_level || "—"}</span>
+            <span className="font-mono">
+              KLS {selectedClass?.grade_level || "—"}
+            </span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-5 flex items-center justify-center border"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight text-emerald-500">
+          <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {isLoading ? "—" : `${materials.length} Unit`}
             </span>
           </div>
@@ -870,59 +1030,59 @@ export default function PraktikGuruPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO BENTO UTAMA
+          ZONA 3: TRIO BENTO UTAMA (POLKADOT + GRID MILIMETER + DIAGONAL)
          ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* Bento 1: Kendali Rombel & Filter Angkatan */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: "var(--ref-card-solid)",
-            borderColor: "var(--ref-card-border)",
-          }}
-        >
+        {/* Bento 1 (PATTERN POLKADOT): Kendali Rombel & Filter Angkatan */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
+
           <div className="relative z-30">
-            <h2 className="text-3xl font-light tracking-tight mb-2">Pilih Ruang Kelas</h2>
-            <p className="text-sm mb-6 leading-relaxed font-medium opacity-50">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55 mb-3">
+              <span className="font-mono">01 /</span>
+              <SlidersHorizontal size={14} />
+              <span>Filter Kelas</span>
+            </div>
+
+            <h2 className="text-3xl font-light tracking-tight mb-2">
+              Pilih Ruang Kelas
+            </h2>
+            <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
               Filter jenjang angkatan dan tentukan rombel yang akan dinilai.
             </p>
 
-            <div
-              className="flex gap-1.5 p-1.5 rounded-full mb-6 border"
-              style={{
-                backgroundColor: "var(--ref-card-subtle)",
-                borderColor: "var(--ref-card-border)",
-              }}
-            >
+            <div className="flex gap-1.5 p-1.5 rounded-2xl mb-6 edufit-surface-subtle">
               {[
                 { val: "all", label: "Semua" },
                 { val: 10, label: "Kelas 10" },
                 { val: 11, label: "Kelas 11" },
                 { val: 12, label: "Kelas 12" },
-              ].map((g) => (
-                <button
-                  key={String(g.val)}
-                  type="button"
-                  onClick={() => handleGradeFilterChange(g.val as any)}
-                  className="flex-1 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer"
-                  style={{
-                    backgroundColor: gradeFilter === g.val ? "#facc15" : "transparent",
-                    color: gradeFilter === g.val ? "#000" : "inherit",
-                    opacity: gradeFilter === g.val ? 1 : 0.55,
-                  }}
-                >
-                  {g.label}
-                </button>
-              ))}
+              ].map((g) => {
+                const active = gradeFilter === g.val;
+                return (
+                  <button
+                    key={String(g.val)}
+                    type="button"
+                    onClick={() => handleGradeFilterChange(g.val as any)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="relative w-full mb-6" ref={classDropdownRef}>
               <div
                 onClick={() =>
-                  filteredClassesList.length > 0 && setIsClassDropdownOpen(!isClassDropdownOpen)
+                  filteredClassesList.length > 0 &&
+                  setIsClassDropdownOpen(!isClassDropdownOpen)
                 }
-                className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
-                style={{ borderColor: "var(--ref-card-border)" }}
+                className={`w-full bg-transparent py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
+                  isClassDropdownOpen ? "edufit-underline-select-active" : ""
+                }`}
               >
                 <span className="truncate pr-3">
                   {selectedClass
@@ -930,8 +1090,8 @@ export default function PraktikGuruPage() {
                     : "Pilih Rombel..."}
                 </span>
                 <ChevronDown
-                  size={24}
-                  className={`transition-transform duration-300 opacity-50 shrink-0 ${
+                  size={22}
+                  className={`transition-transform duration-300 opacity-60 shrink-0 ${
                     isClassDropdownOpen ? "rotate-180" : ""
                   }`}
                 />
@@ -944,11 +1104,7 @@ export default function PraktikGuruPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.98 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-56 overflow-y-auto no-scrollbar"
-                    style={{
-                      backgroundColor: "var(--ref-card-solid)",
-                      borderColor: "var(--ref-card-border)",
-                    }}
+                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
                     {filteredClassesList.map((cls) => (
                       <div
@@ -956,11 +1112,15 @@ export default function PraktikGuruPage() {
                         onClick={() => {
                           setSelectedClass(cls);
                           setIsClassDropdownOpen(false);
+                          triggerDynamicIsland(
+                            `Kelas Aktif: ${cls.name}`,
+                            `Memuat jawaban pemantik & jurnal praktik Kelas ${cls.grade_level}.`,
+                            "info"
+                          );
                         }}
-                        className="px-6 py-4 text-xl font-light cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                        style={{
-                          color: selectedClass?.id === cls.id ? "#facc15" : "inherit",
-                        }}
+                        className={`px-6 py-4 text-lg font-medium cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+                          selectedClass?.id === cls.id ? "text-gold-accent" : ""
+                        }`}
                       >
                         {cls.name} (Kelas {cls.grade_level})
                       </div>
@@ -975,39 +1135,36 @@ export default function PraktikGuruPage() {
             type="button"
             onClick={handleExportCSV}
             disabled={studentsData.length === 0}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md text-white disabled:opacity-30 disabled:cursor-not-allowed relative z-10"
-            style={{ backgroundColor: "#10b981" }}
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-emerald"
           >
             <Download size={16} strokeWidth={2.5} /> Ekspor Rekap Materi CSV
           </button>
         </div>
 
-        {/* Bento 2: Capaian Unit Materi */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: "var(--ref-card-solid)",
-            borderColor: "var(--ref-card-border)",
-          }}
-        >
+        {/* Bento 2 (PATTERN GRID MILIMETER): Capaian Unit Materi */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+          <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
+
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit size={16} /> Capaian Unit Materi
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">02 /</span>
+              <BrainCircuit size={15} />
+              <span>Capaian Unit Materi</span>
             </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">
-              Kelas {selectedClass?.grade_level || "—"}
+            <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-accent">
+              KELAS {selectedClass?.grade_level || "—"}
             </span>
           </div>
 
           <div className="my-4 flex items-end gap-3 relative z-10">
-            <div className="text-6xl font-light tracking-tighter leading-none">
+            <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {isLoading
                 ? "—"
                 : activeUnitBarObj
                 ? `${activeUnitBarObj.displayPct}%`
                 : `${stats.avgClassScore || stats.answerCoveragePct}%`}
             </div>
-            <div className="text-sm font-semibold opacity-50 mb-1 truncate max-w-[200px]">
+            <div className="text-sm font-semibold opacity-55 mb-1 truncate max-w-[200px]">
               {activeUnitBarObj
                 ? activeUnitBarObj.unitName
                 : stats.avgClassScore > 0
@@ -1019,11 +1176,14 @@ export default function PraktikGuruPage() {
           <div
             className="grid gap-3 items-end pt-4 h-44 relative z-10"
             style={{
-              gridTemplateColumns: `repeat(${Math.max(1, stats.unitBars.length)}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${Math.max(
+                1,
+                stats.unitBars.length
+              )}, minmax(0, 1fr))`,
             }}
           >
             {stats.unitBars.length === 0 ? (
-              <div className="col-span-full text-center text-xs opacity-40 py-10">
+              <div className="col-span-full text-center text-xs opacity-50 py-10">
                 Belum ada modul unit pada jenjang ini.
               </div>
             ) : (
@@ -1031,40 +1191,35 @@ export default function PraktikGuruPage() {
                 const val = bar.displayPct;
                 const isHighest = bar.code === highestUnitBar.code && val > 0;
                 const isSelected = selectedUnitBar === bar.code;
+                const fillClass = isSelected
+                  ? "chart-fill-emerald"
+                  : isHighest
+                  ? "chart-fill-gold"
+                  : "chart-fill-primary";
 
                 return (
                   <button
                     key={bar.code}
                     type="button"
-                    onClick={() => setSelectedUnitBar(isSelected ? null : bar.code)}
+                    onClick={() =>
+                      setSelectedUnitBar(isSelected ? null : bar.code)
+                    }
                     className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
-                    title={`${bar.unitName}: Nilai ${bar.avgScore}% • Diisi ${bar.answered} Siswa`}
+                    title={`${bar.unitName}: Nilai ${bar.avgScore}% · Diisi ${bar.answered} Siswa`}
                   >
-                    <span className="text-xs font-bold opacity-75">{val}%</span>
-                    <div
-                      className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] border"
-                      style={{
-                        backgroundColor: "var(--ref-card-subtle)",
-                        borderColor: "var(--ref-card-border)",
-                      }}
-                    >
+                    <span className="text-xs font-bold font-mono opacity-80">
+                      {val}%
+                    </span>
+                    <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                       <div
-                        className="w-full rounded-full transition-all duration-500"
-                        style={{
-                          height: `${Math.max(15, val)}%`,
-                          backgroundColor:
-                            isSelected || isHighest ? "#facc15" : "var(--ref-text-primary)",
-                        }}
+                        className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
+                        style={{ height: `${Math.max(15, val)}%` }}
                       />
                     </div>
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{
-                        backgroundColor:
-                          isSelected || isHighest ? "#facc15" : "var(--ref-text-primary)",
-                      }}
-                    />
-                    <span className="text-[11px] font-bold opacity-60">{bar.code}</span>
+                    <span className={`w-2 h-2 rounded-full ${fillClass}`} />
+                    <span className="text-[11px] font-bold font-mono opacity-65">
+                      {bar.code}
+                    </span>
                   </button>
                 );
               })
@@ -1072,17 +1227,15 @@ export default function PraktikGuruPage() {
           </div>
         </div>
 
-        {/* Bento 3: Telemetri Distribusi Predikat */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: "var(--ref-card-solid)",
-            borderColor: "var(--ref-card-border)",
-          }}
-        >
+        {/* Bento 3 (PATTERN DIAGONAL STRIPES): Telemetri Distribusi Predikat */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
+
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <BookOpen size={16} /> Distribusi Capaian
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">03 /</span>
+              <BookOpen size={15} />
+              <span>Distribusi Capaian</span>
             </div>
             <div className="flex items-center gap-1">
               {[
@@ -1096,11 +1249,9 @@ export default function PraktikGuruPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: active ? "#facc15" : "var(--ref-card-subtle)",
-                      color: active ? "#000" : "var(--ref-text-secondary)",
-                    }}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    }`}
                   >
                     {m.label}
                   </button>
@@ -1111,31 +1262,34 @@ export default function PraktikGuruPage() {
 
           <div className="relative flex flex-col items-center justify-center my-2 z-10">
             <div className="relative flex items-center justify-center">
-              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
+              <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
                 <circle
                   cx="70"
                   cy="70"
                   r={radius}
                   fill="none"
-                  stroke="var(--ref-card-border)"
                   strokeWidth="6"
                   strokeDasharray="2 5"
+                  className="gauge-circle-track"
                 />
                 <circle
                   cx="70"
                   cy="70"
                   r={radius}
                   fill="none"
-                  stroke="#facc15"
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={circumference}
                   strokeDashoffset={dashOffset}
-                  className="transition-all duration-700"
+                  className={`transition-all duration-700 ${
+                    gaugeMode === "nilai"
+                      ? "gauge-circle-emerald"
+                      : "gauge-circle-gold"
+                  }`}
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-4xl font-light tracking-tighter leading-none">
+                <span className="text-4xl font-light font-mono tracking-tighter leading-none">
                   {isLoading ? "—" : `${activeGaugePct}%`}
                 </span>
               </div>
@@ -1150,13 +1304,13 @@ export default function PraktikGuruPage() {
           </div>
 
           <div className="relative z-10">
-            <div className="flex justify-between text-[11px] font-bold tracking-widest uppercase opacity-70 pt-3 border-t border-[var(--ref-card-border)]">
+            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-3 border-t border-hairline">
               <span>A: {stats.gradeCounts.A}</span>
-              <span>•</span>
+              <span>—</span>
               <span>B: {stats.gradeCounts.B}</span>
-              <span>•</span>
+              <span>—</span>
               <span>C: {stats.gradeCounts.C}</span>
-              <span>•</span>
+              <span>—</span>
               <span>D: {stats.gradeCounts.D}</span>
             </div>
           </div>
@@ -1168,15 +1322,24 @@ export default function PraktikGuruPage() {
          ==================================================================== */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
+          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
+            04 / LEMBAR EVALUASI RESPON SISWA
+          </div>
           <h3 className="text-3xl font-light tracking-tight">
             Daftar Evaluasi Siswa ({filteredData.length})
           </h3>
           <div className="flex flex-wrap items-center gap-4 mt-2">
             {[
               { key: "all", label: `Semua (${stats.totalSiswa})` },
-              { key: "submitted", label: `Perlu Koreksi (${stats.pendingStudentsCount})` },
+              {
+                key: "submitted",
+                label: `Perlu Koreksi (${stats.pendingStudentsCount})`,
+              },
               { key: "graded", label: `Tuntas (${stats.gradedStudentsCount})` },
-              { key: "empty", label: `Belum Menjawab (${stats.emptyStudentsCount})` },
+              {
+                key: "empty",
+                label: `Belum Menjawab (${stats.emptyStudentsCount})`,
+              },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -1184,7 +1347,7 @@ export default function PraktikGuruPage() {
                 onClick={() => setStatusFilter(tab.key as any)}
                 className={`text-xs font-bold uppercase tracking-widest transition-opacity cursor-pointer ${
                   statusFilter === tab.key
-                    ? "opacity-100 underline decoration-[#facc15] decoration-2 underline-offset-8"
+                    ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
                     : "opacity-45 hover:opacity-80"
                 }`}
               >
@@ -1195,18 +1358,13 @@ export default function PraktikGuruPage() {
         </div>
 
         <div className="relative w-full md:w-80 shrink-0">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 opacity-50 w-4 h-4" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 opacity-50 w-4 h-4" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari nama siswa..."
-            className="w-full pl-12 pr-10 py-3.5 rounded-full text-sm outline-none transition-colors border"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              color: "var(--ref-text-primary)",
-              borderColor: "var(--ref-card-border)",
-            }}
+            className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs font-semibold outline-none transition-colors edufit-card-primary"
           />
           {searchQuery && (
             <button
@@ -1222,51 +1380,48 @@ export default function PraktikGuruPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10 mb-12">
         {classes.length === 0 ? (
-          <div className="xl:col-span-3 flex flex-col items-center justify-center p-14 rounded-[2.5rem] border border-dashed border-[var(--ref-card-border)] opacity-50">
+          <div className="xl:col-span-3 flex flex-col items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
             <Users className="w-10 h-10 mb-3" />
             <div className="text-xl font-light tracking-tight">
               Belum ada kelas yang dibuka pada sistem.
             </div>
           </div>
         ) : isLoading ? (
-          <div className="xl:col-span-3 flex items-center justify-center p-14 rounded-[2.5rem] border border-dashed border-[var(--ref-card-border)] opacity-50 animate-pulse">
+          <div className="xl:col-span-3 flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55 animate-pulse">
             <div className="text-xl font-light tracking-tight">
               Menarik jawaban pemantik & jurnal siswa...
             </div>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="xl:col-span-3 flex items-center justify-center p-14 rounded-[2.5rem] border border-dashed border-[var(--ref-card-border)] opacity-50">
+          <div className="xl:col-span-3 flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
             <div className="text-xl font-light tracking-tight">
               Tidak ada data siswa yang cocok dengan filter pencarian.
             </div>
           </div>
         ) : (
-          filteredData.map((row) => {
+          filteredData.map((row, index) => {
             const isGraded = row.status === "graded";
             const isSubmitted = row.status === "submitted";
+            const showcaseClass =
+              BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
 
             return (
               <div
                 key={row.id}
                 onClick={() => openEvaluation(row)}
-                className="p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group border cursor-pointer"
-                style={{
-                  backgroundColor: "var(--ref-card-solid)",
-                  borderColor: isSubmitted ? "#facc15" : "var(--ref-card-border)",
-                }}
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
+                  isSubmitted ? "bento-showcase-selected" : ""
+                }`}
               >
+                <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
+
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold tracking-widest uppercase opacity-65">
-                    KELAS {selectedClass?.grade_level} · {row.answeredCount}/{materials.length} UNIT DIJAWAB
+                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                    KELAS {selectedClass?.grade_level} · {row.answeredCount}/
+                    {materials.length} UNIT DIJAWAB
                   </span>
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-105 border"
-                    style={{
-                      backgroundColor: "var(--ref-card-subtle)",
-                      borderColor: "var(--ref-card-border)",
-                    }}
-                  >
-                    <ArrowUpRight size={18} strokeWidth={1.5} />
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-black/5 dark:bg-white/5">
+                    <ArrowUpRight size={18} strokeWidth={1.75} />
                   </div>
                 </div>
 
@@ -1280,45 +1435,51 @@ export default function PraktikGuruPage() {
                       return (
                         <span
                           key={mat.id}
-                          className="px-2.5 py-1 rounded-xl text-[11px] font-bold border"
-                          style={{
-                            backgroundColor: st?.isGraded ? "#facc15" : "var(--ref-card-subtle)",
-                            color: st?.isGraded ? "#18181b" : "inherit",
-                            borderColor: "var(--ref-card-border)",
-                          }}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold font-mono ${
+                            st?.isGraded
+                              ? "seg-btn-active"
+                              : "bg-black/10 dark:bg-white/10"
+                          }`}
                           title={mat.unit_name}
                         >
-                          U{uIdx + 1}: {st?.isGraded ? st.grade : st?.hasStudentAnswer ? "✓" : "—"}
+                          U{uIdx + 1}:{" "}
+                          {st?.isGraded
+                            ? st.grade
+                            : st?.hasStudentAnswer
+                            ? "ISI"
+                            : "—"}
                         </span>
                       );
                     })}
                   </div>
                 </div>
 
-                <div className="flex items-end justify-between border-t border-[var(--ref-card-border)] pt-5 relative z-10">
+                <div className="flex items-end justify-between border-t border-black/10 dark:border-white/10 pt-5 relative z-10">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Rata-Rata Nilai
                     </div>
-                    <div className="text-3xl font-light leading-none">
-                      {row.gradedCount > 0 ? `${row.avgScore} (${row.dominantGrade})` : "—"}
+                    <div className="text-3xl font-light font-mono leading-none">
+                      {row.gradedCount > 0
+                        ? `${row.avgScore} (${row.dominantGrade})`
+                        : "—"}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Status Koreksi
                     </div>
                     {isGraded ? (
-                      <div className="text-sm font-bold text-emerald-500">
+                      <div className="text-sm font-bold text-emerald-accent">
                         Tuntas ({row.gradedCount}/{materials.length} Unit)
                       </div>
                     ) : isSubmitted ? (
-                      <div className="text-sm font-bold text-amber-500">
+                      <div className="text-sm font-bold px-2.5 py-0.5 rounded-md badge-tint-amber">
                         Perlu Dinilai ({row.gradedCount}/{materials.length})
                       </div>
                     ) : (
-                      <div className="text-sm font-bold opacity-40">
+                      <div className="text-sm font-bold opacity-50">
                         Belum Menjawab
                       </div>
                     )}
@@ -1348,34 +1509,25 @@ export default function PraktikGuruPage() {
               initial={{ scale: 0.96, y: 16, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.96, y: 16, opacity: 0 }}
-              className="w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col rounded-[2.5rem] relative z-10 shadow-2xl border"
-              style={{
-                backgroundColor: "var(--ref-card-solid)",
-                borderColor: "var(--ref-card-border)",
-              }}
+              className="w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col rounded-[2rem] relative z-10 shadow-2xl edufit-card-primary"
             >
               {/* Header Modal */}
-              <div
-                className="p-6 sm:p-8 border-b flex flex-wrap justify-between items-center gap-4 shrink-0"
-                style={{ borderColor: "var(--ref-card-border)" }}
-              >
+              <div className="p-6 sm:p-8 border-b border-hairline flex flex-wrap justify-between items-center gap-4 shrink-0">
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="text-[11px] font-bold uppercase tracking-widest opacity-50">
-                      {selectedClass?.name} • Kelas {selectedClass?.grade_level}
+                    <span className="text-[11px] font-bold font-mono uppercase tracking-widest text-gold-accent">
+                      {selectedClass?.name} · KELAS{" "}
+                      {selectedClass?.grade_level}
                     </span>
-                    <span
-                      className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                      style={{
-                        backgroundColor: "#facc15",
-                        color: "#18181b",
-                      }}
-                    >
-                      {materials.length} Unit Materi
+                    <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider edufit-surface-subtle">
+                      {materials.length} UNIT MATERI
                     </span>
                   </div>
                   <h2 className="text-3xl sm:text-4xl font-light tracking-tight">
-                    Evaluasi: <span className="font-semibold">{selectedStudent.name}</span>
+                    Evaluasi:{" "}
+                    <span className="font-semibold">
+                      {selectedStudent.name}
+                    </span>
                   </h2>
                 </div>
 
@@ -1384,8 +1536,7 @@ export default function PraktikGuruPage() {
                     type="button"
                     onClick={handleSaveAllUnits}
                     disabled={isSavingAll}
-                    className="px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest text-white shadow-md flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
-                    style={{ backgroundColor: "#10b981" }}
+                    className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest shadow-md flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer btn-forest-emerald"
                   >
                     <Save size={15} />
                     {isSavingAll ? "Menyimpan..." : "Simpan Semua Unit"}
@@ -1394,11 +1545,7 @@ export default function PraktikGuruPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedStudent(null)}
-                    className="w-11 h-11 rounded-full flex items-center justify-center transition-colors hover:bg-red-500 hover:text-white cursor-pointer border"
-                    style={{
-                      backgroundColor: "var(--ref-card-subtle)",
-                      borderColor: "var(--ref-card-border)",
-                    }}
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose"
                   >
                     <X size={20} />
                   </button>
@@ -1408,10 +1555,11 @@ export default function PraktikGuruPage() {
               {/* Daftar Unit Materi dalam Modal */}
               <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 space-y-6">
                 {materials.length === 0 ? (
-                  <div className="p-16 text-center opacity-50">
-                    <Sparkles className="w-10 h-10 mx-auto mb-3" />
+                  <div className="p-16 text-center opacity-55">
+                    <BookOpen className="w-10 h-10 mx-auto mb-3" />
                     <p className="text-xl font-light">
-                      Belum ada modul materi untuk Kelas {selectedClass?.grade_level}.
+                      Belum ada modul materi untuk Kelas{" "}
+                      {selectedClass?.grade_level}.
                     </p>
                   </div>
                 ) : (
@@ -1422,28 +1570,23 @@ export default function PraktikGuruPage() {
                     return (
                       <div
                         key={mat.id}
-                        className="rounded-[2rem] p-6 sm:p-8 border shadow-sm transition-colors"
-                        style={{
-                          backgroundColor: "var(--ref-card-subtle)",
-                          borderColor: currentGrade
-                            ? "rgba(250, 204, 21, 0.45)"
-                            : "var(--ref-card-border)",
-                        }}
+                        className={`rounded-[1.75rem] p-6 sm:p-8 transition-colors edufit-surface-subtle ${
+                          currentGrade ? "bento-showcase-selected" : ""
+                        }`}
                       >
-                        <div
-                          className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-5 border-b"
-                          style={{ borderColor: "var(--ref-card-border)" }}
-                        >
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-5 border-b border-hairline">
                           <div>
-                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-50 block mb-1">
-                              Unit 0{idx + 1} • Kelas {mat.grade_level}
+                            <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-1">
+                              UNIT 0{idx + 1} · KELAS {mat.grade_level}
                             </span>
-                            <h3 className="text-2xl font-light tracking-tight">{mat.unit_name}</h3>
+                            <h3 className="text-2xl font-light tracking-tight">
+                              {mat.unit_name}
+                            </h3>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-bold uppercase tracking-widest opacity-50 mr-1">
-                              Predikat:
+                            <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55 mr-1">
+                              PREDIKAT:
                             </span>
                             {GRADE_OPTIONS.map((opt) => {
                               const active = currentGrade === opt.grade;
@@ -1452,14 +1595,17 @@ export default function PraktikGuruPage() {
                                   key={opt.grade}
                                   type="button"
                                   onClick={() =>
-                                    handleGradeSelect(mat.unit_name, opt.grade, opt.score)
+                                    handleGradeSelect(
+                                      mat.unit_name,
+                                      opt.grade,
+                                      opt.score
+                                    )
                                   }
-                                  className="px-4 py-2 rounded-full text-xs font-bold transition-all border cursor-pointer"
-                                  style={{
-                                    backgroundColor: active ? "#facc15" : "var(--ref-card-solid)",
-                                    color: active ? "#18181b" : "var(--ref-text-primary)",
-                                    borderColor: active ? "#facc15" : "var(--ref-card-border)",
-                                  }}
+                                  className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
+                                    active
+                                      ? "seg-btn-active"
+                                      : "edufit-card-primary"
+                                  }`}
                                 >
                                   {opt.grade} ({opt.score})
                                 </button>
@@ -1470,34 +1616,37 @@ export default function PraktikGuruPage() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <div className="space-y-3">
-                            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-60">
+                            <div className="flex items-center justify-between text-xs font-bold font-mono uppercase tracking-widest opacity-65">
                               <span className="flex items-center gap-2">
-                                <MessageSquare size={15} /> Pertanyaan & Jawaban Pemantik
+                                <MessageSquare size={15} /> 01 / PERTANYAAN &
+                                JAWABAN PEMANTIK
                               </span>
                               {unitState.hasStudentAnswer && (
-                                <span className="text-emerald-500">✓ Terisi</span>
+                                <span className="text-emerald-accent">
+                                  TERISI
+                                </span>
                               )}
                             </div>
 
-                            <div
-                              className="p-5 rounded-3xl min-h-[180px] flex flex-col justify-between border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
-                            >
+                            <div className="p-5 rounded-2xl min-h-[180px] flex flex-col justify-between edufit-card-primary">
                               <div>
                                 <p className="text-xs font-semibold italic opacity-65 mb-3">
-                                  &ldquo;{mat.trigger_question || "Pertanyaan pemantik unit materi"}&rdquo;
+                                  &ldquo;
+                                  {mat.trigger_question ||
+                                    "Pertanyaan pemantik unit materi"}
+                                  &rdquo;
                                 </p>
-                                <div className="w-full h-px bg-[var(--ref-card-border)] mb-3" />
-                                {unitState.answer && unitState.answer !== "Dinilai langsung oleh Guru" ? (
+                                <div className="w-full h-px border-b border-hairline mb-3" />
+                                {unitState.answer &&
+                                unitState.answer !==
+                                  "Dinilai langsung oleh Guru" ? (
                                   <p className="text-sm font-medium leading-relaxed">
                                     {unitState.answer}
                                   </p>
                                 ) : (
-                                  <p className="text-sm italic opacity-40">
-                                    Siswa belum mengirimkan jawaban pemantik pada unit ini.
+                                  <p className="text-sm italic opacity-45">
+                                    Siswa belum mengirimkan jawaban pemantik
+                                    pada unit ini.
                                   </p>
                                 )}
                               </div>
@@ -1506,41 +1655,39 @@ export default function PraktikGuruPage() {
 
                           <div className="space-y-4">
                             <div>
-                              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest text-emerald-500 mb-2">
-                                <CheckCircle2 size={15} /> Umpan Balik Refleksi Pemantik
+                              <div className="flex items-center gap-2 font-bold font-mono text-xs uppercase tracking-widest text-emerald-accent mb-2">
+                                <CheckCircle2 size={15} /> 02 / UMPAN BALIK
+                                REFLEKSI PEMANTIK
                               </div>
                               <textarea
                                 value={unitState.feedback || ""}
                                 onChange={(e) =>
-                                  handleFeedbackChange(mat.unit_name, e.target.value)
+                                  handleFeedbackChange(
+                                    mat.unit_name,
+                                    e.target.value
+                                  )
                                 }
                                 placeholder="Berikan koreksi atau catatan perkembangan materi siswa..."
-                                className="w-full h-24 p-4 rounded-2xl text-sm focus:outline-none resize-none border"
-                                style={{
-                                  backgroundColor: "var(--ref-card-solid)",
-                                  color: "var(--ref-text-primary)",
-                                  borderColor: "var(--ref-card-border)",
-                                }}
+                                className="w-full h-24 p-4 rounded-2xl text-sm focus:outline-none resize-none edufit-card-primary"
                               />
                             </div>
 
                             <div>
-                              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest opacity-60 mb-2">
-                                <ClipboardCheck size={15} /> Catatan Pengamatan Praktik Lapangan
+                              <div className="flex items-center gap-2 font-bold font-mono text-xs uppercase tracking-widest opacity-65 mb-2">
+                                <ClipboardCheck size={15} /> 03 / CATATAN
+                                OBSERVASI PRAKTIK LAPANGAN
                               </div>
                               <input
                                 type="text"
                                 value={unitState.practiceNote || ""}
                                 onChange={(e) =>
-                                  handlePracticeNoteChange(mat.unit_name, e.target.value)
+                                  handlePracticeNoteChange(
+                                    mat.unit_name,
+                                    e.target.value
+                                  )
                                 }
                                 placeholder="Catatan keterampilan gerak lapangan (tersimpan ke optional_practices)..."
-                                className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none border"
-                                style={{
-                                  backgroundColor: "var(--ref-card-solid)",
-                                  color: "var(--ref-text-primary)",
-                                  borderColor: "var(--ref-card-border)",
-                                }}
+                                className="w-full px-4 py-3.5 rounded-2xl text-sm focus:outline-none edufit-card-primary"
                               />
                             </div>
                           </div>
@@ -1551,14 +1698,12 @@ export default function PraktikGuruPage() {
                             type="button"
                             onClick={() => handleSaveSingleUnit(mat)}
                             disabled={savingUnit === mat.unit_name}
-                            className="px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-full transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 hover:opacity-90 cursor-pointer"
-                            style={{
-                              backgroundColor: "#facc15",
-                              color: "#18181b",
-                            }}
+                            className="px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 hover:opacity-90 cursor-pointer btn-forest-gold"
                           >
                             <Save size={16} />
-                            {savingUnit === mat.unit_name ? "Menyimpan..." : "Simpan Unit Ini"}
+                            {savingUnit === mat.unit_name
+                              ? "Menyimpan..."
+                              : "Simpan Unit Ini"}
                           </button>
                         </div>
                       </div>

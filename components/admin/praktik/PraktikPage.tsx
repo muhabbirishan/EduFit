@@ -4,36 +4,84 @@
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    Activity,
-    ArrowUpRight,
-    ChevronDown,
-    Download,
-    Edit3,
-    Layers,
-    Play,
-    Plus,
-    Search,
-    Trash2,
-    Video,
-    X
+  Activity,
+  AlertCircle,
+  ArrowUpRight,
+  Bell,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  Edit3,
+  Layers,
+  Play,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  Video,
+  X,
 } from "lucide-react";
-import { useTheme } from "next-themes";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+interface IslandNotification {
+  id: number;
+  message: string;
+  subtitle?: string;
+  type: "success" | "error" | "info";
+}
+
+const BENTO_SHOWCASE_CLASSES = [
+  "bento-showcase-0",
+  "bento-showcase-1",
+  "bento-showcase-2",
+  "bento-showcase-3",
+];
+
+const PRESET_CATEGORIES = [
+  "Daya Tahan",
+  "Kekuatan",
+  "Kelincahan",
+  "Kelenturan",
+  "Kecepatan",
+  "Koordinasi",
+];
+
 export default function PraktikPage() {
-  const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
-  const isDark = mounted && resolvedTheme === "dark";
 
   const [isLoading, setIsLoading] = useState(true);
   const [videos, setVideos] = useState<any[]>([]);
   const [practiceLogs, setPracticeLogs] = useState<any[]>([]);
 
-  // Filter & Pencarian Katalog Video (Murni dari Database, 0% Hardcode!)
+  // Dynamic Island Alert State
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerDynamicIsland = useCallback(
+    (
+      message: string,
+      subtitle?: string,
+      type: "success" | "error" | "info" = "info"
+    ) => {
+      if (islandTimerRef.current) clearTimeout(islandTimerRef.current);
+      setIslandAlert({
+        id: Date.now(),
+        message,
+        subtitle,
+        type,
+      });
+      islandTimerRef.current = setTimeout(() => {
+        setIslandAlert(null);
+      }, 3400);
+    },
+    []
+  );
+
+  // Filter & Pencarian Katalog Video (Murni dari Database)
   const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -91,6 +139,11 @@ export default function PraktikPage() {
       setPracticeLogs(practicesRes.data || []);
     } catch (error: any) {
       toast.error("Gagal memuat katalog video panduan praktik");
+      triggerDynamicIsland(
+        "Gagal Memuat Katalog Video",
+        "Periksa koneksi ke tabel master_practice_videos.",
+        "error"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +163,7 @@ export default function PraktikPage() {
     return Array.from(set);
   }, [videos]);
 
-  // Hitung statistik penggunaan jurnal mandiri siswa per judul video (Read-Only Telemetry)
+  // Hitung statistik penggunaan jurnal mandiri siswa per judul video
   const logsCountByVideoTitle = useMemo(() => {
     const map: Record<string, number> = {};
     practiceLogs.forEach((log) => {
@@ -121,17 +174,19 @@ export default function PraktikPage() {
     return map;
   }, [practiceLogs]);
 
-  const getVideoEngagementCount = (title: string) => {
-    const clean = String(title || "").trim().toLowerCase();
-    if (!clean) return 0;
-    if (logsCountByVideoTitle[clean]) return logsCountByVideoTitle[clean];
-    // Fallback kecocokan kata kunci jika judul pernah diedit sedikit
-    let sum = 0;
-    Object.entries(logsCountByVideoTitle).forEach(([k, cnt]) => {
-      if (k.includes(clean) || clean.includes(k)) sum += cnt;
-    });
-    return sum;
-  };
+  const getVideoEngagementCount = useCallback(
+    (title: string) => {
+      const clean = String(title || "").trim().toLowerCase();
+      if (!clean) return 0;
+      if (logsCountByVideoTitle[clean]) return logsCountByVideoTitle[clean];
+      let sum = 0;
+      Object.entries(logsCountByVideoTitle).forEach(([k, cnt]) => {
+        if (k.includes(clean) || clean.includes(k)) sum += cnt;
+      });
+      return sum;
+    },
+    [logsCountByVideoTitle]
+  );
 
   const categoryBreakdown = useMemo(() => {
     const map: Record<string, { videos: number; logs: number }> = {};
@@ -146,7 +201,7 @@ export default function PraktikPage() {
       videos: stat.videos,
       logs: stat.logs,
     }));
-  }, [videos, logsCountByVideoTitle]);
+  }, [videos, getVideoEngagementCount]);
 
   const filteredVideos = useMemo(() => {
     return videos.filter((v) => {
@@ -165,7 +220,7 @@ export default function PraktikPage() {
     });
   }, [videos, selectedCategory, searchQuery]);
 
-  // Persentase kelengkapan atribut panduan pada katalog video (URL, Langkah Teknik, Kesalahan Umum)
+  // Persentase kelengkapan atribut panduan pada katalog video
   const catalogCompletenessPct = useMemo(() => {
     if (videos.length === 0) return 0;
     const completeCount = videos.filter(
@@ -183,7 +238,7 @@ export default function PraktikPage() {
       (v) => getVideoEngagementCount(v.title) > 0
     ).length;
     return Math.round((practicedVideos / videos.length) * 100);
-  }, [videos, logsCountByVideoTitle]);
+  }, [videos, getVideoEngagementCount]);
 
   // ==========================================================================
   // CRUD KATALOG VIDEO PANDUAN PRAKTIK (MASTER_PRACTICE_VIDEOS)
@@ -237,18 +292,31 @@ export default function PraktikPage() {
           .update(payload)
           .eq("id", editingVideoId);
         if (error) throw error;
-        toast.success("Video panduan berhasil diperbarui!");
+        triggerDynamicIsland(
+          "Video Panduan Diperbarui",
+          `${payload.title} (${payload.category}) telah disimpan.`,
+          "success"
+        );
       } else {
         const { error } = await supabase
           .from("master_practice_videos")
           .insert([payload]);
         if (error) throw error;
-        toast.success("Video panduan baru berhasil ditambahkan!");
+        triggerDynamicIsland(
+          "Video Panduan Ditambahkan",
+          `${payload.title} kini aktif pada katalog aplikasi siswa.`,
+          "success"
+        );
       }
       setIsVideoModalOpen(false);
       fetchAllPraktikCatalog();
     } catch (err: any) {
       toast.error("Gagal menyimpan video panduan");
+      triggerDynamicIsland(
+        "Gagal Menyimpan Video",
+        err?.message || "Periksa kebijakan RLS pada master_practice_videos.",
+        "error"
+      );
     } finally {
       setIsSavingVideo(false);
     }
@@ -268,7 +336,11 @@ export default function PraktikPage() {
           if (error) {
             toast.error("Gagal menghapus video");
           } else {
-            toast.success("Video panduan berhasil dihapus");
+            triggerDynamicIsland(
+              "Video Panduan Dihapus",
+              `"${v.title}" telah dihapus dari katalog praktik.`,
+              "info"
+            );
             if (previewVideo?.id === v.id) setPreviewVideo(null);
             fetchAllPraktikCatalog();
           }
@@ -306,97 +378,161 @@ export default function PraktikPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Katalog Video Panduan berhasil diekspor ke CSV!");
+    triggerDynamicIsland(
+      "Katalog Video Diekspor",
+      `${videos.length} modul video panduan berhasil diunduh ke CSV.`,
+      "success"
+    );
   };
-
-  const bentoColors = ["#fef08a", "#bbf7d0", "#fed7aa", "#bae6fd"];
-  const presetCategories = [
-    "Daya Tahan",
-    "Kekuatan",
-    "Kelincahan",
-    "Kelenturan",
-    "Kecepatan",
-    "Koordinasi",
-  ];
 
   if (!mounted) return null;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {/* ====================================================================
+          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
+         ==================================================================== */}
+      <AnimatePresence>
+        {islandAlert && (
+          <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
+            <motion.div
+              key={islandAlert.id}
+              initial={{ opacity: 0, scale: 0.86, y: -18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -12 }}
+              transition={{
+                type: "spring",
+                stiffness: 420,
+                damping: 26,
+              }}
+              onClick={() => setIslandAlert(null)}
+              className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
+                islandAlert.type === "success"
+                  ? "dynamic-island-success"
+                  : islandAlert.type === "error"
+                  ? "dynamic-island-error"
+                  : "dynamic-island-info"
+              }`}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  islandAlert.type === "success"
+                    ? "dynamic-island-icon-success"
+                    : islandAlert.type === "error"
+                    ? "dynamic-island-icon-error"
+                    : "dynamic-island-icon-info"
+                }`}
+              >
+                {islandAlert.type === "success" ? (
+                  <CheckCircle2 size={16} />
+                ) : islandAlert.type === "error" ? (
+                  <AlertCircle size={16} />
+                ) : (
+                  <Bell size={16} />
+                )}
+              </div>
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-bold text-white leading-tight truncate">
+                  {islandAlert.message}
+                </p>
+                {islandAlert.subtitle && (
+                  <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                    {islandAlert.subtitle}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ====================================================================
           ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
          ==================================================================== */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-10">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-4 opacity-50">
-            <Video size={16} />{" "}
-            {selectedCategory === "Semua"
-              ? "Manajemen Pustaka Video Demonstrasi & Biomekanika Gerak"
-              : `Fokus Kategori Gerak: ${selectedCategory}`}
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+            <span className="font-mono text-gold-accent">
+              00 / PUSTAKA BIOMEKANIKA GERAK
+            </span>
+            <span>—</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Video size={15} />
+              {selectedCategory === "Semua"
+                ? "Manajemen Video Demonstrasi & Koreksi Teknik"
+                : `Fokus Kategori Gerak: ${selectedCategory}`}
+            </span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-tight">
+          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
             Katalog Video & <br />
             <span className="font-semibold">Panduan Praktik</span>
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka (Naked Giant Numbers) */}
-        <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
+        {/* 3 Angka Raksasa Terbuka */}
+        <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : videos.length}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Video Demonstrasi
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              01 / Video Demonstrasi
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none text-emerald-500">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading ? "—" : Math.max(0, categories.length - 1)}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Kategori Gerak
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              02 / Kategori Gerak
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : practiceLogs.length}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Jurnal Mandiri Siswa
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              03 / Jurnal Mandiri Siswa
             </div>
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI MEDIA PRAKTIK (TANPA PILL BORDER BIRU/HIJAU!)
+          ZONA 2: 4 BAR TELEMETRI MEDIA PRAKTIK
          ==================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         {/* Bar 1: Filter Kategori Aktif */}
         <button
           type="button"
-          onClick={() => setSelectedCategory("Semua")}
+          onClick={() => {
+            setSelectedCategory("Semua");
+            triggerDynamicIsland(
+              "Filter Kategori Direset",
+              `Menampilkan seluruh ${videos.length} video panduan praktik.`,
+              "info"
+            );
+          }}
           className="lg:col-span-3 space-y-2 text-left cursor-pointer group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Cakupan Katalog</span>
-            <span>Klik Reset</span>
+            <span className="font-mono">KLIK RESET</span>
           </div>
           <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01]"
-            style={{
-              backgroundColor: "var(--ref-dark-panel)",
-              color: "var(--ref-dark-panel-text)",
-            }}
+            className={`h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] ${
+              selectedCategory !== "Semua"
+                ? "telemetry-bar-forest-active"
+                : "telemetry-bar-forest"
+            }`}
           >
             <span className="text-2xl font-light tracking-tight truncate pr-2">
               {selectedCategory}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-60 shrink-0">
-              {filteredVideos.length} Video
+            <span className="text-[11px] font-bold font-mono uppercase tracking-wider opacity-70 shrink-0">
+              {filteredVideos.length} VIDEO
             </span>
           </div>
         </button>
@@ -405,16 +541,10 @@ export default function PraktikPage() {
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Standar Instruksi</span>
-            <span>Prosedur & Koreksi</span>
+            <span className="font-mono">PROSEDUR & KOREKSI</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "#facc15",
-              color: "#18181b",
-            }}
-          >
-            <span className="text-2xl font-semibold tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-gold">
+            <span className="text-2xl font-semibold font-mono tracking-tight">
               {isLoading ? "—" : `${catalogCompletenessPct}% Lengkap`}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-wider">
@@ -423,31 +553,18 @@ export default function PraktikPage() {
           </div>
         </div>
 
-        {/* Bar 3: Striped Track Murni (TANPA PILL BORDER BIRU/HIJAU DI DALAMNYA!) */}
+        {/* Bar 3: Striped Track Murni */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Eksplorasi Mandiri Siswa</span>
-            <span>Read-Only Telemetry</span>
+            <span className="font-mono">TELEMETRI JURNAL</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 border relative overflow-hidden flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              backgroundImage: "var(--ref-stripe-pattern)",
-            }}
-          >
-            <span
-              className="text-2xl font-light tracking-tight relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
-              {isLoading ? "—" : `${activeVideosWithLogsPct}% Video Dicoba`}
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+            <span className="text-2xl font-light font-mono tracking-tight relative z-10">
+              {isLoading ? "—" : `${activeVideosWithLogsPct}% Dicoba`}
             </span>
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest opacity-60 relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
-              {practiceLogs.length} Catatan
+            <span className="text-[11px] font-bold font-mono uppercase tracking-widest opacity-65 relative z-10">
+              {practiceLogs.length} CATATAN
             </span>
           </div>
         </div>
@@ -456,17 +573,10 @@ export default function PraktikPage() {
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Status Aplikasi</span>
-            <span>Mobile Sync</span>
+            <span className="font-mono">MOBILE SYNC</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-5 flex items-center justify-center border"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              color: "var(--ref-text-primary)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight text-emerald-500">
+          <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               Live Aktif
             </span>
           </div>
@@ -474,66 +584,50 @@ export default function PraktikPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (3 KOLOM x col-span-4 • min-h-[390px])
+          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
          ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
         {/* BENTO 1 (PATTERN POLKADOT HALUS): FILTER KATEGORI & TAMBAH VIDEO BARU */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[390px] border group"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.1)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.08] rounded-[2.5rem] overflow-hidden"
-            style={{
-              backgroundImage:
-                "radial-gradient(currentColor 2px, transparent 2px)",
-              backgroundSize: "24px 24px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-light tracking-tight">
-                Kendali Katalog
-              </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
+                <span className="font-mono">01 /</span>
+                <SlidersHorizontal size={14} />
+                <span>Filter Katalog</span>
+              </div>
               <button
                 type="button"
                 onClick={handleExportCatalogCSV}
-                className="w-10 h-10 rounded-full flex items-center justify-center border transition-transform hover:scale-105 cursor-pointer"
-                style={{
-                  backgroundColor: "var(--ref-card-subtle)",
-                  borderColor: "var(--ref-card-border)",
-                }}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-105 cursor-pointer edufit-surface-subtle"
                 title="Ekspor Katalog Video CSV"
               >
-                <Download size={16} />
+                <Download size={15} />
               </button>
             </div>
-            <p className="text-sm mb-6 leading-relaxed font-medium opacity-50">
+
+            <h2 className="text-3xl font-light tracking-tight mb-2">
+              Kendali Katalog
+            </h2>
+            <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
               Sediakan materi video gerakan, tahapan teknik, dan koreksi
               kesalahan untuk dipelajari siswa secara mandiri.
             </p>
 
-            {/* Bottom-Bordered Custom Dropdown Kategori Gerak (DNA Masterpiece) */}
+            {/* Bottom-Bordered Custom Dropdown Kategori Gerak */}
             <div className="relative w-full mb-6" ref={categoryDropdownRef}>
-              <label className="text-[10px] font-bold uppercase tracking-widest opacity-50 block mb-1">
-                Filter Kategori Kebugaran
+              <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-1">
+                FILTER KATEGORI KEBUGARAN
               </label>
               <div
                 onClick={() =>
                   setIsCategoryDropdownOpen(!isCategoryDropdownOpen)
                 }
-                className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.12)",
-                }}
+                className={`w-full bg-transparent py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
+                  isCategoryDropdownOpen ? "edufit-underline-select-active" : ""
+                }`}
               >
                 <span className="truncate pr-3">
                   {selectedCategory === "Semua"
@@ -541,8 +635,8 @@ export default function PraktikPage() {
                     : selectedCategory}
                 </span>
                 <ChevronDown
-                  size={24}
-                  className={`transition-transform duration-300 opacity-50 shrink-0 ${
+                  size={22}
+                  className={`transition-transform duration-300 opacity-60 shrink-0 ${
                     isCategoryDropdownOpen ? "rotate-180" : ""
                   }`}
                 />
@@ -555,13 +649,7 @@ export default function PraktikPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.98 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-60 overflow-y-auto no-scrollbar"
-                    style={{
-                      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
                     {categories.map((cat) => {
                       const cnt =
@@ -576,22 +664,19 @@ export default function PraktikPage() {
                           onClick={() => {
                             setSelectedCategory(cat);
                             setIsCategoryDropdownOpen(false);
+                            triggerDynamicIsland(
+                              `Kategori Aktif: ${cat}`,
+                              `Menampilkan ${cnt} modul video demonstrasi.`,
+                              "info"
+                            );
                           }}
-                          className={`px-6 py-4 text-lg font-light cursor-pointer transition-colors flex items-center justify-between ${
-                            isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                          className={`px-6 py-4 text-base font-medium cursor-pointer transition-colors flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5 ${
+                            selectedCategory === cat ? "text-gold-accent" : ""
                           }`}
-                          style={{
-                            color:
-                              selectedCategory === cat
-                                ? "#facc15"
-                                : isDark
-                                ? "#fff"
-                                : "#000",
-                          }}
                         >
                           <span>{cat}</span>
-                          <span className="text-xs font-bold opacity-50">
-                            {cnt} Video
+                          <span className="text-xs font-bold font-mono opacity-60">
+                            {cnt} VIDEO
                           </span>
                         </div>
                       );
@@ -609,15 +694,7 @@ export default function PraktikPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari judul gerakan atau teknik..."
-                className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-xs font-semibold outline-none border"
-                style={{
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.03)"
-                    : "rgba(0,0,0,0.02)",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.08)",
-                }}
+                className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-xs font-semibold outline-none edufit-surface-subtle"
               />
             </div>
           </div>
@@ -625,46 +702,32 @@ export default function PraktikPage() {
           <button
             type="button"
             onClick={openAddVideoModal}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md text-white relative z-10"
-            style={{ backgroundColor: "#10b981" }}
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md relative z-10 btn-forest-emerald"
           >
             <Plus size={16} strokeWidth={2.5} /> Tambah Video Demonstrasi
           </button>
         </div>
 
         {/* BENTO 2 (PATTERN GRID MILIMETER): DISTRIBUSI VIDEO & JURNAL MANDIRI PER KATEGORI */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
-            style={{
-              backgroundImage:
-                "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+          <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Layers size={16} /> Distribusi Kategori Gerak
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">02 /</span>
+              <Layers size={15} />
+              <span>Distribusi Kategori Gerak</span>
             </div>
-            <span className="text-xs font-bold opacity-50">
-              Klik batang untuk filter
+            <span className="text-[11px] font-bold font-mono opacity-55">
+              KLIK BATANG
             </span>
           </div>
 
           <div className="my-4 flex items-end gap-3 relative z-10">
-            <div className="text-6xl font-light tracking-tighter leading-none">
+            <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : videos.length}
             </div>
-            <div className="text-sm font-semibold opacity-50 mb-1">
+            <div className="text-sm font-semibold opacity-55 mb-1">
               Total Modul Video Aktif
             </div>
           </div>
@@ -686,6 +749,11 @@ export default function PraktikPage() {
                 {bars.map((bar, idx) => {
                   const heightPct = Math.round((bar.videos / maxVal) * 100);
                   const isSelected = selectedCategory === bar.name;
+                  const fillClass = isSelected
+                    ? "chart-fill-emerald"
+                    : idx === 0
+                    ? "chart-fill-gold"
+                    : "chart-fill-primary";
 
                   return (
                     <button
@@ -697,41 +765,22 @@ export default function PraktikPage() {
                       className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
                       title={`${bar.name}: ${bar.videos} Video · ${bar.logs} Jurnal Siswa`}
                     >
-                      <span className="text-[11px] font-bold opacity-75">
+                      <span className="text-[11px] font-bold font-mono opacity-80">
                         {bar.videos}v
                       </span>
-                      <div
-                        className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px]"
-                        style={{
-                          backgroundColor: isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(24,24,27,0.07)",
-                        }}
-                      >
+                      <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                         <div
-                          className="w-full rounded-full transition-all duration-500 group-hover:scale-y-105"
+                          className={`w-full rounded-full transition-all duration-500 group-hover:scale-y-105 ${fillClass}`}
                           style={{
                             height: `${Math.max(
                               bar.videos > 0 ? 20 : 8,
                               heightPct
                             )}%`,
-                            backgroundColor:
-                              isSelected || idx === 0
-                                ? "#facc15"
-                                : "var(--ref-text-primary)",
                           }}
                         />
                       </div>
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor:
-                            isSelected || idx === 0
-                              ? "#facc15"
-                              : "var(--ref-text-primary)",
-                        }}
-                      />
-                      <span className="text-[10px] font-bold opacity-60 truncate max-w-full">
+                      <span className={`w-2 h-2 rounded-full ${fillClass}`} />
+                      <span className="text-[10px] font-bold font-mono opacity-65 truncate max-w-full">
                         {bar.name.split(" ")[0]}
                       </span>
                     </button>
@@ -743,26 +792,14 @@ export default function PraktikPage() {
         </div>
 
         {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS PUSTAKA PRAKTIK */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.02] dark:opacity-[0.05]"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, currentColor, currentColor 2px, transparent 2px, transparent 16px)",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Activity size={16} /> Indeks Pustaka Praktik
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">03 /</span>
+              <Activity size={15} />
+              <span>Indeks Pustaka Praktik</span>
             </div>
             <div className="flex items-center gap-1">
               {[
@@ -776,13 +813,9 @@ export default function PraktikPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: active
-                        ? "#facc15"
-                        : "var(--ref-card-subtle)",
-                      color: active ? "#000" : "var(--ref-text-secondary)",
-                    }}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    }`}
                   >
                     {m.label}
                   </button>
@@ -826,29 +859,28 @@ export default function PraktikPage() {
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke={
-                      isDark
-                        ? "rgba(255,255,255,0.16)"
-                        : "rgba(24,24,27,0.16)"
-                    }
                     strokeWidth="6"
                     strokeDasharray="2 5"
+                    className="gauge-circle-track"
                   />
                   <circle
                     cx="70"
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke="#facc15"
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700"
+                    className={`transition-all duration-700 ${
+                      gaugeMode === "engagement"
+                        ? "gauge-circle-emerald"
+                        : "gauge-circle-gold"
+                    }`}
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light tracking-tighter leading-none">
+                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
                     {isLoading ? "—" : gaugeValue}
                   </span>
                   <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
@@ -860,9 +892,9 @@ export default function PraktikPage() {
           })()}
 
           <div className="relative z-10">
-            <div className="flex flex-wrap gap-1.5 justify-between text-[11px] font-bold tracking-widest uppercase opacity-70 pt-2 border-t border-black/10 dark:border-white/10">
+            <div className="flex flex-wrap gap-1.5 justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-2 border-t border-hairline">
               <span>{videos.length} Video Master</span>
-              <span>•</span>
+              <span>—</span>
               <span>{practiceLogs.length} Jurnal Siswa</span>
             </div>
           </div>
@@ -870,44 +902,36 @@ export default function PraktikPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 4: FILTER PILLS CEPAT & GRID KARTU BESAR VIDEO DEMONSTRASI
-                  (min-h-[320px] • PASTEL LIGHT MODE / OBSIDIAN DARK MODE)
+          ZONA 4: BARIS FILTER KATEGORI ARSITEKTURAL & GRID KARTU BESAR VIDEO
          ==================================================================== */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 relative z-10">
-        <div className="flex flex-wrap items-center gap-2">
-          {categories.map((cat) => {
-            const active = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className="px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all cursor-pointer border"
-                style={{
-                  backgroundColor: active
-                    ? "#facc15"
-                    : isDark
-                    ? "#111111"
-                    : "#ffffff",
-                  color: active ? "#000000" : "inherit",
-                  borderColor: active
-                    ? "#facc15"
-                    : isDark
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.08)",
-                }}
-              >
-                {cat}
-              </button>
-            );
-          })}
+        <div>
+          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-2">
+            04 / DIREKTORI MODUL DEMONSTRASI GERAK
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl edufit-surface-subtle">
+            {categories.map((cat) => {
+              const active = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    active ? "seg-btn-active" : "seg-btn-idle"
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <button
           type="button"
           onClick={openAddVideoModal}
-          className="px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md text-white cursor-pointer shrink-0"
-          style={{ backgroundColor: "#10b981" }}
+          className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md cursor-pointer shrink-0 btn-forest-emerald"
         >
           <Plus size={15} strokeWidth={2.5} /> Tambah Video Panduan
         </button>
@@ -918,19 +942,11 @@ export default function PraktikPage() {
           [1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-[320px] rounded-[2.5rem] animate-pulse"
-              style={{ backgroundColor: "var(--ref-card-subtle)" }}
+              className="h-[320px] rounded-[2rem] animate-pulse edufit-surface-subtle"
             />
           ))
         ) : filteredVideos.length === 0 ? (
-          <div
-            className="xl:col-span-3 p-16 text-center rounded-[2.5rem] border border-dashed opacity-50"
-            style={{
-              borderColor: isDark
-                ? "rgba(255,255,255,0.2)"
-                : "rgba(0,0,0,0.2)",
-            }}
-          >
+          <div className="xl:col-span-3 p-16 text-center rounded-[2rem] border border-dashed border-hairline opacity-60">
             <Video className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p className="text-xl font-light">
               Belum ada video panduan pada kategori atau pencarian ini.
@@ -938,46 +954,31 @@ export default function PraktikPage() {
           </div>
         ) : (
           filteredVideos.map((v, index) => {
-            const bgLight = bentoColors[index % bentoColors.length];
+            const showcaseClass =
+              BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
             const logCount = getVideoEngagementCount(v.title);
+            const hasValidUrl =
+              v.video_url && String(v.video_url).trim().startsWith("http");
 
             return (
               <div
                 key={v.id}
                 onClick={() => setPreviewVideo(v)}
-                className="p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[330px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group border cursor-pointer"
-                style={{
-                  backgroundColor: isDark ? "#111111" : bgLight,
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.1)"
-                    : "transparent",
-                }}
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[330px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass}`}
               >
-                <div
-                  className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.05]"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(currentColor 2px, transparent 2px)",
-                    backgroundSize: "24px 24px",
-                  }}
-                />
+                <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 {/* Baris Atas Kartu Video */}
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold tracking-widest uppercase opacity-65">
-                    {v.category || "Umum"} • {v.duration_label || "3-5 Menit"}
+                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                    {v.category || "UMUM"} · {v.duration_label || "3-5 MENIT"}
                   </span>
 
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={(e) => openEditVideoModal(v, e)}
-                      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.06)"
-                          : "rgba(0,0,0,0.06)",
-                      }}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
                       title="Edit Video & Panduan"
                     >
                       <Edit3 size={15} />
@@ -985,26 +986,23 @@ export default function PraktikPage() {
                     <button
                       type="button"
                       onClick={(e) => handleDeleteVideo(v, e)}
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/15 transition-colors cursor-pointer"
+                      className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose hover:opacity-80"
                       title="Hapus Video"
                     >
                       <Trash2 size={15} />
                     </button>
-                    <a
-                      href={v.video_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.06)"
-                          : "rgba(0,0,0,0.06)",
-                      }}
-                      title="Buka Tautan Video"
-                    >
-                      <ArrowUpRight size={18} strokeWidth={1.5} />
-                    </a>
+                    {hasValidUrl && (
+                      <a
+                        href={v.video_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
+                        title="Buka Tautan Video"
+                      >
+                        <ArrowUpRight size={18} strokeWidth={1.75} />
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -1013,7 +1011,7 @@ export default function PraktikPage() {
                   <div className="text-3xl md:text-4xl font-light tracking-tighter leading-tight mb-3">
                     {v.title}
                   </div>
-                  <p className="text-xs font-medium opacity-70 line-clamp-2 leading-relaxed mb-2">
+                  <p className="text-xs font-medium opacity-75 line-clamp-2 leading-relaxed mb-2">
                     <strong>Teknik:</strong>{" "}
                     {v.technique_steps || "Klik untuk melihat tahapan gerakan."}
                   </p>
@@ -1023,10 +1021,10 @@ export default function PraktikPage() {
                   </p>
                 </div>
 
-                {/* Baris Bawah Statistik Jurnal Mandiri Siswa (Read-Only Telemetry) */}
+                {/* Baris Bawah Statistik Jurnal Mandiri Siswa */}
                 <div className="flex items-end justify-between border-t border-black/10 dark:border-white/10 pt-5 relative z-10">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Panduan Gerak
                     </div>
                     <div className="text-sm font-bold flex items-center gap-1.5">
@@ -1035,10 +1033,10 @@ export default function PraktikPage() {
                   </div>
 
                   <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Jurnal Siswa
                     </div>
-                    <div className="text-4xl font-light leading-none">
+                    <div className="text-4xl font-light font-mono leading-none">
                       {logCount}
                     </div>
                   </div>
@@ -1059,61 +1057,43 @@ export default function PraktikPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/65 backdrop-blur-sm"
               onClick={() => setPreviewVideo(null)}
             />
             <motion.div
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              className="w-full max-w-2xl rounded-[2.5rem] p-8 md:p-10 relative z-10 shadow-2xl border max-h-[90vh] overflow-y-auto no-scrollbar"
-              style={{
-                backgroundColor: isDark ? "#141414" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
-              }}
+              className="w-full max-w-2xl rounded-[2rem] p-8 md:p-10 relative z-10 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar edufit-card-primary"
             >
               <button
                 type="button"
                 onClick={() => setPreviewVideo(null)}
-                className="absolute top-6 right-6 p-2 rounded-full opacity-60 hover:opacity-100 cursor-pointer"
+                className="absolute top-6 right-6 w-9 h-9 rounded-xl flex items-center justify-center opacity-70 hover:opacity-100 cursor-pointer edufit-surface-subtle"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
 
-              <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-2">
-                {previewVideo.category} • {previewVideo.duration_label}
+              <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-2">
+                {previewVideo.category} · {previewVideo.duration_label}
               </span>
               <h2 className="text-3xl md:text-4xl font-light tracking-tight mb-6">
                 {previewVideo.title}
               </h2>
 
               <div className="space-y-5">
-                <div
-                  className="p-5 rounded-3xl border"
-                  style={{
-                    backgroundColor: "var(--ref-card-subtle)",
-                    borderColor: "var(--ref-card-border)",
-                  }}
-                >
-                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-2">
-                    01 — Prosedur & Langkah Teknik yang Benar
+                <div className="p-5 rounded-2xl edufit-surface-subtle">
+                  <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-2">
+                    01 / PROSEDUR & LANGKAH TEKNIK YANG BENAR
                   </span>
                   <p className="text-sm leading-relaxed whitespace-pre-line">
                     {previewVideo.technique_steps}
                   </p>
                 </div>
 
-                <div
-                  className="p-5 rounded-3xl border"
-                  style={{
-                    backgroundColor: "rgba(239, 68, 68, 0.06)",
-                    borderColor: "rgba(239, 68, 68, 0.25)",
-                  }}
-                >
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-red-500 block mb-2">
-                    02 — Kesalahan Umum yang Harus Dihindari Siswa
+                <div className="p-5 rounded-2xl badge-tint-rose">
+                  <span className="text-[10px] font-bold font-mono uppercase tracking-widest block mb-2">
+                    02 / KESALAHAN UMUM YANG HARUS DIHINDARI SISWA
                   </span>
                   <p className="text-sm leading-relaxed whitespace-pre-line">
                     {previewVideo.common_mistakes}
@@ -1128,12 +1108,7 @@ export default function PraktikPage() {
                       setPreviewVideo(null);
                       openEditVideoModal(target);
                     }}
-                    className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest border cursor-pointer"
-                    style={{
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.15)"
-                        : "rgba(0,0,0,0.15)",
-                    }}
+                    className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer edufit-surface-subtle"
                   >
                     Edit Panduan Ini
                   </button>
@@ -1143,8 +1118,7 @@ export default function PraktikPage() {
                       href={previewVideo.video_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 text-white shadow-md"
-                      style={{ backgroundColor: "#10b981" }}
+                      className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 shadow-md btn-forest-emerald"
                     >
                       <Play size={15} /> Buka Video Demonstrasi
                     </a>
@@ -1166,29 +1140,26 @@ export default function PraktikPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/65 backdrop-blur-sm"
               onClick={() => setIsVideoModalOpen(false)}
             />
             <motion.div
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              className="w-full max-w-2xl rounded-[2.5rem] p-8 md:p-10 relative z-10 shadow-2xl border max-h-[92vh] overflow-y-auto no-scrollbar"
-              style={{
-                backgroundColor: isDark ? "#141414" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
-              }}
+              className="w-full max-w-2xl rounded-[2rem] p-8 md:p-10 relative z-10 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar edufit-card-primary"
             >
               <button
                 type="button"
                 onClick={() => setIsVideoModalOpen(false)}
-                className="absolute top-6 right-6 p-2 rounded-full opacity-60 hover:opacity-100 cursor-pointer"
+                className="absolute top-6 right-6 w-9 h-9 rounded-xl flex items-center justify-center opacity-70 hover:opacity-100 cursor-pointer edufit-surface-subtle"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
 
+              <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
+                KONFIGURASI PUSTAKA GERAK
+              </span>
               <h2 className="text-3xl font-light tracking-tight mb-6">
                 {editingVideoId ? "Edit" : "Tambah"}{" "}
                 <span className="font-semibold">Video Panduan Praktik</span>
@@ -1200,7 +1171,7 @@ export default function PraktikPage() {
                     Pilih atau Ketik Kategori Komponen Kebugaran
                   </label>
                   <div className="flex flex-wrap items-center gap-2 mb-3">
-                    {presetCategories.map((cat) => {
+                    {PRESET_CATEGORIES.map((cat) => {
                       const active = videoForm.category === cat;
                       return (
                         <button
@@ -1209,15 +1180,9 @@ export default function PraktikPage() {
                           onClick={() =>
                             setVideoForm({ ...videoForm, category: cat })
                           }
-                          className="px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer"
-                          style={{
-                            backgroundColor: active
-                              ? "#facc15"
-                              : isDark
-                              ? "rgba(255,255,255,0.05)"
-                              : "rgba(0,0,0,0.05)",
-                            color: active ? "#000" : "inherit",
-                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            active ? "seg-btn-active" : "edufit-surface-subtle"
+                          }`}
                         >
                           {cat}
                         </button>
@@ -1233,15 +1198,7 @@ export default function PraktikPage() {
                         setVideoForm({ ...videoForm, category: e.target.value })
                       }
                       placeholder="Kategori (Cth: Daya Tahan)"
-                      className="px-4 py-3.5 rounded-2xl text-sm font-bold border focus:outline-none"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.02)"
-                          : "rgba(0,0,0,0.02)",
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.1)"
-                          : "rgba(0,0,0,0.1)",
-                      }}
+                      className="px-4 py-3.5 rounded-2xl text-sm font-bold focus:outline-none edufit-surface-subtle"
                     />
                     <input
                       required
@@ -1254,15 +1211,7 @@ export default function PraktikPage() {
                         })
                       }
                       placeholder="Durasi (Cth: 3-5 Menit)"
-                      className="px-4 py-3.5 rounded-2xl text-sm font-bold border focus:outline-none"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.02)"
-                          : "rgba(0,0,0,0.02)",
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.1)"
-                          : "rgba(0,0,0,0.1)",
-                      }}
+                      className="px-4 py-3.5 rounded-2xl text-sm font-bold font-mono focus:outline-none edufit-surface-subtle"
                     />
                   </div>
                 </div>
@@ -1279,12 +1228,7 @@ export default function PraktikPage() {
                       setVideoForm({ ...videoForm, title: e.target.value })
                     }
                     placeholder="Contoh: Teknik Lari Interval & Pengaturan Napas"
-                    className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight focus:outline-none"
-                    style={{
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.2)"
-                        : "rgba(0,0,0,0.2)",
-                    }}
+                    className="w-full bg-transparent py-3 text-2xl font-light tracking-tight focus:outline-none edufit-underline-select"
                   />
                 </div>
 
@@ -1300,15 +1244,7 @@ export default function PraktikPage() {
                       setVideoForm({ ...videoForm, video_url: e.target.value })
                     }
                     placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full p-4 rounded-2xl text-sm border focus:outline-none"
-                    style={{
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.02)"
-                        : "rgba(0,0,0,0.02)",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="w-full p-4 rounded-2xl text-sm font-mono focus:outline-none edufit-surface-subtle"
                   />
                 </div>
 
@@ -1327,15 +1263,7 @@ export default function PraktikPage() {
                       })
                     }
                     placeholder="Tuliskan tahapan pelaksanaan gerakan yang benar..."
-                    className="w-full p-4 rounded-2xl text-sm border focus:outline-none resize-y"
-                    style={{
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.02)"
-                        : "rgba(0,0,0,0.02)",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="w-full p-4 rounded-2xl text-sm focus:outline-none resize-y edufit-surface-subtle"
                   />
                 </div>
 
@@ -1354,23 +1282,14 @@ export default function PraktikPage() {
                       })
                     }
                     placeholder="Tuliskan kesalahan postur atau gerakan yang sering terjadi..."
-                    className="w-full p-4 rounded-2xl text-sm border focus:outline-none resize-y"
-                    style={{
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.02)"
-                        : "rgba(0,0,0,0.02)",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="w-full p-4 rounded-2xl text-sm focus:outline-none resize-y edufit-surface-subtle"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSavingVideo}
-                  className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer text-white shadow-md"
-                  style={{ backgroundColor: "#10b981" }}
+                  className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md btn-forest-emerald"
                 >
                   {isSavingVideo
                     ? "Menyimpan ke Server..."

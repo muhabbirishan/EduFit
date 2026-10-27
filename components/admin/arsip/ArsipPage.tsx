@@ -5,34 +5,35 @@ import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
   Archive,
-  ArrowUpRight,
-  Calendar,
-  Check,
+  Bell,
+  CheckCircle2,
   ChevronDown,
   Download,
   Eye,
-  FileCheck2,
-  Filter,
   History,
   RotateCcw,
   Search,
-  Sparkles,
+  SlidersHorizontal,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
-import { useTheme } from "next-themes";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+interface IslandNotification {
+  id: number;
+  message: string;
+  subtitle?: string;
+  type: "success" | "error" | "info";
+}
+
 export default function ArsipPage() {
-  const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
-  const isDark = mounted && resolvedTheme === "dark";
 
   const [archives, setArchives] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,12 +46,36 @@ export default function ArsipPage() {
     "retention"
   );
 
-  // Custom Dropdown State (Pengganti <select> bawaan browser)
+  // Custom Dropdown State
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
   const yearDropdownRef = useRef<HTMLDivElement>(null);
 
   // State Modal Detail Arsip
   const [selectedArchive, setSelectedArchive] = useState<any | null>(null);
+
+  // Dynamic Island Alert State
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerDynamicIsland = useCallback(
+    (
+      message: string,
+      subtitle?: string,
+      type: "success" | "error" | "info" = "info"
+    ) => {
+      if (islandTimerRef.current) clearTimeout(islandTimerRef.current);
+      setIslandAlert({
+        id: Date.now(),
+        message,
+        subtitle,
+        type,
+      });
+      islandTimerRef.current = setTimeout(() => {
+        setIslandAlert(null);
+      }, 3400);
+    },
+    []
+  );
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -65,7 +90,7 @@ export default function ArsipPage() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  const fetchArchives = async () => {
+  const fetchArchives = useCallback(async (showNotification = false) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -79,16 +104,29 @@ export default function ArsipPage() {
         new Set(list.map((item: any) => item.academic_year).filter(Boolean))
       ) as string[];
       setUniqueYears(years);
+
+      if (showNotification) {
+        triggerDynamicIsland(
+          "Brankas Legacy Disinkronkan",
+          `Berhasil memuat ${list.length} rekaman arsip dari ${years.length} periode tahun ajaran.`,
+          "success"
+        );
+      }
     } catch (error: any) {
       toast.error("Gagal menarik data arsip");
+      triggerDynamicIsland(
+        "Gagal Memuat Brankas Arsip",
+        "Periksa koneksi server atau izin tabel legacy_archives.",
+        "error"
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [triggerDynamicIsland]);
 
   useEffect(() => {
-    fetchArchives();
-  }, []);
+    fetchArchives(false);
+  }, [fetchArchives]);
 
   const parseSummaryObject = (raw: any): Record<string, any> => {
     if (!raw) return {};
@@ -102,8 +140,7 @@ export default function ArsipPage() {
 
   const filteredArchives = useMemo(() => {
     return archives.filter((a) => {
-      const matchYear =
-        filterYear === "all" || a.academic_year === filterYear;
+      const matchYear = filterYear === "all" || a.academic_year === filterYear;
       if (!matchYear) return false;
 
       if (!searchQuery.trim()) return true;
@@ -137,7 +174,6 @@ export default function ArsipPage() {
     return new Set(archives.map((a) => a.student_id).filter(Boolean)).size;
   }, [archives]);
 
-  // Distribusi Arsip per Tahun Ajaran untuk Grafik Batang Bento 2
   const yearDistribution = useMemo(() => {
     return uniqueYears.map((yr) => {
       const cnt = archives.filter((a) => a.academic_year === yr).length;
@@ -158,10 +194,19 @@ export default function ArsipPage() {
             .eq("id", row.id);
           if (error) {
             toast.error("Gagal menghapus arsip");
+            triggerDynamicIsland(
+              "Penghapusan Gagal",
+              "Rekaman arsip tidak dapat dihapus dari sistem.",
+              "error"
+            );
           } else {
-            toast.success("Data arsip berhasil dihapus");
+            triggerDynamicIsland(
+              "Rekaman Arsip Dihapus",
+              `Arsip tahun ${row.academic_year} milik ${studentName} telah dihapus.`,
+              "info"
+            );
             if (selectedArchive?.id === row.id) setSelectedArchive(null);
-            fetchArchives();
+            fetchArchives(false);
           }
         },
       },
@@ -171,7 +216,12 @@ export default function ArsipPage() {
 
   const handleExportCSV = () => {
     if (filteredArchives.length === 0) {
-      return toast.error("Tidak ada data arsip untuk diekspor");
+      triggerDynamicIsland(
+        "Brankas Kosong pada Filter Ini",
+        "Tidak ada baris data arsip untuk diekspor ke CSV.",
+        "error"
+      );
+      return;
     }
     const headers = [
       "Tahun Ajaran",
@@ -207,82 +257,144 @@ export default function ArsipPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Data arsip berhasil diekspor ke CSV");
-  };
 
-  const bentoColors = ["#fef08a", "#bbf7d0", "#fed7aa", "#bae6fd"];
+    triggerDynamicIsland(
+      "Ekspor CSV Brankas Berhasil",
+      `${filteredArchives.length} rekaman arsip (${
+        filterYear === "all" ? "Semua Tahun" : filterYear
+      }) telah diunduh.`,
+      "success"
+    );
+  };
 
   if (!mounted) return null;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {/* ====================================================================
+          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
+         ==================================================================== */}
+      <AnimatePresence>
+        {islandAlert && (
+          <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
+            <motion.div
+              key={islandAlert.id}
+              initial={{ opacity: 0, scale: 0.86, y: -18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -12 }}
+              transition={{
+                type: "spring",
+                stiffness: 420,
+                damping: 26,
+              }}
+              onClick={() => setIslandAlert(null)}
+              className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
+                islandAlert.type === "success"
+                  ? "dynamic-island-success"
+                  : islandAlert.type === "error"
+                  ? "dynamic-island-error"
+                  : "dynamic-island-info"
+              }`}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  islandAlert.type === "success"
+                    ? "dynamic-island-icon-success"
+                    : islandAlert.type === "error"
+                    ? "dynamic-island-icon-error"
+                    : "dynamic-island-icon-info"
+                }`}
+              >
+                {islandAlert.type === "success" ? (
+                  <CheckCircle2 size={16} />
+                ) : islandAlert.type === "error" ? (
+                  <AlertCircle size={16} />
+                ) : (
+                  <Bell size={16} />
+                )}
+              </div>
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-bold text-white leading-tight truncate">
+                  {islandAlert.message}
+                </p>
+                {islandAlert.subtitle && (
+                  <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                    {islandAlert.subtitle}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ====================================================================
           ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
          ==================================================================== */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-10">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-4 opacity-50">
-            <Archive size={16} /> Penyimpanan Jangka Panjang • Brankas Legacy
-            Akademik
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+            <span className="font-mono text-gold-accent">
+              00 / BRANKAS LEGACY
+            </span>
+            <span>—</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Archive size={15} />
+              Penyimpanan Jangka Panjang Akademik & Fisik
+            </span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-tight">
+          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
             Arsip Akademik & <br />
             <span className="font-semibold">Fisik Siswa</span>
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka (Naked Giant Numbers) */}
-        <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
+        {/* 3 Angka Raksasa Terbuka */}
+        <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : archives.length}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Total Rekaman
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              01 / Total Rekaman
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none text-emerald-500">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading ? "—" : uniqueStudentsCount}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Siswa Terarsip
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              02 / Siswa Terarsip
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : uniqueYears.length}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Tahun Ajaran
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              03 / Tahun Ajaran
             </div>
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI ARSIP (MURNI GARIS-GARIS TANPA PILL BIRU/HIJAU!)
+          ZONA 2: 4 BAR TELEMETRI ARSIP
          ==================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         {/* Bar 1: Periode Terakhir */}
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Periode Terakhir</span>
-            <span>Aktif</span>
+            <span className="font-mono">AKTIF</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-dark-panel)",
-              color: "var(--ref-dark-panel-text)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
+            <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : latestAcademicYear}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
               Legacy
             </span>
           </div>
@@ -291,21 +403,24 @@ export default function ArsipPage() {
         {/* Bar 2: Hasil Filter Aktif */}
         <button
           type="button"
-          onClick={() => setFilterYear("all")}
+          onClick={() => {
+            setFilterYear("all");
+            triggerDynamicIsland(
+              "Filter Tahun Direset",
+              `Menampilkan seluruh ${archives.length} rekaman arsip.`,
+              "info"
+            );
+          }}
           className="lg:col-span-3 space-y-2 text-left cursor-pointer group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Tahun Filter</span>
-            <span>{filterYear === "all" ? "Semua" : filterYear}</span>
+            <span className="font-mono">
+              {filterYear === "all" ? "SEMUA" : filterYear}
+            </span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01]"
-            style={{
-              backgroundColor: "#facc15",
-              color: "#18181b",
-            }}
-          >
-            <span className="text-2xl font-semibold tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-gold">
+            <span className="text-2xl font-semibold font-mono tracking-tight">
               {isLoading ? "—" : `${filteredArchives.length} Data`}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-wider">
@@ -314,31 +429,18 @@ export default function ArsipPage() {
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni (TANPA PILL BORDER BIRU/HIJAU DI DALAMNYA!) */}
+        {/* Bar 3: Striped Track Murni */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kapasitas Brankas Arsip</span>
-            <span>Penyimpanan Jangka Panjang</span>
+            <span className="font-mono">RETENSI PERMANEN</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 border relative overflow-hidden flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              backgroundImage: "var(--ref-stripe-pattern)",
-            }}
-          >
-            <span
-              className="text-2xl font-light tracking-tight relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
-              {isLoading ? "—" : `${archives.length} Rekaman Utuh`}
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+            <span className="text-2xl font-light font-mono tracking-tight relative z-10">
+              {isLoading ? "—" : `${archives.length} Rekaman`}
             </span>
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest opacity-60 relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
-              Aman
+            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
+              Aman Terenkripsi
             </span>
           </div>
         </div>
@@ -347,82 +449,59 @@ export default function ArsipPage() {
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Angkatan</span>
-            <span>Tahun</span>
+            <span className="font-mono">PERIODE</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-5 flex items-center justify-center border"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              color: "var(--ref-text-primary)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
-              {isLoading ? "—" : `${uniqueYears.length} Angkatan`}
+          <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
+              {isLoading ? "—" : `${uniqueYears.length} Tahun`}
             </span>
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (3 KOLOM x col-span-4 • min-h-[390px])
+          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
          ==================================================================== */}
       <div
         className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10"
         ref={yearDropdownRef}
       >
         {/* BENTO 1 (PATTERN POLKADOT HALUS): KENDALI & FILTER TAHUN AJARAN */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[390px] border group"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.1)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.08] rounded-[2.5rem] overflow-hidden"
-            style={{
-              backgroundImage:
-                "radial-gradient(currentColor 2px, transparent 2px)",
-              backgroundSize: "24px 24px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-light tracking-tight">
-                Filter Brankas
-              </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
+                <span className="font-mono">01 /</span>
+                <SlidersHorizontal size={14} />
+                <span>Kendali Periode</span>
+              </div>
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="w-10 h-10 rounded-full flex items-center justify-center border transition-transform hover:scale-105 cursor-pointer"
-                style={{
-                  backgroundColor: "var(--ref-card-subtle)",
-                  borderColor: "var(--ref-card-border)",
-                }}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-105 cursor-pointer edufit-surface-subtle"
                 title="Unduh Rekap Arsip CSV"
               >
-                <Download size={16} />
+                <Download size={15} />
               </button>
             </div>
-            <p className="text-sm mb-6 leading-relaxed font-medium opacity-50">
+
+            <h2 className="text-3xl font-light tracking-tight mb-2">
+              Filter Brankas
+            </h2>
+            <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
               Pilih tahun ajaran akademik untuk meninjau rekam jejak kelulusan
-              siswa.
+              dan kebugaran siswa.
             </p>
 
-            {/* Bottom-Bordered Custom Dropdown Tahun (DNA Masterpiece) */}
+            {/* Architectural Underline Dropdown Tahun */}
             <div className="relative w-full mb-6">
               <div
                 onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-                className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.12)",
-                }}
+                className={`w-full bg-transparent py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
+                  isYearDropdownOpen ? "edufit-underline-select-active" : ""
+                }`}
               >
                 <span className="truncate pr-3">
                   {filterYear === "all"
@@ -430,8 +509,8 @@ export default function ArsipPage() {
                     : `Tahun Ajaran ${filterYear}`}
                 </span>
                 <ChevronDown
-                  size={24}
-                  className={`transition-transform duration-300 opacity-50 shrink-0 ${
+                  size={22}
+                  className={`transition-transform duration-300 opacity-60 shrink-0 ${
                     isYearDropdownOpen ? "rotate-180" : ""
                   }`}
                 />
@@ -444,30 +523,21 @@ export default function ArsipPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.98 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-60 overflow-y-auto no-scrollbar"
-                    style={{
-                      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
                     <div
                       onClick={() => {
                         setFilterYear("all");
                         setIsYearDropdownOpen(false);
+                        triggerDynamicIsland(
+                          "Menampilkan Seluruh Periode",
+                          `${archives.length} rekaman arsip dari seluruh angkatan.`,
+                          "info"
+                        );
                       }}
-                      className={`px-6 py-4 text-lg font-light cursor-pointer transition-colors ${
-                        isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                      className={`px-6 py-4 text-base font-medium cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                        filterYear === "all" ? "text-gold-accent" : ""
                       }`}
-                      style={{
-                        color:
-                          filterYear === "all"
-                            ? "#facc15"
-                            : isDark
-                            ? "#fff"
-                            : "#000",
-                      }}
                     >
                       Semua Tahun Ajaran ({archives.length} Rekaman)
                     </div>
@@ -477,18 +547,15 @@ export default function ArsipPage() {
                         onClick={() => {
                           setFilterYear(yr);
                           setIsYearDropdownOpen(false);
+                          triggerDynamicIsland(
+                            `Filter Periode: ${yr}`,
+                            "Menyaring tabel direktori berdasarkan tahun ajaran terpilih.",
+                            "success"
+                          );
                         }}
-                        className={`px-6 py-4 text-lg font-light cursor-pointer transition-colors ${
-                          isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                        className={`px-6 py-4 text-base font-mono cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                          filterYear === yr ? "text-gold-accent" : ""
                         }`}
-                        style={{
-                          color:
-                            filterYear === yr
-                              ? "#facc15"
-                              : isDark
-                              ? "#fff"
-                              : "#000",
-                        }}
                       >
                         Tahun Ajaran {yr}
                       </div>
@@ -502,25 +569,20 @@ export default function ArsipPage() {
           <div className="grid grid-cols-2 gap-3 relative z-10 pt-2">
             <button
               type="button"
-              onClick={fetchArchives}
-              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 border transition-transform hover:scale-[1.01] cursor-pointer shadow-sm"
-              style={{
-                backgroundColor: isDark ? "#ffffff" : "#18181b",
-                color: isDark ? "#18181b" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.2)"
-                  : "rgba(0,0,0,0.2)",
-              }}
+              onClick={() => fetchArchives(true)}
+              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-sm telemetry-bar-forest"
             >
-              <RotateCcw size={15} className={isLoading ? "animate-spin" : ""} />{" "}
+              <RotateCcw
+                size={15}
+                className={isLoading ? "animate-spin" : ""}
+              />{" "}
               Muat Ulang
             </button>
 
             <button
               type="button"
               onClick={handleExportCSV}
-              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-sm text-white"
-              style={{ backgroundColor: "#10b981" }}
+              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-sm btn-forest-emerald"
             >
               <Download size={15} /> Ekspor CSV
             </button>
@@ -528,38 +590,25 @@ export default function ArsipPage() {
         </div>
 
         {/* BENTO 2 (PATTERN GRID MILIMETER): GRAFIK BATANG VERTIKAL BERTITIK ARSIP PER TAHUN */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
-            style={{
-              backgroundImage:
-                "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+          <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <History size={16} /> Distribusi Rekaman per Tahun
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">02 /</span>
+              <History size={15} />
+              <span>Distribusi per Tahun</span>
             </div>
-            <span className="text-xs font-bold opacity-50">
-              {uniqueYears.length} Periode
+            <span className="text-xs font-bold font-mono opacity-55">
+              {uniqueYears.length} PERIODE
             </span>
           </div>
 
           <div className="my-4 flex items-end gap-3 relative z-10">
-            <div className="text-6xl font-light tracking-tighter leading-none">
+            <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : archives.length}
             </div>
-            <div className="text-sm font-semibold opacity-50 mb-1">
+            <div className="text-sm font-semibold opacity-55 mb-1">
               Total Arsip Tersimpan
             </div>
           </div>
@@ -581,52 +630,46 @@ export default function ArsipPage() {
                 {bars.map((bar, idx) => {
                   const heightPct = Math.round((bar.count / maxCnt) * 100);
                   const isSelected = filterYear === bar.year;
+                  const fillClass = isSelected
+                    ? "chart-fill-emerald"
+                    : idx === 0
+                    ? "chart-fill-gold"
+                    : "chart-fill-primary";
 
                   return (
                     <button
                       key={bar.year}
                       type="button"
-                      onClick={() =>
-                        setFilterYear(isSelected ? "all" : bar.year)
-                      }
+                      onClick={() => {
+                        const nextYr = isSelected ? "all" : bar.year;
+                        setFilterYear(nextYr);
+                        triggerDynamicIsland(
+                          nextYr === "all"
+                            ? "Filter Tahun Direset"
+                            : `Fokus Tahun Ajaran ${bar.year}`,
+                          `${bar.count} rekaman siswa tersimpan pada periode ini.`,
+                          "info"
+                        );
+                      }}
                       className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
                       title={`Tahun ${bar.year}: ${bar.count} Arsip`}
                     >
-                      <span className="text-[11px] font-bold opacity-75">
+                      <span className="text-[11px] font-bold font-mono opacity-80">
                         {bar.count}
                       </span>
-                      <div
-                        className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px]"
-                        style={{
-                          backgroundColor: isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(24,24,27,0.07)",
-                        }}
-                      >
+                      <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                         <div
-                          className="w-full rounded-full transition-all duration-500 group-hover:scale-y-105"
+                          className={`w-full rounded-full transition-all duration-500 group-hover:scale-y-105 ${fillClass}`}
                           style={{
                             height: `${Math.max(
                               bar.count > 0 ? 18 : 8,
                               heightPct
                             )}%`,
-                            backgroundColor:
-                              isSelected || idx === 0
-                                ? "#facc15"
-                                : "var(--ref-text-primary)",
                           }}
                         />
                       </div>
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor:
-                            isSelected || idx === 0
-                              ? "#facc15"
-                              : "var(--ref-text-primary)",
-                        }}
-                      />
-                      <span className="text-[10px] font-bold opacity-60 truncate max-w-full">
+                      <span className={`w-2 h-2 rounded-full ${fillClass}`} />
+                      <span className="text-[10px] font-bold font-mono opacity-65 truncate max-w-full">
                         {bar.year.split("/")[0]}
                       </span>
                     </button>
@@ -638,26 +681,14 @@ export default function ArsipPage() {
         </div>
 
         {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS RETENSI ARSIP */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.02] dark:opacity-[0.05]"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, currentColor, currentColor 2px, transparent 2px, transparent 16px)",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Activity size={16} /> Indeks Retensi Arsip
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">03 /</span>
+              <Activity size={15} />
+              <span>Indeks Retensi Arsip</span>
             </div>
             <div className="flex items-center gap-1">
               {[
@@ -671,13 +702,9 @@ export default function ArsipPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: active
-                        ? "#facc15"
-                        : "var(--ref-card-subtle)",
-                      color: active ? "#000" : "var(--ref-text-secondary)",
-                    }}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    }`}
                   >
                     {m.label}
                   </button>
@@ -721,29 +748,28 @@ export default function ArsipPage() {
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke={
-                      isDark
-                        ? "rgba(255,255,255,0.16)"
-                        : "rgba(24,24,27,0.16)"
-                    }
                     strokeWidth="6"
                     strokeDasharray="2 5"
+                    className="gauge-circle-track"
                   />
                   <circle
                     cx="70"
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke="#facc15"
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700"
+                    className={`transition-all duration-700 ${
+                      gaugeMode === "students"
+                        ? "gauge-circle-emerald"
+                        : "gauge-circle-gold"
+                    }`}
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light tracking-tighter leading-none">
+                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
                     {isLoading ? "—" : gaugeValue}
                   </span>
                   <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
@@ -755,9 +781,9 @@ export default function ArsipPage() {
           })()}
 
           <div className="relative z-10">
-            <div className="flex justify-between text-[11px] font-bold tracking-widest uppercase opacity-70 pt-3 border-t border-black/10 dark:border-white/10">
+            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-3 border-t border-hairline">
               <span>{uniqueStudentsCount} Siswa Unik</span>
-              <span>•</span>
+              <span>—</span>
               <span>{latestAcademicYear} Terbaru</span>
             </div>
           </div>
@@ -767,34 +793,15 @@ export default function ArsipPage() {
       {/* ====================================================================
           ZONA 4: TABEL DIREKTORI ARSIP JANGKA PANJANG (BENTO TABLE)
          ==================================================================== */}
-      <div
-        className="rounded-[2.5rem] p-8 md:p-10 border relative z-10 overflow-hidden shadow-sm"
-        style={{
-          backgroundColor: isDark ? "#111111" : "#ffffff",
-          borderColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.05)",
-        }}
-      >
-        <div
-          className="absolute inset-0 opacity-[0.02] dark:opacity-[0.04] pointer-events-none"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(45deg, currentColor, currentColor 1px, transparent 1px, transparent 16px)",
-          }}
-        />
+      <div className="rounded-[2rem] p-8 md:p-10 relative z-10 overflow-hidden edufit-card-primary">
+        <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
-        <div
-          className="relative z-10 flex flex-col lg:flex-row justify-between items-stretch lg:items-end gap-6 mb-8 pb-6 border-b"
-          style={{
-            borderColor: isDark
-              ? "rgba(255,255,255,0.08)"
-              : "rgba(0,0,0,0.08)",
-          }}
-        >
+        <div className="relative z-10 flex flex-col lg:flex-row justify-between items-stretch lg:items-end gap-6 mb-8 pb-6 border-b border-hairline">
           <div>
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest mb-2">
-              <Archive size={16} /> Direktori Brankas Legacy
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest mb-2">
+              <span className="font-mono">04 /</span>
+              <Archive size={15} />
+              <span>Direktori Brankas Legacy</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-light tracking-tight">
               Rekaman Arsip Siswa ({filteredArchives.length})
@@ -808,13 +815,7 @@ export default function ArsipPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari nama siswa, tahun, atau ringkasan..."
-              className="w-full pl-11 pr-9 py-3 rounded-2xl text-xs font-semibold outline-none border transition-colors"
-              style={{
-                backgroundColor: isDark ? "#1a1a1a" : "#f8fafc",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.08)",
-              }}
+              className="w-full pl-11 pr-9 py-3.5 rounded-2xl text-xs font-semibold outline-none transition-colors edufit-surface-subtle"
             />
             {searchQuery && (
               <button
@@ -831,14 +832,7 @@ export default function ArsipPage() {
         <div className="relative z-10 overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
-              <tr
-                className="border-b text-[10px] uppercase tracking-widest font-bold opacity-50"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.08)",
-                }}
-              >
+              <tr className="border-b border-hairline text-[10px] font-mono uppercase tracking-widest font-bold opacity-55">
                 <th className="pb-4 px-4">Tahun Ajaran</th>
                 <th className="pb-4 px-4">Nama Siswa</th>
                 <th className="pb-4 px-4">Ringkasan Evaluasi & Kebugaran</th>
@@ -875,14 +869,9 @@ export default function ArsipPage() {
                   return (
                     <tr
                       key={row.id}
-                      className="border-b transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.05)"
-                          : "rgba(0,0,0,0.05)",
-                      }}
+                      className="border-b border-hairline transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                     >
-                      <td className="py-5 px-4 font-bold">
+                      <td className="py-5 px-4 font-bold font-mono">
                         {row.academic_year || "—"}
                       </td>
                       <td className="py-5 px-4">
@@ -890,37 +879,25 @@ export default function ArsipPage() {
                           {row.user_profiles?.full_name || "Siswa Terarsip"}
                         </div>
                         {row.user_profiles?.email && (
-                          <span className="text-xs opacity-50">
+                          <span className="text-xs opacity-55 font-mono">
                             {row.user_profiles.email}
                           </span>
                         )}
                       </td>
                       <td className="py-5 px-4">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span
-                            className="px-3 py-1.5 rounded-xl font-semibold border"
-                            style={{
-                              backgroundColor: "var(--ref-card-subtle)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
-                          >
-                            Pretest: <strong>{preAvg}</strong>
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                          <span className="px-3 py-1.5 rounded-xl font-semibold edufit-surface-subtle">
+                            PRE: <strong>{preAvg}</strong>
                           </span>
-                          <span
-                            className="px-3 py-1.5 rounded-xl font-semibold border"
-                            style={{
-                              backgroundColor: "var(--ref-card-subtle)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
-                          >
-                            Posttest: <strong>{postAvg}</strong>
+                          <span className="px-3 py-1.5 rounded-xl font-semibold badge-tint-amber">
+                            POST: <strong>{postAvg}</strong>
                           </span>
-                          <span className="px-3 py-1.5 rounded-xl font-bold bg-emerald-500/12 text-emerald-500">
+                          <span className="px-3 py-1.5 rounded-xl font-bold badge-tint-emerald">
                             TKJI: {tkjiCat}
                           </span>
                         </div>
                       </td>
-                      <td className="py-5 px-4 text-xs opacity-70">
+                      <td className="py-5 px-4 text-xs font-mono opacity-70">
                         {row.archived_at
                           ? new Date(row.archived_at).toLocaleDateString(
                               "id-ID",
@@ -933,22 +910,18 @@ export default function ArsipPage() {
                           : "—"}
                       </td>
                       <td className="py-5 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setSelectedArchive(row)}
-                            className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 transition-transform hover:scale-105 cursor-pointer"
-                            style={{
-                              backgroundColor: "var(--ref-card-subtle)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5 transition-transform hover:scale-105 cursor-pointer edufit-surface-subtle"
                           >
                             <Eye size={13} /> Detail
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteArchive(row)}
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/15 transition-colors cursor-pointer"
+                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose hover:opacity-80"
                             title="Hapus Rekaman Arsip"
                           >
                             <Trash2 size={15} />
@@ -974,7 +947,7 @@ export default function ArsipPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/65 backdrop-blur-sm"
               onClick={() => setSelectedArchive(null)}
             />
 
@@ -982,31 +955,25 @@ export default function ArsipPage() {
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              className="w-full max-w-xl rounded-[2.5rem] p-8 md:p-10 relative z-10 shadow-2xl border"
-              style={{
-                backgroundColor: isDark ? "#141414" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
-              }}
+              className="w-full max-w-xl rounded-[2rem] p-8 md:p-10 relative z-10 shadow-2xl edufit-card-primary"
             >
               <button
                 type="button"
                 onClick={() => setSelectedArchive(null)}
-                className="absolute top-6 right-6 p-2 rounded-full opacity-60 hover:opacity-100 cursor-pointer"
+                className="absolute top-6 right-6 w-9 h-9 rounded-xl flex items-center justify-center opacity-70 hover:opacity-100 cursor-pointer edufit-surface-subtle"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
 
-              <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-1">
-                Tahun Ajaran {selectedArchive.academic_year}
+              <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
+                INSPEKSI BRANKAS · TAHUN AJARAN {selectedArchive.academic_year}
               </span>
               <h2 className="text-3xl font-light tracking-tight mb-6">
                 {selectedArchive.user_profiles?.full_name ||
                   "Detail Arsip Siswa"}
               </h2>
 
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto no-scrollbar mb-6">
+              <div className="space-y-3 max-h-[55vh] overflow-y-auto no-scrollbar mb-6">
                 {Object.entries(
                   parseSummaryObject(selectedArchive.summary_data)
                 ).length === 0 ? (
@@ -1019,16 +986,12 @@ export default function ArsipPage() {
                   ).map(([key, val]) => (
                     <div
                       key={key}
-                      className="p-4 rounded-2xl border flex items-center justify-between gap-4"
-                      style={{
-                        backgroundColor: "var(--ref-card-subtle)",
-                        borderColor: "var(--ref-card-border)",
-                      }}
+                      className="p-4 rounded-2xl flex items-center justify-between gap-4 edufit-surface-subtle"
                     >
-                      <span className="text-xs font-bold uppercase tracking-wider opacity-60 capitalize">
+                      <span className="text-xs font-bold uppercase tracking-wider opacity-60">
                         {key.replace(/_/g, " ")}
                       </span>
-                      <span className="text-sm font-semibold text-right">
+                      <span className="text-sm font-semibold font-mono text-right">
                         {typeof val === "object"
                           ? JSON.stringify(val)
                           : String(val)}
@@ -1042,15 +1005,14 @@ export default function ArsipPage() {
                 <button
                   type="button"
                   onClick={() => handleDeleteArchive(selectedArchive)}
-                  className="py-4 px-6 rounded-2xl font-bold text-xs uppercase tracking-widest text-red-500 bg-red-500/10 hover:bg-red-500/20 cursor-pointer"
+                  className="py-4 px-6 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer transition-opacity hover:opacity-85 badge-tint-rose"
                 >
                   Hapus Rekaman Ini
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedArchive(null)}
-                  className="flex-1 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest text-white cursor-pointer shadow-md"
-                  style={{ backgroundColor: "#10b981" }}
+                  className="flex-1 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md transition-opacity hover:opacity-90 btn-forest-emerald"
                 >
                   Tutup Inspeksi
                 </button>

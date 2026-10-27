@@ -5,38 +5,48 @@ import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
   ArrowUpRight,
+  Bell,
   Calendar,
-  Check,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Clock,
   Download,
   Dumbbell,
   Edit3,
-  Filter,
-  Layers,
   Plus,
   RotateCcw,
   Search,
-  Sparkles,
+  SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
-import { useTheme } from "next-themes";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+interface IslandNotification {
+  id: number;
+  message: string;
+  subtitle?: string;
+  type: "success" | "error" | "info";
+}
+
+const BENTO_SHOWCASE_CLASSES = [
+  "bento-showcase-0",
+  "bento-showcase-1",
+  "bento-showcase-2",
+  "bento-showcase-3",
+];
+
 export default function ProgramPage() {
-  const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
-  const isDark = mounted && resolvedTheme === "dark";
 
   const [algorithms, setAlgorithms] = useState<any[]>([]);
   const [totalDbCount, setTotalDbCount] = useState<number>(0);
@@ -44,7 +54,31 @@ export default function ProgramPage() {
   const [loadingProgress, setLoadingProgress] =
     useState<string>("Memuat matriks...");
 
-  // Filter State (Tanpa <select> default browser)
+  // Dynamic Island Alert State
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerDynamicIsland = useCallback(
+    (
+      message: string,
+      subtitle?: string,
+      type: "success" | "error" | "info" = "info"
+    ) => {
+      if (islandTimerRef.current) clearTimeout(islandTimerRef.current);
+      setIslandAlert({
+        id: Date.now(),
+        message,
+        subtitle,
+        type,
+      });
+      islandTimerRef.current = setTimeout(() => {
+        setIslandAlert(null);
+      }, 3400);
+    },
+    []
+  );
+
+  // Filter State
   const [filterGender, setFilterGender] = useState<string>("all");
   const [filterTkji, setFilterTkji] = useState<string>("all");
   const [filterBmi, setFilterBmi] = useState<string>("all");
@@ -87,86 +121,101 @@ export default function ProgramPage() {
 
   // ==========================================================================
   // MESIN PENARIK 4.800+ ALGORITMA ANTI-TERPOTONG 1.000 BARIS
-  // Menggabungkan Parallel Range Batching + Loop Pengaman hingga baris terakhir
   // ==========================================================================
-  const fetchAllAlgorithms = async () => {
-    setIsLoading(true);
-    setLoadingProgress("Menghitung total matriks algoritma...");
-    try {
-      const { count, error: countErr } = await supabase
-        .from("fitness_algorithms")
-        .select("*", { count: "exact", head: true });
+  const fetchAllAlgorithms = useCallback(
+    async (notifySuccess = false) => {
+      setIsLoading(true);
+      setLoadingProgress("Menghitung total matriks algoritma...");
+      try {
+        const { count, error: countErr } = await supabase
+          .from("fitness_algorithms")
+          .select("*", { count: "exact", head: true });
 
-      if (countErr) throw countErr;
-      const batchSize = 1000;
-      let combined: any[] = [];
+        if (countErr) throw countErr;
+        const batchSize = 1000;
+        let combined: any[] = [];
 
-      if (count && count > 0) {
-        // Jika jumlah baris terdeteksi dari header database (berapapun jumlahnya: 5.000, 15.000, dst.)
-        const totalBatches = Math.ceil(count / batchSize);
-        const batchPromises = [];
+        if (count && count > 0) {
+          const totalBatches = Math.ceil(count / batchSize);
+          const batchPromises = [];
 
-        for (let i = 0; i < totalBatches; i++) {
-          const from = i * batchSize;
-          const to = from + batchSize - 1;
-          batchPromises.push(
-            supabase
+          for (let i = 0; i < totalBatches; i++) {
+            const from = i * batchSize;
+            const to = from + batchSize - 1;
+            batchPromises.push(
+              supabase
+                .from("fitness_algorithms")
+                .select("*")
+                .order("week", { ascending: true })
+                .order("meeting", { ascending: true })
+                .order("id", { ascending: true })
+                .range(from, to)
+            );
+          }
+
+          setLoadingProgress(
+            `Menarik ${count.toLocaleString("id-ID")} program (${totalBatches} kloter paralel)...`
+          );
+          const results = await Promise.all(batchPromises);
+          results.forEach((res) => {
+            if (res.data && res.data.length > 0) {
+              combined = combined.concat(res.data);
+            }
+          });
+        } else {
+          let offset = 0;
+          while (true) {
+            const { data: chunk, error: chunkErr } = await supabase
               .from("fitness_algorithms")
               .select("*")
               .order("week", { ascending: true })
               .order("meeting", { ascending: true })
               .order("id", { ascending: true })
-              .range(from, to)
+              .range(offset, offset + batchSize - 1);
+
+            if (chunkErr) throw chunkErr;
+            if (!chunk || chunk.length === 0) break;
+            combined = combined.concat(chunk);
+            if (chunk.length < batchSize) break;
+            offset += batchSize;
+          }
+        }
+
+        setAlgorithms(combined);
+        setTotalDbCount(combined.length);
+        setCurrentPage(1);
+
+        if (notifySuccess) {
+          triggerDynamicIsland(
+            "Matriks FITT Disinkronkan",
+            `${combined.length.toLocaleString("id-ID")} baris resep algoritma berhasil dimuat.`,
+            "success"
           );
         }
-
-        setLoadingProgress(
-          `Menarik ${count.toLocaleString("id-ID")} program (${totalBatches} kloter paralel)...`
+      } catch (error: any) {
+        toast.error("Gagal memuat matriks program: " + (error?.message || ""));
+        triggerDynamicIsland(
+          "Gagal Memuat Matriks FITT",
+          error?.message || "Periksa koneksi ke tabel fitness_algorithms.",
+          "error"
         );
-        const results = await Promise.all(batchPromises);
-        results.forEach((res) => {
-          if (res.data && res.data.length > 0) {
-            combined = combined.concat(res.data);
-          }
-        });
-      } else {
-        // Jika header count tidak terbaca, tarik bertahap per 1.000 baris sampai data benar-benar habis
-        let offset = 0;
-        while (true) {
-          const { data: chunk, error: chunkErr } = await supabase
-            .from("fitness_algorithms")
-            .select("*")
-            .order("week", { ascending: true })
-            .order("meeting", { ascending: true })
-            .order("id", { ascending: true })
-            .range(offset, offset + batchSize - 1);
-
-          if (chunkErr) throw chunkErr;
-          if (!chunk || chunk.length === 0) break;
-          combined = combined.concat(chunk);
-          if (chunk.length < batchSize) break;
-          offset += batchSize;
-        }
+      } finally {
+        setIsLoading(false);
       }
-
-      setAlgorithms(combined);
-      setTotalDbCount(combined.length);
-      setCurrentPage(1);
-    } catch (error: any) {
-      toast.error("Gagal memuat matriks program: " + (error?.message || ""));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [triggerDynamicIsland]
+  );
 
   useEffect(() => {
-    fetchAllAlgorithms();
-  }, []);
+    fetchAllAlgorithms(false);
+  }, [fetchAllAlgorithms]);
 
   // Daftar kategori unik dari 4.800 data asli
   const uniqueGenders = useMemo(() => {
     return Array.from(
-      new Set(algorithms.map((a) => String(a.gender || "").trim()).filter(Boolean))
+      new Set(
+        algorithms.map((a) => String(a.gender || "").trim()).filter(Boolean)
+      )
     );
   }, [algorithms]);
 
@@ -183,8 +232,10 @@ export default function ProgramPage() {
   }, [algorithms]);
 
   const uniquePhasesSummary = useMemo(() => {
-    const map: Record<string, { count: number; avgMin: number; sumMin: number }> =
-      {};
+    const map: Record<
+      string,
+      { count: number; avgMin: number; sumMin: number }
+    > = {};
     algorithms.forEach((a) => {
       const ph = String(a.phase || "Fase Umum").trim();
       if (!map[ph]) map[ph] = { count: 0, avgMin: 0, sumMin: 0 };
@@ -248,7 +299,6 @@ export default function ProgramPage() {
     });
   }, [algorithms, filterGender, filterTkji, filterBmi]);
 
-  // Reset ke halaman 1 setiap filter berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [
@@ -272,7 +322,6 @@ export default function ProgramPage() {
     indexOfLastItem
   );
 
-  // Statistik Rata-rata Durasi & Istirahat
   const { avgDuration, avgRestSec } = useMemo(() => {
     if (filteredAlgorithms.length === 0)
       return { avgDuration: 0, avgRestSec: 0 };
@@ -302,6 +351,11 @@ export default function ProgramPage() {
     setFilterWeek("all");
     setFilterPhase("all");
     setSearchQuery("");
+    triggerDynamicIsland(
+      "Seluruh Filter Direset",
+      `Menampilkan utuh ${algorithms.length.toLocaleString("id-ID")} baris matriks algoritma.`,
+      "info"
+    );
   };
 
   // ==========================================================================
@@ -337,16 +391,16 @@ export default function ProgramPage() {
     setIsSubmitting(true);
     try {
       const payload = {
-        gender: editData.gender,
-        component: editData.component || "",
-        tkji_category: editData.tkji_category,
-        bmi_category: editData.bmi_category,
-        phase: editData.phase,
+        gender: String(editData.gender || "L").trim(),
+        component: String(editData.component || "").trim(),
+        tkji_category: String(editData.tkji_category || "").trim(),
+        bmi_category: String(editData.bmi_category || "").trim(),
+        phase: String(editData.phase || "").trim(),
         week: Number(editData.week) || 1,
         meeting: Number(editData.meeting) || 1,
-        program_name: editData.program_name,
-        instruction_id: editData.instruction_id || "",
-        intensity: editData.intensity || "",
+        program_name: String(editData.program_name || "").trim(),
+        instruction_id: String(editData.instruction_id || "").trim(),
+        intensity: String(editData.intensity || "").trim(),
         duration_min: Number(editData.duration_min) || 25,
         rest_time_sec: Number(editData.rest_time_sec) || 60,
       };
@@ -360,7 +414,11 @@ export default function ProgramPage() {
         if (error) throw error;
         setAlgorithms((prev) => [data, ...prev]);
         setTotalDbCount((prev) => prev + 1);
-        toast.success("Algoritma program baru berhasil ditambahkan!");
+        triggerDynamicIsland(
+          "Baris Algoritma Ditambahkan",
+          `W${payload.week}·M${payload.meeting} (${payload.gender} · ${payload.bmi_category} · ${payload.tkji_category})`,
+          "success"
+        );
       } else {
         const { error } = await supabase
           .from("fitness_algorithms")
@@ -372,11 +430,20 @@ export default function ProgramPage() {
             alg.id === editData.id ? { ...alg, ...payload } : alg
           )
         );
-        toast.success("Algoritma berhasil diperbarui!");
+        triggerDynamicIsland(
+          "Baris Algoritma Diperbarui",
+          `Resep W${payload.week}·M${payload.meeting} (${payload.program_name}) telah disimpan.`,
+          "success"
+        );
       }
       setIsModalOpen(false);
     } catch (err: any) {
       toast.error("Gagal menyimpan algoritma: " + (err?.message || ""));
+      triggerDynamicIsland(
+        "Gagal Menyimpan Algoritma",
+        err?.message || "Periksa kebijakan RLS pada fitness_algorithms.",
+        "error"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -396,7 +463,11 @@ export default function ProgramPage() {
           if (error) return toast.error("Gagal menghapus data");
           setAlgorithms((prev) => prev.filter((a) => a.id !== id));
           setTotalDbCount((prev) => Math.max(0, prev - 1));
-          toast.success("Baris algoritma dihapus!");
+          triggerDynamicIsland(
+            "Baris Algoritma Dihapus",
+            "Kombinasi resep latihan telah dihapus dari matriks.",
+            "info"
+          );
         },
       },
       cancel: { label: "Batal" },
@@ -444,10 +515,10 @@ export default function ProgramPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(
-      `Berhasil mengekspor ${filteredAlgorithms.length.toLocaleString(
-        "id-ID"
-      )} baris program ke CSV!`
+    triggerDynamicIsland(
+      "Matriks FITT Diekspor ke CSV",
+      `${filteredAlgorithms.length.toLocaleString("id-ID")} baris program latihan berhasil diunduh.`,
+      "success"
     );
   };
 
@@ -457,6 +528,13 @@ export default function ProgramPage() {
     if (!isNaN(p) && p >= 1 && p <= totalPages) {
       setCurrentPage(p);
       setJumpPageInput("");
+      triggerDynamicIsland(
+        `Lompat ke Halaman ${p}`,
+        `Menampilkan baris ke-${((p - 1) * itemsPerPage + 1).toLocaleString(
+          "id-ID"
+        )}.`,
+        "info"
+      );
     } else {
       toast.error(`Masukkan nomor halaman antara 1 sampai ${totalPages}`);
     }
@@ -470,8 +548,6 @@ export default function ProgramPage() {
     return pages;
   }, [currentPage, totalPages]);
 
-  const bentoColors = ["#fef08a", "#bbf7d0", "#fed7aa", "#bae6fd"];
-
   if (!mounted) return null;
 
   const hasActiveFilter =
@@ -482,79 +558,143 @@ export default function ProgramPage() {
     filterPhase !== "all" ||
     searchQuery.trim() !== "";
 
+  const genderChoicesForModal =
+    uniqueGenders.length > 0 ? uniqueGenders : ["L", "P"];
+
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {/* ====================================================================
+          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
+         ==================================================================== */}
+      <AnimatePresence>
+        {islandAlert && (
+          <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
+            <motion.div
+              key={islandAlert.id}
+              initial={{ opacity: 0, scale: 0.86, y: -18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -12 }}
+              transition={{
+                type: "spring",
+                stiffness: 420,
+                damping: 26,
+              }}
+              onClick={() => setIslandAlert(null)}
+              className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
+                islandAlert.type === "success"
+                  ? "dynamic-island-success"
+                  : islandAlert.type === "error"
+                  ? "dynamic-island-error"
+                  : "dynamic-island-info"
+              }`}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  islandAlert.type === "success"
+                    ? "dynamic-island-icon-success"
+                    : islandAlert.type === "error"
+                    ? "dynamic-island-icon-error"
+                    : "dynamic-island-icon-info"
+                }`}
+              >
+                {islandAlert.type === "success" ? (
+                  <CheckCircle2 size={16} />
+                ) : islandAlert.type === "error" ? (
+                  <AlertCircle size={16} />
+                ) : (
+                  <Bell size={16} />
+                )}
+              </div>
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-bold text-white leading-tight truncate">
+                  {islandAlert.message}
+                </p>
+                {islandAlert.subtitle && (
+                  <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                    {islandAlert.subtitle}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ====================================================================
           ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
          ==================================================================== */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-10">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-4 opacity-50">
-            <Dumbbell size={16} /> Mesin Rekomendasi Kebugaran FITT Kelas XII •{" "}
-            {isLoading
-              ? loadingProgress
-              : `${totalDbCount.toLocaleString("id-ID")} Baris Tersinkron`}
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+            <span className="font-mono text-gold-accent">
+              00 / MESIN ALGORITMA FITT
+            </span>
+            <span>—</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Dumbbell size={15} />
+              Rekomendasi Kebugaran Kelas XII
+            </span>
+            <span>—</span>
+            <span className="font-mono">
+              {isLoading
+                ? loadingProgress
+                : `${totalDbCount.toLocaleString("id-ID")} BARIS TERSINKRON`}
+            </span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-tight">
+          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
             Matriks Program <br />
             <span className="font-semibold">8 Minggu</span>
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka (Naked Giant Numbers) */}
-        <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
+        {/* 3 Angka Raksasa Terbuka */}
+        <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : algorithms.length.toLocaleString("id-ID")}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Database Master
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              01 / Database Master
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none text-emerald-500">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading
                 ? "—"
                 : filteredAlgorithms.length.toLocaleString("id-ID")}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Hasil Filter Aktif
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              02 / Hasil Filter Aktif
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : `${avgDuration}m`}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Rata-rata Durasi
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              03 / Rata-rata Durasi
             </div>
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI ALGORITMA (MURNI GARIS-GARIS TANPA PILL BIRU/HIJAU!)
+          ZONA 2: 4 BAR TELEMETRI ALGORITMA
          ==================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         {/* Bar 1: Siklus Kurikulum */}
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Siklus Kurikulum</span>
-            <span>Kelas XII</span>
+            <span className="font-mono">KELAS XII</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-dark-panel)",
-              color: "var(--ref-dark-panel-text)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
+            <span className="text-2xl font-light font-mono tracking-tight">
               8 Minggu · {uniquePhasesSummary.length || 4} Fase
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">
+            <span className="text-[11px] font-bold font-mono uppercase tracking-wider opacity-70">
               FITT
             </span>
           </div>
@@ -568,51 +708,34 @@ export default function ProgramPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rasio Filter Aktif</span>
-            <span>{hasActiveFilter ? "Klik Reset" : "Seluruh Data"}</span>
+            <span className="font-mono">
+              {hasActiveFilter ? "KLIK RESET" : "SELURUH DATA"}
+            </span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01]"
-            style={{
-              backgroundColor: "#facc15",
-              color: "#18181b",
-            }}
-          >
-            <span className="text-2xl font-semibold tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-gold">
+            <span className="text-2xl font-semibold font-mono tracking-tight">
               {isLoading ? "—" : `${filterCoveragePct}% Tampil`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider">
-              {filteredAlgorithms.length.toLocaleString("id-ID")} Baris
+            <span className="text-[11px] font-bold font-mono uppercase tracking-wider">
+              {filteredAlgorithms.length.toLocaleString("id-ID")} BARIS
             </span>
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni (TANPA PILL BORDER BIRU/HIJAU DI DALAMNYA!) */}
+        {/* Bar 3: Striped Track Murni */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kapasitas Mesin Rekomendasi</span>
-            <span>Multi-Batch Range Sync</span>
+            <span className="font-mono">MULTI-BATCH SYNC</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 border relative overflow-hidden flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              backgroundImage: "var(--ref-stripe-pattern)",
-            }}
-          >
-            <span
-              className="text-2xl font-light tracking-tight relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+            <span className="text-2xl font-light font-mono tracking-tight relative z-10 truncate pr-2">
               {isLoading
                 ? loadingProgress
-                : `${algorithms.length.toLocaleString("id-ID")} Algoritma Utuh`}
+                : `${algorithms.length.toLocaleString("id-ID")} Algoritma`}
             </span>
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest opacity-60 relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
-              100% Sinkron
+            <span className="text-[11px] font-bold font-mono uppercase tracking-widest opacity-65 relative z-10 shrink-0">
+              100% SINKRON
             </span>
           </div>
         </div>
@@ -621,17 +744,10 @@ export default function ProgramPage() {
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Jeda Pemulihan</span>
-            <span>Rata-rata</span>
+            <span className="font-mono">RATA-RATA</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-5 flex items-center justify-center border"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              color: "var(--ref-text-primary)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
+          <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {isLoading ? "—" : `${avgRestSec} dtk`}
             </span>
           </div>
@@ -639,45 +755,28 @@ export default function ProgramPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (3 KOLOM x col-span-4 • min-h-[400px])
+          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
          ==================================================================== */}
       <div
         className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10"
         ref={filterContainerRef}
       >
         {/* BENTO 1 (PATTERN POLKADOT HALUS): FILTER KOMBINASI GENDER, TKJI & IMT */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[400px] border group"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.1)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.08] rounded-[2.5rem] overflow-hidden"
-            style={{
-              backgroundImage:
-                "radial-gradient(currentColor 2px, transparent 2px)",
-              backgroundSize: "24px 24px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[400px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-light tracking-tight">
-                Filter Matriks
-              </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
+                <span className="font-mono">01 /</span>
+                <SlidersHorizontal size={14} />
+                <span>Parameter Profil</span>
+              </div>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={fetchAllAlgorithms}
-                  className="w-10 h-10 rounded-full flex items-center justify-center border transition-transform hover:scale-105 cursor-pointer"
-                  style={{
-                    backgroundColor: "var(--ref-card-subtle)",
-                    borderColor: "var(--ref-card-border)",
-                  }}
+                  onClick={() => fetchAllAlgorithms(true)}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-105 cursor-pointer edufit-surface-subtle"
                   title="Sinkron Ulang 4.800 Algoritma"
                 >
                   <RotateCcw
@@ -688,53 +787,45 @@ export default function ProgramPage() {
                 <button
                   type="button"
                   onClick={handleExportCSV}
-                  className="w-10 h-10 rounded-full flex items-center justify-center border transition-transform hover:scale-105 cursor-pointer"
-                  style={{
-                    backgroundColor: "var(--ref-card-subtle)",
-                    borderColor: "var(--ref-card-border)",
-                  }}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-105 cursor-pointer edufit-surface-subtle"
                   title="Ekspor Hasil Filter ke CSV"
                 >
                   <Download size={15} />
                 </button>
               </div>
             </div>
-            <p className="text-sm mb-5 leading-relaxed font-medium opacity-50">
+
+            <h2 className="text-3xl font-light tracking-tight mb-2">
+              Filter Matriks
+            </h2>
+            <p className="text-sm mb-5 leading-relaxed font-medium opacity-55">
               Saring kombinasi berdasarkan profil jenis kelamin, predikat TKJI,
               dan indeks massa tubuh.
             </p>
 
-            {/* Segmented Filter Gender (Kuning Emas = Gender Aktif) */}
-            <div
-              className="flex gap-1.5 p-1.5 rounded-full mb-5"
-              style={{
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.05)"
-                  : "rgba(0,0,0,0.05)",
-              }}
-            >
-              {["all", ...uniqueGenders].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setFilterGender(g)}
-                  className="flex-1 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer"
-                  style={{
-                    backgroundColor:
-                      filterGender === g ? "#facc15" : "transparent",
-                    color: filterGender === g ? "#000" : "inherit",
-                    opacity: filterGender === g ? 1 : 0.5,
-                  }}
-                >
-                  {g === "all"
-                    ? "Semua"
-                    : g === "L"
-                    ? "Putra (L)"
-                    : g === "P"
-                    ? "Putri (P)"
-                    : g}
-                </button>
-              ))}
+            {/* Segmented Filter Gender */}
+            <div className="flex gap-1.5 p-1.5 rounded-2xl mb-5 edufit-surface-subtle">
+              {["all", ...uniqueGenders].map((g) => {
+                const active = filterGender === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setFilterGender(g)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
+                    }`}
+                  >
+                    {g === "all"
+                      ? "Semua"
+                      : g === "L"
+                      ? "Putra (L)"
+                      : g === "P"
+                      ? "Putri (P)"
+                      : g}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Bottom-Bordered Custom Dropdown TKJI */}
@@ -743,19 +834,16 @@ export default function ProgramPage() {
                 onClick={() =>
                   setOpenDropdown(openDropdown === "tkji" ? null : "tkji")
                 }
-                className="w-full bg-transparent border-b-2 py-2.5 text-xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.12)",
-                }}
+                className={`w-full bg-transparent py-2.5 text-xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
+                  openDropdown === "tkji" ? "edufit-underline-select-active" : ""
+                }`}
               >
                 <span className="truncate pr-3">
                   TKJI: {filterTkji === "all" ? "Semua Predikat" : filterTkji}
                 </span>
                 <ChevronDown
                   size={20}
-                  className={`transition-transform duration-300 opacity-50 shrink-0 ${
+                  className={`transition-transform duration-300 opacity-60 shrink-0 ${
                     openDropdown === "tkji" ? "rotate-180" : ""
                   }`}
                 />
@@ -767,13 +855,7 @@ export default function ProgramPage() {
                     initial={{ opacity: 0, y: 8, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-56 overflow-y-auto no-scrollbar"
-                    style={{
-                      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
                     {["all", ...uniqueTkjiList].map((tk) => (
                       <div
@@ -782,17 +864,9 @@ export default function ProgramPage() {
                           setFilterTkji(tk);
                           setOpenDropdown(null);
                         }}
-                        className={`px-5 py-3.5 text-base font-light cursor-pointer transition-colors ${
-                          isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                        className={`px-5 py-3.5 text-base font-medium cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                          filterTkji === tk ? "text-gold-accent" : ""
                         }`}
-                        style={{
-                          color:
-                            filterTkji === tk
-                              ? "#facc15"
-                              : isDark
-                              ? "#fff"
-                              : "#000",
-                        }}
                       >
                         {tk === "all" ? "Semua Predikat TKJI" : tk}
                       </div>
@@ -808,19 +882,16 @@ export default function ProgramPage() {
                 onClick={() =>
                   setOpenDropdown(openDropdown === "bmi" ? null : "bmi")
                 }
-                className="w-full bg-transparent border-b-2 py-2.5 text-xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.12)",
-                }}
+                className={`w-full bg-transparent py-2.5 text-xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
+                  openDropdown === "bmi" ? "edufit-underline-select-active" : ""
+                }`}
               >
                 <span className="truncate pr-3">
                   IMT: {filterBmi === "all" ? "Semua Kategori IMT" : filterBmi}
                 </span>
                 <ChevronDown
                   size={20}
-                  className={`transition-transform duration-300 opacity-50 shrink-0 ${
+                  className={`transition-transform duration-300 opacity-60 shrink-0 ${
                     openDropdown === "bmi" ? "rotate-180" : ""
                   }`}
                 />
@@ -832,13 +903,7 @@ export default function ProgramPage() {
                     initial={{ opacity: 0, y: 8, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-56 overflow-y-auto no-scrollbar"
-                    style={{
-                      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
                     {["all", ...uniqueBmiList].map((bm) => (
                       <div
@@ -847,17 +912,9 @@ export default function ProgramPage() {
                           setFilterBmi(bm);
                           setOpenDropdown(null);
                         }}
-                        className={`px-5 py-3.5 text-base font-light cursor-pointer transition-colors ${
-                          isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                        className={`px-5 py-3.5 text-base font-medium cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                          filterBmi === bm ? "text-gold-accent" : ""
                         }`}
-                        style={{
-                          color:
-                            filterBmi === bm
-                              ? "#facc15"
-                              : isDark
-                              ? "#fff"
-                              : "#000",
-                        }}
                       >
                         {bm === "all" ? "Semua Kategori IMT" : bm}
                       </div>
@@ -871,52 +928,38 @@ export default function ProgramPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md text-white relative z-10"
-            style={{ backgroundColor: "#10b981" }}
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md relative z-10 btn-forest-emerald"
           >
             <Plus size={16} strokeWidth={2.5} /> Tambah Baris Algoritma
           </button>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): DISTRIBUSI 8 MINGGU (VERTICAL PILL BARS + DOTS) */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[400px] border"
-          style={{
-            backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
-            style={{
-              backgroundImage:
-                "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
-          />
+        {/* BENTO 2 (PATTERN GRID MILIMETER): DISTRIBUSI 8 MINGGU */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-secondary">
+          <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Calendar size={16} /> Distribusi Minggu W1 – W8
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">02 /</span>
+              <Calendar size={15} />
+              <span>Distribusi Minggu W1 – W8</span>
             </div>
             {filterWeek !== "all" && (
               <button
                 type="button"
                 onClick={() => setFilterWeek("all")}
-                className="text-xs font-bold text-[#facc15] cursor-pointer"
+                className="text-xs font-bold font-mono text-gold-accent cursor-pointer hover:underline"
               >
-                Reset Minggu
+                RESET MINGGU
               </button>
             )}
           </div>
 
           <div className="my-4 flex items-end gap-3 relative z-10">
-            <div className="text-6xl font-light tracking-tighter leading-none">
+            <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {filterWeek === "all" ? "8" : `W${filterWeek}`}
             </div>
-            <div className="text-sm font-semibold opacity-50 mb-1">
+            <div className="text-sm font-semibold opacity-55 mb-1">
               {filterWeek === "all"
                 ? "Minggu Siklus Latihan"
                 : "Minggu Sedang Difilter"}
@@ -931,6 +974,11 @@ export default function ProgramPage() {
                 {weekDistribution.map((d) => {
                   const heightPct = Math.round((d.count / maxW) * 100);
                   const isSelected = filterWeek === d.week;
+                  const fillClass = isSelected
+                    ? "chart-fill-gold"
+                    : filterWeek === "all"
+                    ? "chart-fill-primary"
+                    : "opacity-35 chart-fill-primary";
 
                   return (
                     <button
@@ -944,42 +992,26 @@ export default function ProgramPage() {
                         "id-ID"
                       )} Program`}
                     >
-                      <span className="text-[10px] font-bold opacity-75">
+                      <span className="text-[10px] font-bold font-mono opacity-80">
                         {d.count}
                       </span>
-                      <div
-                        className="w-3 flex-1 rounded-full flex items-end overflow-hidden p-[1px]"
-                        style={{
-                          backgroundColor: isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(24,24,27,0.07)",
-                        }}
-                      >
+                      <div className="w-3 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                         <div
-                          className="w-full rounded-full transition-all duration-500 group-hover:scale-y-105"
+                          className={`w-full rounded-full transition-all duration-500 group-hover:scale-y-105 ${fillClass}`}
                           style={{
                             height: `${Math.max(
                               d.count > 0 ? 18 : 8,
                               heightPct
                             )}%`,
-                            backgroundColor:
-                              isSelected || filterWeek === "all"
-                                ? isSelected
-                                  ? "#facc15"
-                                  : "var(--ref-text-primary)"
-                                : "var(--ref-text-muted)",
                           }}
                         />
                       </div>
                       <span
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor: isSelected
-                            ? "#facc15"
-                            : "var(--ref-text-primary)",
-                        }}
+                        className={`w-2 h-2 rounded-full ${
+                          isSelected ? "chart-fill-gold" : "chart-fill-primary"
+                        }`}
                       />
-                      <span className="text-[10px] font-bold opacity-60">
+                      <span className="text-[10px] font-bold font-mono opacity-65">
                         W{d.week}
                       </span>
                     </button>
@@ -991,26 +1023,14 @@ export default function ProgramPage() {
         </div>
 
         {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS ALGORITMA */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[400px] border"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.02] dark:opacity-[0.05]"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, currentColor, currentColor 2px, transparent 2px, transparent 16px)",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Activity size={16} /> Indeks Dosis Latihan
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">03 /</span>
+              <Activity size={15} />
+              <span>Indeks Dosis Latihan</span>
             </div>
             <div className="flex items-center gap-1">
               {[
@@ -1024,13 +1044,9 @@ export default function ProgramPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: active
-                        ? "#facc15"
-                        : "var(--ref-card-subtle)",
-                      color: active ? "#000" : "var(--ref-text-secondary)",
-                    }}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    }`}
                   >
                     {m.label}
                   </button>
@@ -1076,29 +1092,28 @@ export default function ProgramPage() {
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke={
-                      isDark
-                        ? "rgba(255,255,255,0.16)"
-                        : "rgba(24,24,27,0.16)"
-                    }
                     strokeWidth="6"
                     strokeDasharray="2 5"
+                    className="gauge-circle-track"
                   />
                   <circle
                     cx="70"
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke="#facc15"
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700"
+                    className={`transition-all duration-700 ${
+                      gaugeMode === "duration"
+                        ? "gauge-circle-emerald"
+                        : "gauge-circle-gold"
+                    }`}
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light tracking-tighter leading-none">
+                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
                     {isLoading ? "—" : gaugeValue}
                   </span>
                   <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
@@ -1110,9 +1125,9 @@ export default function ProgramPage() {
           })()}
 
           <div className="relative z-10">
-            <div className="flex justify-between text-[11px] font-bold tracking-widest uppercase opacity-70 pt-3 border-t border-black/10 dark:border-white/10">
+            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-3 border-t border-hairline">
               <span>{uniqueTkjiList.length} Kategori TKJI</span>
-              <span>•</span>
+              <span>—</span>
               <span>{uniqueBmiList.length} Kategori IMT</span>
             </div>
           </div>
@@ -1120,19 +1135,24 @@ export default function ProgramPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 4: GRID KARTU FASE LATIHAN (PASTEL LIGHT / OBSIDIAN DARK)
+          ZONA 4: GRID KARTU FASE LATIHAN (PASTEL LIGHT / DEEP FOREST DARK)
          ==================================================================== */}
       {uniquePhasesSummary.length > 0 && (
         <div className="mb-10 relative z-10">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-2xl font-light tracking-tight">
-              Fase Periodisasi Latihan ({uniquePhasesSummary.length} Fase)
-            </h3>
+            <div>
+              <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
+                04 / TAHAPAN PERIODISASI
+              </div>
+              <h3 className="text-2xl font-light tracking-tight">
+                Fase Periodisasi Latihan ({uniquePhasesSummary.length} Fase)
+              </h3>
+            </div>
             {filterPhase !== "all" && (
               <button
                 type="button"
                 onClick={() => setFilterPhase("all")}
-                className="px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest bg-[#facc15] text-black cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer btn-forest-gold"
               >
                 Tampilkan Semua Fase
               </button>
@@ -1141,46 +1161,25 @@ export default function ProgramPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
             {uniquePhasesSummary.slice(0, 4).map((ph, index) => {
-              const bgLight = bentoColors[index % bentoColors.length];
+              const showcaseClass =
+                BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
               const isSelected = filterPhase === ph.name;
 
               return (
                 <div
                   key={ph.name}
-                  onClick={() =>
-                    setFilterPhase(isSelected ? "all" : ph.name)
-                  }
-                  className="p-7 rounded-[2.2rem] flex flex-col justify-between min-h-[210px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group border cursor-pointer"
-                  style={{
-                    backgroundColor: isDark ? "#111111" : bgLight,
-                    borderColor: isSelected
-                      ? "#facc15"
-                      : isDark
-                      ? "rgba(255,255,255,0.1)"
-                      : "transparent",
-                  }}
+                  onClick={() => setFilterPhase(isSelected ? "all" : ph.name)}
+                  className={`p-7 rounded-[2rem] flex flex-col justify-between min-h-[210px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
+                    isSelected ? "bento-showcase-selected" : ""
+                  }`}
                 >
-                  <div
-                    className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.05]"
-                    style={{
-                      backgroundImage:
-                        "radial-gradient(currentColor 2px, transparent 2px)",
-                      backgroundSize: "24px 24px",
-                    }}
-                  />
+                  <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                   <div className="flex justify-between items-start relative z-10">
-                    <span className="text-[10px] font-bold tracking-widest uppercase opacity-65">
-                      FASE 0{index + 1} • ~{ph.avgMin} MENIT
+                    <span className="text-[10px] font-bold font-mono tracking-widest uppercase opacity-70">
+                      FASE 0{index + 1} · ~{ph.avgMin} MENIT
                     </span>
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.06)"
-                          : "rgba(0,0,0,0.06)",
-                      }}
-                    >
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-black/5 dark:bg-white/5">
                       <ArrowUpRight size={16} />
                     </div>
                   </div>
@@ -1195,7 +1194,7 @@ export default function ProgramPage() {
                     <span className="text-[10px] font-bold uppercase tracking-widest opacity-55">
                       Kombinasi Resep
                     </span>
-                    <span className="text-2xl font-light leading-none">
+                    <span className="text-2xl font-light font-mono leading-none">
                       {ph.count.toLocaleString("id-ID")}
                     </span>
                   </div>
@@ -1209,53 +1208,36 @@ export default function ProgramPage() {
       {/* ====================================================================
           ZONA 5: TABEL DIREKTORI 4.800 ALGORITMA & SMART PAGINATION
          ==================================================================== */}
-      <div
-        className="rounded-[2.5rem] p-8 md:p-10 border relative z-10 overflow-hidden shadow-sm"
-        style={{
-          backgroundColor: isDark ? "#111111" : "#ffffff",
-          borderColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.05)",
-        }}
-      >
+      <div className="rounded-[2rem] p-8 md:p-10 relative z-10 overflow-hidden edufit-card-primary">
+        <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
+
         {/* Toolbar Minggu, Pencarian, & Jumlah Baris per Halaman */}
-        <div
-          className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-4 pb-6 mb-6 border-b"
-          style={{
-            borderColor: isDark
-              ? "rgba(255,255,255,0.08)"
-              : "rgba(0,0,0,0.08)",
-          }}
-        >
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="relative z-10 flex flex-col xl:flex-row justify-between items-stretch xl:items-center gap-4 pb-6 mb-6 border-b border-hairline">
+          <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl edufit-surface-subtle">
             <button
               type="button"
               onClick={() => setFilterWeek("all")}
-              className="px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-              style={{
-                backgroundColor:
-                  filterWeek === "all" ? "#facc15" : "transparent",
-                color: filterWeek === "all" ? "#000" : "inherit",
-                opacity: filterWeek === "all" ? 1 : 0.55,
-              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                filterWeek === "all" ? "seg-btn-active" : "seg-btn-idle"
+              }`}
             >
               Semua Minggu
             </button>
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((w) => (
-              <button
-                key={w}
-                type="button"
-                onClick={() => setFilterWeek(filterWeek === w ? "all" : w)}
-                className="px-3.5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-                style={{
-                  backgroundColor: filterWeek === w ? "#facc15" : "transparent",
-                  color: filterWeek === w ? "#000" : "inherit",
-                  opacity: filterWeek === w ? 1 : 0.55,
-                }}
-              >
-                W{w}
-              </button>
-            ))}
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((w) => {
+              const active = filterWeek === w;
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setFilterWeek(active ? "all" : w)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                    active ? "seg-btn-active" : "seg-btn-idle"
+                  }`}
+                >
+                  W{w}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -1266,13 +1248,7 @@ export default function ProgramPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari nama latihan, komponen, atau intensitas..."
-                className="w-full pl-11 pr-8 py-3 rounded-2xl text-xs font-semibold outline-none border"
-                style={{
-                  backgroundColor: isDark ? "#1a1a1a" : "#f8fafc",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.08)",
-                }}
+                className="w-full pl-11 pr-8 py-3.5 rounded-2xl text-xs font-semibold outline-none edufit-surface-subtle"
               />
               {searchQuery && (
                 <button
@@ -1285,26 +1261,20 @@ export default function ProgramPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider opacity-50 mr-1">
-                Baris:
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl edufit-surface-subtle">
+              <span className="text-[10px] font-bold font-mono uppercase tracking-wider opacity-60 px-2">
+                BARIS:
               </span>
               {[25, 50, 100, 250].map((sz) => (
                 <button
                   key={sz}
                   type="button"
                   onClick={() => setItemsPerPage(sz)}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer"
-                  style={{
-                    backgroundColor:
-                      itemsPerPage === sz
-                        ? "var(--ref-dark-panel)"
-                        : "transparent",
-                    borderColor: isDark
-                      ? "rgba(255,255,255,0.12)"
-                      : "rgba(0,0,0,0.1)",
-                    color: itemsPerPage === sz ? "#fff" : "inherit",
-                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono cursor-pointer ${
+                    itemsPerPage === sz
+                      ? "telemetry-bar-forest"
+                      : "seg-btn-idle"
+                  }`}
                 >
                   {sz}
                 </button>
@@ -1314,17 +1284,10 @@ export default function ProgramPage() {
         </div>
 
         {/* Tabel Utama */}
-        <div className="overflow-x-auto no-scrollbar">
+        <div className="relative z-10 overflow-x-auto no-scrollbar">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
-              <tr
-                className="border-b text-[10px] uppercase tracking-widest font-bold opacity-50"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.08)",
-                }}
-              >
+              <tr className="border-b border-hairline text-[10px] font-mono uppercase tracking-widest font-bold opacity-55">
                 <th className="pb-4 px-4">Sesi</th>
                 <th className="pb-4 px-4">Profil (Gender · IMT · TKJI)</th>
                 <th className="pb-4 px-4">Nama Program & Komponen</th>
@@ -1356,33 +1319,24 @@ export default function ProgramPage() {
                 currentItems.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
-                    style={{
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,0,0,0.05)",
-                    }}
+                    className="border-b border-hairline transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                   >
                     <td className="py-4 px-4">
-                      <span
-                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold inline-block"
-                        style={{
-                          backgroundColor: "var(--ref-dark-panel)",
-                          color: "#facc15",
-                        }}
-                      >
+                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono inline-block telemetry-bar-forest text-gold-accent">
                         W{row.week} · M{row.meeting}
                       </span>
                     </td>
                     <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold">{row.gender}</span>
-                        <span className="opacity-40">•</span>
+                      <div className="flex items-center gap-2 font-mono text-xs">
+                        <span className="font-bold px-2 py-0.5 rounded-md edufit-surface-subtle">
+                          {row.gender}
+                        </span>
+                        <span className="opacity-40">—</span>
                         <span className="font-semibold">
                           {row.bmi_category}
                         </span>
-                        <span className="opacity-40">•</span>
-                        <span className="text-emerald-500 font-bold">
+                        <span className="opacity-40">—</span>
+                        <span className="text-emerald-accent font-bold">
                           {row.tkji_category}
                         </span>
                       </div>
@@ -1404,12 +1358,12 @@ export default function ProgramPage() {
                         {row.phase || "Umum"}
                       </span>
                     </td>
-                    <td className="py-4 px-4 text-center">
+                    <td className="py-4 px-4 text-center font-mono">
                       <span className="text-lg font-light">
                         {row.duration_min || 0} mnt
                       </span>
                       {row.rest_time_sec ? (
-                        <span className="block text-[11px] opacity-50">
+                        <span className="block text-[11px] opacity-55">
                           Jeda {row.rest_time_sec} dtk
                         </span>
                       ) : null}
@@ -1419,12 +1373,7 @@ export default function ProgramPage() {
                         <button
                           type="button"
                           onClick={() => openEditModal(row)}
-                          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer"
-                          style={{
-                            backgroundColor: isDark
-                              ? "rgba(255,255,255,0.06)"
-                              : "rgba(0,0,0,0.05)",
-                          }}
+                          className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer edufit-surface-subtle hover:opacity-80"
                           title="Edit Baris Algoritma"
                         >
                           <Edit3 size={14} />
@@ -1432,7 +1381,7 @@ export default function ProgramPage() {
                         <button
                           type="button"
                           onClick={() => handleDelete(row.id)}
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/15 transition-colors cursor-pointer"
+                          className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose hover:opacity-80"
                           title="Hapus Baris"
                         >
                           <Trash2 size={14} />
@@ -1448,28 +1397,21 @@ export default function ProgramPage() {
 
         {/* SMART PAGINATION FOOTER UNTUK 4.800+ DATA */}
         {!isLoading && filteredAlgorithms.length > 0 && (
-          <div
-            className="pt-6 mt-4 border-t flex flex-col lg:flex-row items-center justify-between gap-4"
-            style={{
-              borderColor: isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.08)",
-            }}
-          >
-            <div className="text-xs font-bold uppercase tracking-widest opacity-60">
-              Menampilkan{" "}
-              <strong className="opacity-100">
+          <div className="relative z-10 pt-6 mt-4 border-t border-hairline flex flex-col lg:flex-row items-center justify-between gap-4">
+            <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-65">
+              MENAMPILKAN{" "}
+              <strong className="opacity-100 text-emerald-accent">
                 {(indexOfFirstItem + 1).toLocaleString("id-ID")} –{" "}
                 {Math.min(
                   indexOfLastItem,
                   filteredAlgorithms.length
                 ).toLocaleString("id-ID")}
               </strong>{" "}
-              dari{" "}
+              DARI{" "}
               <strong className="opacity-100">
                 {filteredAlgorithms.length.toLocaleString("id-ID")}
               </strong>{" "}
-              Program (Database Utuh: {totalDbCount.toLocaleString("id-ID")})
+              PROGRAM (MASTER: {totalDbCount.toLocaleString("id-ID")})
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -1477,12 +1419,7 @@ export default function ProgramPage() {
                 type="button"
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
-                className="p-2.5 rounded-xl border disabled:opacity-30 cursor-pointer"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.1)",
-                }}
+                className="p-2.5 rounded-xl disabled:opacity-30 cursor-pointer edufit-surface-subtle"
                 title="Halaman Pertama"
               >
                 <ChevronsLeft size={15} />
@@ -1491,12 +1428,7 @@ export default function ProgramPage() {
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="p-2.5 rounded-xl border disabled:opacity-30 cursor-pointer"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.1)",
-                }}
+                className="p-2.5 rounded-xl disabled:opacity-30 cursor-pointer edufit-surface-subtle"
                 title="Halaman Sebelumnya"
               >
                 <ChevronLeft size={15} />
@@ -1507,18 +1439,11 @@ export default function ProgramPage() {
                   key={num}
                   type="button"
                   onClick={() => setCurrentPage(num)}
-                  className="min-w-[38px] h-9 px-3 rounded-xl text-xs font-bold border transition-colors cursor-pointer"
-                  style={{
-                    backgroundColor:
-                      currentPage === num ? "#facc15" : "transparent",
-                    borderColor:
-                      currentPage === num
-                        ? "#facc15"
-                        : isDark
-                        ? "rgba(255,255,255,0.12)"
-                        : "rgba(0,0,0,0.1)",
-                    color: currentPage === num ? "#000" : "inherit",
-                  }}
+                  className={`min-w-[38px] h-9 px-3 rounded-xl text-xs font-bold font-mono transition-colors cursor-pointer ${
+                    currentPage === num
+                      ? "seg-btn-active"
+                      : "edufit-surface-subtle"
+                  }`}
                 >
                   {num}
                 </button>
@@ -1530,12 +1455,7 @@ export default function ProgramPage() {
                   setCurrentPage((p) => Math.min(totalPages, p + 1))
                 }
                 disabled={currentPage === totalPages}
-                className="p-2.5 rounded-xl border disabled:opacity-30 cursor-pointer"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.1)",
-                }}
+                className="p-2.5 rounded-xl disabled:opacity-30 cursor-pointer edufit-surface-subtle"
                 title="Halaman Berikutnya"
               >
                 <ChevronRight size={15} />
@@ -1544,12 +1464,7 @@ export default function ProgramPage() {
                 type="button"
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={currentPage === totalPages}
-                className="p-2.5 rounded-xl border disabled:opacity-30 cursor-pointer"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.1)",
-                }}
+                className="p-2.5 rounded-xl disabled:opacity-30 cursor-pointer edufit-surface-subtle"
                 title="Halaman Terakhir"
               >
                 <ChevronsRight size={15} />
@@ -1566,20 +1481,11 @@ export default function ProgramPage() {
                   value={jumpPageInput}
                   onChange={(e) => setJumpPageInput(e.target.value)}
                   placeholder={`Hal (1-${totalPages})`}
-                  className="w-28 px-3 py-2 rounded-xl text-xs font-bold border outline-none bg-transparent"
-                  style={{
-                    borderColor: isDark
-                      ? "rgba(255,255,255,0.15)"
-                      : "rgba(0,0,0,0.15)",
-                  }}
+                  className="w-28 px-3 py-2 rounded-xl text-xs font-bold font-mono outline-none edufit-surface-subtle"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
-                  style={{
-                    backgroundColor: isDark ? "#ffffff" : "#18181b",
-                    color: isDark ? "#18181b" : "#ffffff",
-                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer telemetry-bar-forest"
                 >
                   Lompat
                 </button>
@@ -1590,7 +1496,7 @@ export default function ProgramPage() {
       </div>
 
       {/* ====================================================================
-          MODAL TAMBAH / EDIT ALGORITMA (GAYA MASTERPIECE)
+          MODAL TAMBAH / EDIT ALGORITMA (DILENGKAPI FIELD KOMPONEN & PEMILIH GENDER)
          ==================================================================== */}
       <AnimatePresence>
         {isModalOpen && editData && (
@@ -1599,31 +1505,25 @@ export default function ProgramPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/65 backdrop-blur-sm"
               onClick={() => setIsModalOpen(false)}
             />
             <motion.div
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto no-scrollbar rounded-[2.5rem] p-8 md:p-10 relative z-10 shadow-2xl border"
-              style={{
-                backgroundColor: isDark ? "#141414" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
-              }}
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto no-scrollbar rounded-[2rem] p-8 md:p-10 relative z-10 shadow-2xl edufit-card-primary"
             >
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="absolute top-6 right-6 p-2 rounded-full opacity-60 hover:opacity-100 cursor-pointer"
+                className="absolute top-6 right-6 w-9 h-9 rounded-xl flex items-center justify-center opacity-70 hover:opacity-100 cursor-pointer edufit-surface-subtle"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
 
-              <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-1">
-                Matriks Kebugaran Kelas XII
+              <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
+                KONFIGURASI RESEP FITT · KELAS XII
               </span>
               <h2 className="text-3xl font-light tracking-tight mb-6">
                 {isCreating ? "Tambah" : "Edit"}{" "}
@@ -1633,7 +1533,7 @@ export default function ProgramPage() {
               <form onSubmit={handleSaveAlgorithm} className="space-y-5">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Minggu (1-8)
                     </label>
                     <input
@@ -1645,16 +1545,11 @@ export default function ProgramPage() {
                       onChange={(e) =>
                         setEditData({ ...editData, week: e.target.value })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold font-mono outline-none edufit-surface-subtle"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Pertemuan
                     </label>
                     <input
@@ -1666,36 +1561,43 @@ export default function ProgramPage() {
                       onChange={(e) =>
                         setEditData({ ...editData, meeting: e.target.value })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold font-mono outline-none edufit-surface-subtle"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
-                      Gender
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
+                      Gender (Sinkron Akun Siswa)
                     </label>
-                    <input
-                      required
-                      type="text"
-                      value={editData.gender}
-                      onChange={(e) =>
-                        setEditData({ ...editData, gender: e.target.value })
-                      }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
-                    />
+                    <div className="flex gap-1.5 p-1 rounded-2xl edufit-surface-subtle">
+                      {genderChoicesForModal.map((gChoice) => {
+                        const active = String(editData.gender) === gChoice;
+                        return (
+                          <button
+                            key={gChoice}
+                            type="button"
+                            onClick={() =>
+                              setEditData({ ...editData, gender: gChoice })
+                            }
+                            className={`flex-1 py-2.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
+                              active ? "seg-btn-active" : "seg-btn-idle"
+                            }`}
+                          >
+                            {gChoice === "L"
+                              ? "Putra (L)"
+                              : gChoice === "P"
+                              ? "Putri (P)"
+                              : gChoice}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
-                      Fase Latihan
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
+                      Fase Periodisasi Latihan
                     </label>
                     <input
                       required
@@ -1704,19 +1606,30 @@ export default function ProgramPage() {
                       onChange={(e) =>
                         setEditData({ ...editData, phase: e.target.value })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      placeholder="Contoh: Fase Adaptasi"
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold outline-none edufit-surface-subtle"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
+                      Komponen Kebugaran Jasmani
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={editData.component || ""}
+                      onChange={(e) =>
+                        setEditData({ ...editData, component: e.target.value })
+                      }
+                      placeholder="Contoh: Daya Tahan Jantung-Paru"
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold outline-none edufit-surface-subtle"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Kategori IMT
                     </label>
                     <input
@@ -1729,16 +1642,11 @@ export default function ProgramPage() {
                           bmi_category: e.target.value,
                         })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold outline-none edufit-surface-subtle"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Kategori TKJI
                     </label>
                     <input
@@ -1751,18 +1659,13 @@ export default function ProgramPage() {
                           tkji_category: e.target.value,
                         })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold outline-none edufit-surface-subtle"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                  <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                     Nama Program Utama & Instruksi Latihan
                   </label>
                   <textarea
@@ -1772,18 +1675,13 @@ export default function ProgramPage() {
                     onChange={(e) =>
                       setEditData({ ...editData, program_name: e.target.value })
                     }
-                    className="w-full p-4 rounded-2xl text-sm font-medium border resize-y outline-none bg-transparent"
-                    style={{
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.15)"
-                        : "rgba(0,0,0,0.15)",
-                    }}
+                    className="w-full p-4 rounded-2xl text-sm font-medium resize-y outline-none edufit-surface-subtle"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Durasi (Menit)
                     </label>
                     <input
@@ -1796,16 +1694,11 @@ export default function ProgramPage() {
                           duration_min: e.target.value,
                         })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold font-mono outline-none edufit-surface-subtle"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Istirahat (Detik)
                     </label>
                     <input
@@ -1817,16 +1710,11 @@ export default function ProgramPage() {
                           rest_time_sec: e.target.value,
                         })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold font-mono outline-none edufit-surface-subtle"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       Intensitas
                     </label>
                     <input
@@ -1835,16 +1723,11 @@ export default function ProgramPage() {
                       onChange={(e) =>
                         setEditData({ ...editData, intensity: e.target.value })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold outline-none edufit-surface-subtle"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-60 block mb-1.5">
+                    <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-60 block mb-1.5">
                       ID Instruksi
                     </label>
                     <input
@@ -1856,12 +1739,7 @@ export default function ProgramPage() {
                           instruction_id: e.target.value,
                         })
                       }
-                      className="w-full p-3.5 rounded-2xl text-xs font-bold border outline-none bg-transparent"
-                      style={{
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.15)"
-                          : "rgba(0,0,0,0.15)",
-                      }}
+                      className="w-full p-3.5 rounded-2xl text-xs font-bold font-mono outline-none edufit-surface-subtle"
                     />
                   </div>
                 </div>
@@ -1869,8 +1747,7 @@ export default function ProgramPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-4 mt-2 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md text-white"
-                  style={{ backgroundColor: "#10b981" }}
+                  className="w-full py-4 mt-2 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md btn-forest-emerald"
                 >
                   {isSubmitting
                     ? "Menyimpan..."

@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  /* COLORS KUSTOM EDUFIT (TETAP DIPERTAHANKAN) */
+  /* ========================================================================
+     1. PALET UTAMA EDUFIT & INTEGRASI FINORA DEEP FOREST (MOBILE SISWA)
+     ======================================================================== */
   --color-primary: #032521;
   --color-on-primary: #ffffff;
   --color-primary-container: #1b3b36;
@@ -31,10 +33,28 @@
   --color-outline: #717976;
   --color-outline-variant: #c1c8c5;
 
-  /* FONTS KUSTOM (Di-mapping ke Jakarta Sans & Poppins) */
+  /* TOKEN MOBILE SISWA (app_colors.dart) */
+  --color-finora-sand: #dfd7c8;
+  --color-finora-cream: #f7f5f0;
+  --color-finora-subtle: #edeae2;
+  --color-forest-ultra: #061b13;
+  --color-forest-deep: #07241a;
+  --color-forest-primary: #0b3124;
+  --color-forest-card: #10382a;
+  --color-gold-accent: #f2b84b;
+  --color-gold-bright: #facc15;
+  --color-gold-dark: #d99b26;
+  --color-emerald-verde: #2a8c6a;
+  --color-orange-terra: #e87a3e;
+  --color-ink-dark: #121c18;
+  --color-ink-muted: #6e7a75;
+  --color-ink-light: #f8fafc;
+
+  /* FONTS KUSTOM (Plus Jakarta Sans, Poppins, & Space Mono) */
   --font-bebas: var(--font-jakarta), sans-serif;
   --font-jakarta: var(--font-poppins), sans-serif;
-  
+  --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
   --font-headline-xl: var(--font-bebas);
   --font-headline-lg: var(--font-bebas);
   --font-headline-md: var(--font-bebas);
@@ -59,7 +79,7 @@
 
 @layer base {
   :root {
-    /* VARIABEL LAMA (TETAP DIPERTAHANKAN) */
+    /* VARIABEL LAMA (TETAP DIPERTAHANKAN AGAR KOMPONEN LAIN AMAN) */
     --bg-dashboard: #f8faf9;
     --card-surface: #ffffff;
     --text-main: #191c1c;
@@ -68,7 +88,7 @@
     --sidebar-bg: #032521;
     --sidebar-icon: #84a59e;
     --sidebar-icon-active: #89f9b5;
-    
+
     --card-yellow: #fef0c7;
     --card-yellow-text: #93370d;
     --card-blue: #e0f2fe;
@@ -85,33 +105,42 @@
     --alert-icon: #a16207;
 
     /* ======================================================================
-       BANK WARNA BARU: COLORFUL WARM LIGHT MODE
+       SISTEM TEMA TERPADU LIGHT MODE: FINORA WARM CREAM & ARCHITECTURAL INK
        ====================================================================== */
-    --ref-canvas-bg: #f4f1ea;
-    --ref-canvas-gradient: radial-gradient(circle at 90% 8%, rgba(245, 200, 76, 0.32) 0%, rgba(244, 241, 234, 0.94) 45%, #efece4 100%);
-    --ref-card-bg: rgba(255, 255, 255, 0.92);
+    --ref-canvas-bg: #f7f5f0;
+    --ref-canvas-gradient: radial-gradient(
+      circle at 90% 8%,
+      rgba(242, 184, 75, 0.26) 0%,
+      rgba(247, 245, 240, 0.95) 45%,
+      #edeae2 100%
+    );
+    --ref-card-bg: rgba(255, 255, 255, 0.94);
     --ref-card-solid: #ffffff;
-    --ref-card-subtle: #f6f4ee;
-    --ref-card-border: rgba(24, 24, 27, 0.07);
-    --ref-card-shadow: 0 12px 32px -12px rgba(24, 24, 27, 0.06);
+    --ref-card-secondary: #f7f5f0;
+    --ref-card-subtle: #edeae2;
+    --ref-card-border: rgba(18, 28, 24, 0.08);
+    --ref-card-border-strong: rgba(18, 28, 24, 0.16);
+    --ref-card-shadow: 0 12px 32px -12px rgba(18, 28, 24, 0.06);
 
-    --ref-nav-shell: rgba(255, 255, 255, 0.9);
-    --ref-nav-active-bg: #18181b;
+    --ref-nav-shell: rgba(255, 255, 255, 0.92);
+    --ref-nav-active-bg: #07241a;
     --ref-nav-active-text: #ffffff;
-    --ref-nav-idle-text: #52525b;
+    --ref-nav-idle-text: #6e7a75;
 
-    --ref-text-primary: #18181b;
-    --ref-text-secondary: #52525b;
-    --ref-text-muted: #71717a;
+    --ref-text-primary: #121c18;
+    --ref-text-secondary: #414846;
+    --ref-text-muted: #6e7a75;
 
-    --ref-accent-gold: #f5c84c;
+    --ref-accent-gold: #f2b84b;
     --ref-accent-gold-soft: #fef3c7;
     --ref-accent-gold-text: #78350f;
+    --ref-accent-emerald: #2a8c6a;
+    --ref-accent-terra: #e87a3e;
 
-    /* Aksen Colorful untuk Kartu Light Mode */
+    /* Aksen Tints (Light Mode) */
     --ref-tint-emerald-bg: #ecfdf5;
     --ref-tint-emerald-border: #a7f3d0;
-    --ref-tint-emerald-icon: #10b981;
+    --ref-tint-emerald-icon: #2a8c6a;
     --ref-tint-emerald-text: #065f46;
 
     --ref-tint-sky-bg: #f0f9ff;
@@ -131,25 +160,41 @@
 
     --ref-tint-amber-bg: #fffbeb;
     --ref-tint-amber-border: #fde68a;
-    --ref-tint-amber-icon: #f59e0b;
+    --ref-tint-amber-icon: #f2b84b;
     --ref-tint-amber-text: #92400e;
 
-    --ref-dark-panel: #18181b;
-    --ref-dark-panel-sub: #27272a;
-    --ref-dark-panel-text: #fafafa;
-    --ref-dark-panel-muted: #a1a1aa;
+    /* Panel Kontras Deep Forest dari Mobile */
+    --ref-dark-panel: #07241a;
+    --ref-dark-panel-ultra: #061b13;
+    --ref-dark-panel-sub: #10382a;
+    --ref-dark-panel-text: #f8fafc;
+    --ref-dark-panel-muted: #94a3b8;
+
+    /* Track & Chart Tokens */
+    --ref-track-bg: rgba(18, 28, 24, 0.08);
+    --ref-gauge-track: rgba(18, 28, 24, 0.16);
+
+    /* Bento Showcase Pastel Cards (Light Mode) */
+    --bento-0-bg: #fef08a;
+    --bento-0-border: #fde047;
+    --bento-1-bg: #bbf7d0;
+    --bento-1-border: #86efac;
+    --bento-2-bg: #fed7aa;
+    --bento-2-border: #fdba74;
+    --bento-3-bg: #bae6fd;
+    --bento-3-border: #7dd3fc;
 
     --ref-stripe-pattern: repeating-linear-gradient(
       90deg,
-      rgba(24, 24, 27, 0.09) 0px,
-      rgba(24, 24, 27, 0.09) 2px,
+      rgba(18, 28, 24, 0.08) 0px,
+      rgba(18, 28, 24, 0.08) 2px,
       transparent 2px,
       transparent 7px
     );
   }
 
   .dark {
-    /* VARIABEL LAMA DARK MODE (TETAP DIPERTAHANKAN) */
+    /* VARIABEL LAMA DARK MODE */
     --bg-dashboard: #021614;
     --card-surface: #0a241f;
     --text-main: #f8faf9;
@@ -175,64 +220,88 @@
     --alert-icon: #fde047;
 
     /* ======================================================================
-       BANK WARNA BARU: STRONG & BOLD DARK MODE
+       SISTEM TEMA TERPADU DARK MODE: MOBILE DEEP FOREST & GOLD ACCENT
        ====================================================================== */
-    --ref-canvas-bg: #090a0f;
-    --ref-canvas-gradient: radial-gradient(circle at 88% 8%, rgba(245, 200, 76, 0.16) 0%, rgba(13, 15, 20, 0.98) 45%, #07080c 100%);
-    --ref-card-bg: rgba(20, 22, 29, 0.94);
-    --ref-card-solid: #14161d;
-    --ref-card-subtle: #1d202a;
-    --ref-card-border: rgba(255, 255, 255, 0.1);
+    --ref-canvas-bg: #07241a;
+    --ref-canvas-gradient: radial-gradient(
+      circle at 88% 8%,
+      rgba(242, 184, 75, 0.14) 0%,
+      rgba(7, 36, 26, 0.98) 48%,
+      #061b13 100%
+    );
+    --ref-card-bg: rgba(11, 49, 36, 0.94);
+    --ref-card-solid: #0b3124;
+    --ref-card-secondary: #10382a;
+    --ref-card-subtle: rgba(255, 255, 255, 0.05);
+    --ref-card-border: rgba(255, 255, 255, 0.09);
+    --ref-card-border-strong: rgba(255, 255, 255, 0.2);
     --ref-card-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.65);
 
-    --ref-nav-shell: rgba(20, 22, 29, 0.92);
-    --ref-nav-active-bg: #f5c84c;
-    --ref-nav-active-text: #111216;
-    --ref-nav-idle-text: #a1a1aa;
+    --ref-nav-shell: rgba(6, 27, 19, 0.92);
+    --ref-nav-active-bg: #f2b84b;
+    --ref-nav-active-text: #121c18;
+    --ref-nav-idle-text: #94a3b8;
 
     --ref-text-primary: #f8fafc;
-    --ref-text-secondary: #94a3b8;
-    --ref-text-muted: #64748b;
+    --ref-text-secondary: #cbd5e1;
+    --ref-text-muted: #84a59e;
 
-    --ref-accent-gold: #f5c84c;
-    --ref-accent-gold-soft: rgba(245, 200, 76, 0.18);
+    --ref-accent-gold: #f2b84b;
+    --ref-accent-gold-soft: rgba(242, 184, 75, 0.18);
     --ref-accent-gold-text: #fde047;
+    --ref-accent-emerald: #34d399;
+    --ref-accent-terra: #fb923c;
 
-    /* Aksen Strong Dark Mode */
-    --ref-tint-emerald-bg: rgba(16, 185, 129, 0.12);
+    /* Aksen Tints (Dark Mode) */
+    --ref-tint-emerald-bg: rgba(42, 140, 106, 0.2);
     --ref-tint-emerald-border: rgba(52, 211, 153, 0.3);
     --ref-tint-emerald-icon: #34d399;
     --ref-tint-emerald-text: #6ee7b7;
 
-    --ref-tint-sky-bg: rgba(14, 165, 233, 0.12);
+    --ref-tint-sky-bg: rgba(14, 165, 233, 0.15);
     --ref-tint-sky-border: rgba(56, 189, 248, 0.3);
     --ref-tint-sky-icon: #38bdf8;
     --ref-tint-sky-text: #7dd3fc;
 
-    --ref-tint-rose-bg: rgba(244, 63, 94, 0.12);
+    --ref-tint-rose-bg: rgba(244, 63, 94, 0.15);
     --ref-tint-rose-border: rgba(251, 113, 133, 0.3);
     --ref-tint-rose-icon: #fb7185;
     --ref-tint-rose-text: #fda4af;
 
-    --ref-tint-violet-bg: rgba(139, 92, 246, 0.12);
+    --ref-tint-violet-bg: rgba(139, 92, 246, 0.15);
     --ref-tint-violet-border: rgba(167, 139, 250, 0.3);
     --ref-tint-violet-icon: #a78bfa;
     --ref-tint-violet-text: #c4b5fd;
 
-    --ref-tint-amber-bg: rgba(245, 158, 11, 0.12);
-    --ref-tint-amber-border: rgba(251, 191, 36, 0.3);
-    --ref-tint-amber-icon: #fbbf24;
+    --ref-tint-amber-bg: rgba(242, 184, 75, 0.16);
+    --ref-tint-amber-border: rgba(242, 184, 75, 0.35);
+    --ref-tint-amber-icon: #f2b84b;
     --ref-tint-amber-text: #fde68a;
 
-    --ref-dark-panel: #0d0f14;
-    --ref-dark-panel-sub: #181b24;
+    --ref-dark-panel: #061b13;
+    --ref-dark-panel-ultra: #04120d;
+    --ref-dark-panel-sub: #10382a;
     --ref-dark-panel-text: #ffffff;
-    --ref-dark-panel-muted: #94a3b8;
+    --ref-dark-panel-muted: #84a59e;
+
+    /* Track & Chart Tokens */
+    --ref-track-bg: rgba(255, 255, 255, 0.09);
+    --ref-gauge-track: rgba(255, 255, 255, 0.16);
+
+    /* Bento Showcase Cards (Dark Mode menyatu ke Deep Forest Card) */
+    --bento-0-bg: #10382a;
+    --bento-0-border: rgba(255, 255, 255, 0.1);
+    --bento-1-bg: #0b3124;
+    --bento-1-border: rgba(255, 255, 255, 0.1);
+    --bento-2-bg: #10382a;
+    --bento-2-border: rgba(255, 255, 255, 0.1);
+    --bento-3-bg: #0b3124;
+    --bento-3-border: rgba(255, 255, 255, 0.1);
 
     --ref-stripe-pattern: repeating-linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.15) 0px,
-      rgba(255, 255, 255, 0.15) 2px,
+      rgba(255, 255, 255, 0.14) 0px,
+      rgba(255, 255, 255, 0.14) 2px,
       transparent 2px,
       transparent 7px
     );
@@ -247,10 +316,262 @@
   }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* ==========================================================================
+   2. SISTEM KOMPONEN & UTILITAS ARSITEKTURAL (BEBAS INLINE CSS DI TSX)
+   ========================================================================== */
+@layer components {
+  /* Permukaan Kartu Adaptif */
+  .edufit-card-primary {
+    background-color: var(--ref-card-solid);
+    border: 1px solid var(--ref-card-border);
+    box-shadow: var(--ref-card-shadow);
+    color: var(--ref-text-primary);
+  }
+
+  .edufit-card-secondary {
+    background-color: var(--ref-card-secondary);
+    border: 1px solid var(--ref-card-border);
+    box-shadow: var(--ref-card-shadow);
+    color: var(--ref-text-primary);
+  }
+
+  .edufit-surface-subtle {
+    background-color: var(--ref-card-subtle);
+    border: 1px solid var(--ref-card-border);
+    color: var(--ref-text-primary);
+  }
+
+  .edufit-panel-forest {
+    background-color: var(--ref-dark-panel);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--ref-dark-panel-text);
+  }
+
+  .edufit-dropdown-menu {
+    background-color: var(--ref-card-solid);
+    border: 1px solid var(--ref-card-border-strong);
+    color: var(--ref-text-primary);
+  }
+
+  .edufit-underline-select {
+    border-bottom: 2px solid var(--ref-card-border-strong);
+    transition: border-color 0.25s ease;
+  }
+  .edufit-underline-select:hover,
+  .edufit-underline-select-active {
+    border-bottom-color: var(--ref-accent-gold);
+  }
+
+  /* Bar Telemetri */
+  .telemetry-bar-forest {
+    background-color: var(--color-forest-deep);
+    color: var(--color-ink-light);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .telemetry-bar-forest-active {
+    background-color: var(--color-forest-deep);
+    color: var(--color-ink-light);
+    border: 1px solid var(--color-gold-accent);
+  }
+  .telemetry-bar-gold {
+    background-color: var(--color-gold-accent);
+    color: var(--color-ink-dark);
+  }
+  .telemetry-bar-striped {
+    background-color: var(--ref-card-solid);
+    border: 1px solid var(--ref-card-border);
+    background-image: var(--ref-stripe-pattern);
+    color: var(--ref-text-primary);
+  }
+
+  /* 3 Pattern Latar Khas Kartu Bento */
+  .pattern-polkadot {
+    background-image: radial-gradient(currentColor 2px, transparent 2px);
+    background-size: 24px 24px;
+    opacity: 0.035;
+  }
+  .dark .pattern-polkadot {
+    opacity: 0.07;
+  }
+
+  .pattern-millimeter-grid {
+    background-image: linear-gradient(currentColor 1px, transparent 1px),
+      linear-gradient(90deg, currentColor 1px, transparent 1px);
+    background-size: 26px 26px;
+    opacity: 0.035;
+  }
+  .dark .pattern-millimeter-grid {
+    opacity: 0.06;
+  }
+
+  .pattern-diagonal-stripes {
+    background-image: repeating-linear-gradient(
+      45deg,
+      currentColor,
+      currentColor 2px,
+      transparent 2px,
+      transparent 16px
+    );
+    opacity: 0.025;
+  }
+  .dark .pattern-diagonal-stripes {
+    opacity: 0.055;
+  }
+
+  /* 4 Kartu Bento Showcase (Pastel di Light Mode, Deep Forest di Dark Mode) */
+  .bento-showcase-0 {
+    background-color: var(--bento-0-bg);
+    border: 1px solid var(--bento-0-border);
+    color: var(--ref-text-primary);
+  }
+  .bento-showcase-1 {
+    background-color: var(--bento-1-bg);
+    border: 1px solid var(--bento-1-border);
+    color: var(--ref-text-primary);
+  }
+  .bento-showcase-2 {
+    background-color: var(--bento-2-bg);
+    border: 1px solid var(--bento-2-border);
+    color: var(--ref-text-primary);
+  }
+  .bento-showcase-3 {
+    background-color: var(--bento-3-bg);
+    border: 1px solid var(--bento-3-border);
+    color: var(--ref-text-primary);
+  }
+  .bento-showcase-selected {
+    border-color: var(--color-gold-accent);
+    box-shadow: 0 0 0 2px var(--color-gold-accent);
+  }
+
+  /* Dynamic Island Alert (Adaptasi langsung dari dynamic_island_alert.dart) */
+  .dynamic-island-shell {
+    background-color: var(--color-forest-ultra);
+    color: #ffffff;
+    box-shadow: 0 14px 34px -6px rgba(0, 0, 0, 0.48);
+  }
+  .dynamic-island-success {
+    border: 1.2px solid rgba(42, 140, 106, 0.55);
+  }
+  .dynamic-island-error {
+    border: 1.2px solid rgba(239, 68, 68, 0.55);
+  }
+  .dynamic-island-info {
+    border: 1.2px solid rgba(242, 184, 75, 0.55);
+  }
+  .dynamic-island-icon-success {
+    background-color: rgba(42, 140, 106, 0.2);
+    color: var(--color-emerald-verde);
+  }
+  .dynamic-island-icon-error {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+  .dynamic-island-icon-info {
+    background-color: rgba(242, 184, 75, 0.2);
+    color: var(--color-gold-accent);
+  }
+
+  /* Elemen Kontrol, Tab, & Grafik */
+  .seg-btn-active {
+    background-color: var(--color-gold-accent);
+    color: var(--color-ink-dark);
+    opacity: 1;
+  }
+  .seg-btn-idle {
+    background-color: transparent;
+    color: inherit;
+    opacity: 0.55;
+  }
+  .seg-btn-idle:hover {
+    opacity: 0.9;
+  }
+
+  .grade-card-active {
+    background-color: var(--ref-tint-amber-bg);
+    border: 1px solid var(--color-gold-accent);
+  }
+
+  .chart-track-pill {
+    background-color: var(--ref-track-bg);
+  }
+  .chart-fill-primary {
+    background-color: var(--ref-text-primary);
+  }
+  .chart-fill-gold {
+    background-color: var(--color-gold-accent);
+  }
+  .chart-fill-emerald {
+    background-color: var(--color-emerald-verde);
+  }
+  .chart-fill-terra {
+    background-color: var(--color-orange-terra);
+  }
+  .chart-fill-sky {
+    background-color: #38bdf8;
+  }
+
+  .gauge-circle-track {
+    stroke: var(--ref-gauge-track);
+  }
+  .gauge-circle-gold {
+    stroke: var(--color-gold-accent);
+  }
+  .gauge-circle-emerald {
+    stroke: var(--color-emerald-verde);
+  }
+
+  /* Badge Nilai & Metrik */
+  .badge-tint-emerald {
+    background-color: var(--ref-tint-emerald-bg);
+    color: var(--ref-tint-emerald-text);
+  }
+  .badge-tint-sky {
+    background-color: var(--ref-tint-sky-bg);
+    color: var(--ref-tint-sky-text);
+  }
+  .badge-tint-amber {
+    background-color: var(--ref-tint-amber-bg);
+    color: var(--ref-tint-amber-text);
+  }
+  .badge-tint-rose {
+    background-color: var(--ref-tint-rose-bg);
+    color: var(--ref-tint-rose-text);
+  }
+
+  /* Tombol Aksi Utama */
+  .btn-forest-emerald {
+    background-color: var(--color-emerald-verde);
+    color: #ffffff;
+  }
+  .btn-forest-gold {
+    background-color: var(--color-gold-accent);
+    color: var(--color-ink-dark);
+  }
+  .btn-forest-contrast {
+    background-color: var(--ref-text-primary);
+    color: var(--ref-card-solid);
+  }
 }
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .border-hairline {
+    border-color: var(--ref-card-border);
+  }
+
+  .text-emerald-accent {
+    color: var(--ref-accent-emerald);
+  }
+
+  .text-gold-accent {
+    color: var(--color-gold-accent);
+  }
 }

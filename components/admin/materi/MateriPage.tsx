@@ -5,12 +5,15 @@ import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
   AlignLeft,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   ArrowUpRight,
+  Bell,
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -28,16 +31,16 @@ import {
   MessageSquareWarning,
   Play,
   Plus,
+  SlidersHorizontal,
   Smartphone,
   Table as TableIcon,
   Tablet,
   Trash2,
   UploadCloud,
   Video,
-  X
+  X,
 } from "lucide-react";
-import { useTheme } from "next-themes";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 // ============================================================================
@@ -106,6 +109,20 @@ export interface ContentBlock {
   correctOption?: string;
   explanation?: string;
 }
+
+interface IslandNotification {
+  id: number;
+  message: string;
+  subtitle?: string;
+  type: "success" | "error" | "info";
+}
+
+const BENTO_SHOWCASE_CLASSES = [
+  "bento-showcase-0",
+  "bento-showcase-1",
+  "bento-showcase-2",
+  "bento-showcase-3",
+];
 
 const EDUFIT_BLOCKS_MARKER_START = "<!--EDUFIT_SAAS_BLOCKS_START:";
 const EDUFIT_BLOCKS_MARKER_END = ":EDUFIT_SAAS_BLOCKS_END-->";
@@ -235,12 +252,10 @@ function compressImageToDataUrl(
 }
 
 export default function MateriPage() {
-  const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
-  const isDark = mounted && resolvedTheme === "dark";
 
   const [allMaterials, setAllMaterials] = useState<any[]>([]);
   const [allReflections, setAllReflections] = useState<any[]>([]);
@@ -250,6 +265,30 @@ export default function MateriPage() {
   const [viewMode, setViewMode] = useState<"list" | "form">("list");
   const [gaugeMode, setGaugeMode] = useState<"graded" | "blocks" | "units">(
     "graded"
+  );
+
+  // Dynamic Island Alert State
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerDynamicIsland = useCallback(
+    (
+      message: string,
+      subtitle?: string,
+      type: "success" | "error" | "info" = "info"
+    ) => {
+      if (islandTimerRef.current) clearTimeout(islandTimerRef.current);
+      setIslandAlert({
+        id: Date.now(),
+        message,
+        subtitle,
+        type,
+      });
+      islandTimerRef.current = setTimeout(() => {
+        setIslandAlert(null);
+      }, 3400);
+    },
+    []
   );
 
   // Dropdown Lompat Cepat ke Unit Materi di Bento 1
@@ -328,6 +367,11 @@ export default function MateriPage() {
       setAllReflections(refRes.data || []);
     } catch (error: any) {
       toast.error("Gagal menarik data materi: " + (error?.message || ""));
+      triggerDynamicIsland(
+        "Gagal Memuat Modul Materi",
+        error?.message || "Periksa koneksi ke tabel master_materials.",
+        "error"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -344,7 +388,7 @@ export default function MateriPage() {
   );
 
   // ==========================================================================
-  // PEMBUAT BLOK DEFAULT YANG BERSIH & MUDAH DIPAHAMI ADMIN
+  // PEMBUAT BLOK DEFAULT
   // ==========================================================================
   const createDefaultBlock = (type: BlockType): ContentBlock => {
     const id = generateId();
@@ -389,7 +433,7 @@ export default function MateriPage() {
         return {
           id,
           type: "figure",
-          overline: "GAMBAR 1.1 · ILUSTRASI GERAK",
+          overline: "GAMBAR 1.1 - ILUSTRASI GERAK",
           title: "",
           imageUrl: "",
           caption: "",
@@ -715,6 +759,11 @@ export default function MateriPage() {
       },
     ]);
     setViewMode("form");
+    triggerDynamicIsland(
+      `SaaS Builder: Modul Kelas ${activeGrade}`,
+      "Susun blok konten interaktif dengan Live Preview Aplikasi Siswa.",
+      "info"
+    );
   };
 
   const openEditForm = (mat: any) => {
@@ -727,6 +776,11 @@ export default function MateriPage() {
     setImageUrl(mat.image_url || "");
     setContentBlocks(parseMaterialToBlocks(mat));
     setViewMode("form");
+    triggerDynamicIsland(
+      `Membuka Modul: ${mat.unit_name}`,
+      `Kelas ${mat.grade_level} · Siap disunting pada SaaS Builder.`,
+      "info"
+    );
   };
 
   // ==========================================================================
@@ -787,7 +841,14 @@ export default function MateriPage() {
     if (!file) return;
     setIsUploadingHero(true);
     const url = await uploadFileToSupabase(file);
-    if (url) setImageUrl(url);
+    if (url) {
+      setImageUrl(url);
+      triggerDynamicIsland(
+        "Sampul Unit Diperbarui",
+        "Gambar sampul langsung tampil pada Live Preview.",
+        "success"
+      );
+    }
     setIsUploadingHero(false);
     e.target.value = "";
   };
@@ -796,7 +857,14 @@ export default function MateriPage() {
     if (!file) return;
     setUploadingBlockId(blockId);
     const url = await uploadFileToSupabase(file);
-    if (url) updateBlock(blockId, { imageUrl: url });
+    if (url) {
+      updateBlock(blockId, { imageUrl: url });
+      triggerDynamicIsland(
+        "Ilustrasi Blok Terpasang",
+        "Gambar berhasil dioptimalkan ke dalam blok materi.",
+        "success"
+      );
+    }
     setUploadingBlockId(null);
   };
 
@@ -809,7 +877,6 @@ export default function MateriPage() {
     setIsSubmitting(true);
 
     try {
-      // Sanitasi blok agar bebas dari properti undefined saat dikirim ke kolom JSONB Supabase
       const sanitizedBlocks: ContentBlock[] = JSON.parse(
         JSON.stringify(
           contentBlocks.map((b) => ({
@@ -847,14 +914,12 @@ export default function MateriPage() {
       let savedRecord: any = null;
 
       if (editingId) {
-        // 1. Update utama berdasarkan ID
         let { data, error } = await supabase
           .from("master_materials")
           .update(fullPayload)
           .eq("id", editingId)
           .select();
 
-        // Fallback jika skema kolom content_blocks bermasalah
         if (error) {
           const retry = await supabase
             .from("master_materials")
@@ -865,7 +930,6 @@ export default function MateriPage() {
           data = retry.data;
         }
 
-        // 2. Fallback pencarian berdasarkan grade_level & originalUnitName jika ID tidak cocok
         if ((!data || data.length === 0) && originalUnitName) {
           const byName = await supabase
             .from("master_materials")
@@ -879,7 +943,6 @@ export default function MateriPage() {
           }
         }
 
-        // 3. Fallback Upsert jika baris belum ada atau tertahan namun memiliki ID valid
         if (!data || data.length === 0) {
           const upsertAttempt = await supabase
             .from("master_materials")
@@ -893,7 +956,7 @@ export default function MateriPage() {
           }
           if (!upsertAttempt.data || upsertAttempt.data.length === 0) {
             throw new Error(
-              "Perubahan diblokir oleh Row Level Security (RLS) Supabase pada tabel master_materials. Jalankan policy akses penuh pada SQL Editor Supabase."
+              "Perubahan diblokir oleh Row Level Security (RLS) Supabase pada tabel master_materials."
             );
           }
           data = upsertAttempt.data;
@@ -901,7 +964,6 @@ export default function MateriPage() {
 
         savedRecord = data[0];
 
-        // Sinkronisasi nama unit pada student_reflections jika nama unit diubah
         if (
           originalUnitName &&
           originalUnitName.trim() !== unitName.trim()
@@ -912,7 +974,6 @@ export default function MateriPage() {
             .eq("unit_name", originalUnitName.trim());
         }
 
-        // Jika materi ini merupakan evaluasi Pre-Test / Post-Test, sinkronkan judulnya di master_evaluations
         const lowerTitle = unitName.trim().toLowerCase();
         const lowerOrig = originalUnitName.trim().toLowerCase();
         if (
@@ -943,7 +1004,6 @@ export default function MateriPage() {
             .eq("type", "posttest");
         }
       } else {
-        // Mode Tambah Materi Baru
         let { data, error } = await supabase
           .from("master_materials")
           .insert([fullPayload])
@@ -967,7 +1027,6 @@ export default function MateriPage() {
         savedRecord = data[0];
       }
 
-      // Perbarui state lokal secara instan agar UI langsung menampilkan perubahan terbaru
       if (savedRecord) {
         setAllMaterials((prev) => {
           const exists = prev.some((item) => item.id === savedRecord.id);
@@ -983,12 +1042,22 @@ export default function MateriPage() {
       toast.success(
         "Modul materi berhasil disimpan & langsung aktif di aplikasi siswa!"
       );
+      triggerDynamicIsland(
+        "Modul Materi Tersimpan",
+        `${unitName.trim()} (${sanitizedBlocks.length} Blok) telah aktif di aplikasi siswa.`,
+        "success"
+      );
       await fetchMaterials();
       setViewMode("list");
     } catch (err: any) {
       toast.error(
         "Gagal menyimpan materi: " +
           (err?.message || "Periksa koneksi atau izin RLS database.")
+      );
+      triggerDynamicIsland(
+        "Gagal Menyimpan Modul",
+        err?.message || "Periksa kebijakan RLS database.",
+        "error"
       );
     } finally {
       setIsSubmitting(false);
@@ -1009,7 +1078,11 @@ export default function MateriPage() {
               .eq("id", id);
             if (error) throw error;
             setAllMaterials((prev) => prev.filter((m) => m.id !== id));
-            toast.success("Materi dihapus");
+            triggerDynamicIsland(
+              "Unit Materi Dihapus",
+              `Modul "${name}" telah dihapus dari sistem.`,
+              "info"
+            );
             fetchMaterials();
           } catch (err: any) {
             toast.error("Gagal menghapus materi: " + (err?.message || ""));
@@ -1048,7 +1121,11 @@ export default function MateriPage() {
     const copy = [...contentBlocks];
     copy.splice(index + 1, 0, cloned);
     setContentBlocks(copy);
-    toast.success("Blok berhasil diduplikasi");
+    triggerDynamicIsland(
+      "Blok Konten Diduplikasi",
+      `Bagian #${index + 1} berhasil digandakan.`,
+      "info"
+    );
   };
 
   const removeBlock = (id: string) => {
@@ -1145,58 +1222,95 @@ export default function MateriPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Data Kurikulum & Modul berhasil diunduh!");
+    triggerDynamicIsland(
+      "Kurikulum Materi Diunduh",
+      `Laporan CSV untuk ${allMaterials.length} modul pembelajaran berhasil diekspor.`,
+      "success"
+    );
   };
-
-  const bentoColors = ["#fef08a", "#bbf7d0", "#fed7aa", "#bae6fd"];
 
   if (!mounted) return null;
 
+  const renderDynamicIsland = () => (
+    <AnimatePresence>
+      {islandAlert && (
+        <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
+          <motion.div
+            key={islandAlert.id}
+            initial={{ opacity: 0, scale: 0.86, y: -18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -12 }}
+            transition={{
+              type: "spring",
+              stiffness: 420,
+              damping: 26,
+            }}
+            onClick={() => setIslandAlert(null)}
+            className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
+              islandAlert.type === "success"
+                ? "dynamic-island-success"
+                : islandAlert.type === "error"
+                ? "dynamic-island-error"
+                : "dynamic-island-info"
+            }`}
+          >
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                islandAlert.type === "success"
+                  ? "dynamic-island-icon-success"
+                  : islandAlert.type === "error"
+                  ? "dynamic-island-icon-error"
+                  : "dynamic-island-icon-info"
+              }`}
+            >
+              {islandAlert.type === "success" ? (
+                <CheckCircle2 size={16} />
+              ) : islandAlert.type === "error" ? (
+                <AlertCircle size={16} />
+              ) : (
+                <Bell size={16} />
+              )}
+            </div>
+            <div className="min-w-0 pr-2">
+              <p className="text-xs font-bold text-white leading-tight truncate">
+                {islandAlert.message}
+              </p>
+              {islandAlert.subtitle && (
+                <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                  {islandAlert.subtitle}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+
   // ==========================================================================
-  // RENDERER STUDIO LIVE PREVIEW (100% SEJAJAR DENGAN EDITOR)
+  // RENDERER STUDIO LIVE PREVIEW (MENGGUNAKAN TEMA FINORA & DEEP FOREST MOBILE)
   // ==========================================================================
   const renderStudioLivePreview = () => (
-    <div
-      className="w-full rounded-[2.5rem] border overflow-hidden transition-all duration-300 shadow-sm"
-      style={{
-        backgroundColor: isDark ? "#111111" : "#ffffff",
-        borderColor: isDark
-          ? "rgba(255,255,255,0.08)"
-          : "rgba(0,0,0,0.06)",
-      }}
-    >
-      <div
-        className="px-7 py-5 flex items-center justify-between border-b"
-        style={{
-          backgroundColor: isDark ? "#161616" : "#ffffff",
-          borderColor: isDark
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
-        }}
-      >
+    <div className="w-full rounded-[2rem] overflow-hidden transition-all duration-300 edufit-card-primary">
+      <div className="px-7 py-5 flex items-center justify-between border-b border-hairline edufit-card-secondary">
         <div className="flex items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#facc15]" />
+          <span className="text-xs font-bold font-mono text-gold-accent">
+            LIVE /
+          </span>
           <span className="text-xs font-bold uppercase tracking-widest">
-            Live Preview Aplikasi Siswa · Kelas {activeGrade}
+            Pratinjau Aplikasi Siswa · Kelas {activeGrade}
           </span>
         </div>
-        <span className="text-xs font-bold uppercase tracking-wider opacity-50">
-          {previewDevice === "mobile" ? "Layar Mobile" : "Layar Tablet"}
+        <span className="text-xs font-bold font-mono uppercase tracking-wider opacity-60">
+          {previewDevice === "mobile" ? "VIEWPORT MOBILE" : "VIEWPORT TABLET"}
         </span>
       </div>
 
-      <div
-        className="p-5 sm:p-7 transition-all duration-300"
-        style={{ backgroundColor: "var(--ref-card-subtle)" }}
-      >
+      <div className="p-5 sm:p-7 transition-all duration-300 edufit-surface-subtle">
         <div
-          className={`mx-auto transition-all duration-300 rounded-[2rem] border overflow-hidden shadow-xl ${
+          className={`mx-auto transition-all duration-300 rounded-[2rem] overflow-hidden shadow-xl edufit-card-primary ${
             previewDevice === "mobile" ? "w-full max-w-[420px]" : "w-full"
           }`}
-          style={{
-            backgroundColor: "var(--ref-card-solid)",
-            borderColor: "var(--ref-card-border)",
-          }}
         >
           {imageUrl ? (
             <div className="relative h-52 w-full overflow-hidden">
@@ -1206,12 +1320,12 @@ export default function MateriPage() {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex flex-col justify-end p-6">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#facc15]">
-                    Kurikulum Kelas {activeGrade}
+                <div className="flex items-center gap-2 mb-1.5 font-mono">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gold-accent">
+                    KURIKULUM KELAS {activeGrade}
                   </span>
                   <span className="text-[11px] font-medium text-white/80 flex items-center gap-1">
-                    · <Clock size={11} /> ~{estimatedReadMinutes} mnt baca
+                    · <Clock size={11} /> ~{estimatedReadMinutes} MNT BACA
                   </span>
                 </div>
                 <h2 className="text-2xl font-light tracking-tight text-white leading-snug">
@@ -1220,21 +1334,14 @@ export default function MateriPage() {
               </div>
             </div>
           ) : (
-            <div
-              className="p-6 border-b"
-              style={{
-                backgroundColor: "var(--ref-dark-panel)",
-                borderColor: "var(--ref-card-border)",
-                color: "#ffffff",
-              }}
-            >
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#facc15]">
-                  Kurikulum PJOK Kelas {activeGrade}
+            <div className="p-6 border-b border-white/10 telemetry-bar-forest">
+              <div className="flex items-center justify-between gap-2 mb-2 font-mono">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gold-accent">
+                  KURIKULUM PJOK KELAS {activeGrade}
                 </span>
-                <span className="text-[11px] font-medium text-white/70 flex items-center gap-1">
-                  <Clock size={12} className="text-[#facc15]" /> ~
-                  {estimatedReadMinutes} mnt baca
+                <span className="text-[11px] font-medium text-white/75 flex items-center gap-1">
+                  <Clock size={12} className="text-gold-accent" /> ~
+                  {estimatedReadMinutes} MNT BACA
                 </span>
               </div>
               <h2 className="text-2xl font-light tracking-tight leading-snug text-white">
@@ -1249,12 +1356,7 @@ export default function MateriPage() {
                 href={mediaUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center justify-between p-4 rounded-2xl border transition-transform hover:scale-[1.01]"
-                style={{
-                  backgroundColor: "var(--ref-tint-sky-bg)",
-                  borderColor: "var(--ref-tint-sky-border)",
-                  color: "var(--ref-tint-sky-text)",
-                }}
+                className="flex items-center justify-between p-4 rounded-2xl transition-transform hover:scale-[1.01] badge-tint-sky"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/80 dark:bg-black/30">
@@ -1264,7 +1366,7 @@ export default function MateriPage() {
                     <p className="text-xs font-bold">
                       Video Pengantar Unit Tersedia
                     </p>
-                    <p className="text-[11px] opacity-80 truncate max-w-[210px]">
+                    <p className="text-[11px] opacity-80 font-mono truncate max-w-[210px]">
                       {mediaUrl}
                     </p>
                   </div>
@@ -1277,24 +1379,19 @@ export default function MateriPage() {
               <div
                 key={b.id}
                 className={
-                  idx > 0 && b.type === "heading" ? "pt-4 border-t" : ""
+                  idx > 0 && b.type === "heading"
+                    ? "pt-4 border-t border-hairline"
+                    : ""
                 }
-                style={{ borderColor: "var(--ref-card-border)" }}
               >
                 {b.type === "heading" && (
-                  <h3
-                    className="font-bold text-base sm:text-lg tracking-tight leading-snug"
-                    style={{ color: "var(--ref-text-primary)" }}
-                  >
+                  <h3 className="font-bold text-base sm:text-lg tracking-tight leading-snug">
                     {b.title || b.value || "Sub-Judul Pembahasan"}
                   </h3>
                 )}
 
                 {b.type === "paragraph" && (
-                  <p
-                    className="text-xs sm:text-sm leading-relaxed whitespace-pre-line"
-                    style={{ color: "var(--ref-text-secondary)" }}
-                  >
+                  <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-line opacity-85">
                     {b.value ||
                       "Teks penjelasan paragraf akan tampil di sini..."}
                   </p>
@@ -1303,32 +1400,20 @@ export default function MateriPage() {
                 {b.type === "list" && (
                   <div className="space-y-2">
                     {b.title && (
-                      <p
-                        className="text-xs sm:text-sm font-bold"
-                        style={{ color: "var(--ref-text-primary)" }}
-                      >
-                        {b.title}
-                      </p>
+                      <p className="text-xs sm:text-sm font-bold">{b.title}</p>
                     )}
                     <div className="space-y-2 pl-1">
                       {(b.items || []).map((item, i) => (
                         <div
                           key={i}
-                          className="flex items-start gap-2.5 text-xs sm:text-sm"
-                          style={{ color: "var(--ref-text-secondary)" }}
+                          className="flex items-start gap-2.5 text-xs sm:text-sm opacity-90"
                         >
-                          <span
-                            className="w-5 h-5 rounded-md text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5"
-                            style={{
-                              backgroundColor: "var(--ref-dark-panel)",
-                              color: "#facc15",
-                            }}
-                          >
+                          <span className="w-5 h-5 rounded-md text-[11px] font-bold font-mono flex items-center justify-center shrink-0 mt-0.5 telemetry-bar-forest text-gold-accent">
                             {b.listStyle === "number"
                               ? `${i + 1}`
                               : b.listStyle === "alpha"
                               ? `${String.fromCharCode(97 + i)}`
-                              : "•"}
+                              : "-"}
                           </span>
                           <span className="leading-relaxed">
                             {item || "Butir penjelasan..."}
@@ -1342,47 +1427,27 @@ export default function MateriPage() {
                 {b.type === "collapsible" && (
                   <details
                     open
-                    className="rounded-2xl p-4 border group"
-                    style={{
-                      backgroundColor: "var(--ref-tint-emerald-bg)",
-                      borderColor: "var(--ref-tint-emerald-border)",
-                    }}
+                    className="rounded-2xl p-4 group badge-tint-emerald"
                   >
-                    <summary
-                      className="font-bold text-xs sm:text-sm cursor-pointer list-none flex items-center justify-between gap-2"
-                      style={{ color: "var(--ref-tint-emerald-text)" }}
-                    >
+                    <summary className="font-bold text-xs sm:text-sm cursor-pointer list-none flex items-center justify-between gap-2">
                       <span>{b.title || "Judul Kotak Lipat (Accordion)"}</span>
                       <ChevronDown size={16} className="shrink-0" />
                     </summary>
-                    <div
-                      className="mt-3 pt-3 border-t space-y-2.5 text-xs sm:text-sm"
-                      style={{ borderColor: "var(--ref-tint-emerald-border)" }}
-                    >
+                    <div className="mt-3 pt-3 border-t border-current/15 space-y-2.5 text-xs sm:text-sm">
                       {b.collapsibleMode === "text" ? (
-                        <p
-                          className="leading-relaxed whitespace-pre-line"
-                          style={{ color: "var(--ref-text-primary)" }}
-                        >
+                        <p className="leading-relaxed whitespace-pre-line">
                           {b.value || "Isi penjelasan di dalam kotak lipat..."}
                         </p>
                       ) : (
                         (b.collapsibleItems || []).map((ci, cIdx) => (
                           <div
                             key={cIdx}
-                            className="p-2.5 rounded-xl"
-                            style={{ backgroundColor: "var(--ref-card-solid)" }}
+                            className="p-2.5 rounded-xl edufit-card-primary"
                           >
-                            <span
-                              className="font-bold block text-xs"
-                              style={{ color: "var(--ref-text-primary)" }}
-                            >
+                            <span className="font-bold block text-xs">
                               {ci.label}
                             </span>
-                            <span
-                              className="text-xs leading-relaxed"
-                              style={{ color: "var(--ref-text-secondary)" }}
-                            >
+                            <span className="text-xs leading-relaxed opacity-80">
                               {ci.text}
                             </span>
                           </div>
@@ -1395,32 +1460,21 @@ export default function MateriPage() {
                 {b.type === "figure" && (
                   <div className="space-y-2">
                     <div
-                      className="rounded-2xl p-4 border space-y-2.5"
-                      style={{
-                        backgroundColor:
-                          b.figureTheme === "blue"
-                            ? "var(--ref-tint-sky-bg)"
-                            : b.figureTheme === "neutral"
-                            ? "var(--ref-card-subtle)"
-                            : "var(--ref-tint-emerald-bg)",
-                        borderColor: "var(--ref-card-border)",
-                      }}
+                      className={`rounded-2xl p-4 space-y-2.5 ${
+                        b.figureTheme === "blue"
+                          ? "badge-tint-sky"
+                          : b.figureTheme === "neutral"
+                          ? "edufit-surface-subtle"
+                          : "badge-tint-emerald"
+                      }`}
                     >
                       {b.overline && (
-                        <span
-                          className="text-[10px] font-extrabold uppercase tracking-widest block"
-                          style={{ color: "var(--ref-text-secondary)" }}
-                        >
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest block opacity-75">
                           {b.overline}
                         </span>
                       )}
                       {b.title && (
-                        <h4
-                          className="font-bold text-sm"
-                          style={{ color: "var(--ref-text-primary)" }}
-                        >
-                          {b.title}
-                        </h4>
+                        <h4 className="font-bold text-sm">{b.title}</h4>
                       )}
                       {b.imageUrl ? (
                         <img
@@ -1429,22 +1483,13 @@ export default function MateriPage() {
                           className="w-full rounded-xl object-contain max-h-64 bg-white/70 dark:bg-black/30"
                         />
                       ) : (
-                        <div
-                          className="py-10 text-center text-xs border border-dashed rounded-xl"
-                          style={{
-                            borderColor: "var(--ref-card-border)",
-                            color: "var(--ref-text-secondary)",
-                          }}
-                        >
+                        <div className="py-10 text-center text-xs border border-dashed border-hairline rounded-xl opacity-70">
                           Unggah gambar pada blok #{idx + 1} di sebelah kiri
                         </div>
                       )}
                     </div>
                     {b.caption && (
-                      <p
-                        className="text-[11px] italic leading-relaxed px-1"
-                        style={{ color: "var(--ref-text-secondary)" }}
-                      >
+                      <p className="text-[11px] italic leading-relaxed px-1 opacity-75">
                         {b.caption}
                       </p>
                     )}
@@ -1455,12 +1500,7 @@ export default function MateriPage() {
                   <div className="space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       {b.tableTitle && (
-                        <h4
-                          className="font-bold text-sm"
-                          style={{ color: "var(--ref-text-primary)" }}
-                        >
-                          {b.tableTitle}
-                        </h4>
+                        <h4 className="font-bold text-sm">{b.tableTitle}</h4>
                       )}
                       {b.hasCategoryFilter &&
                         (b.tableVariants?.length || 0) > 1 && (
@@ -1478,16 +1518,11 @@ export default function MateriPage() {
                                       [b.id]: vIdx,
                                     })
                                   }
-                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer"
-                                  style={{
-                                    backgroundColor: active
-                                      ? "#facc15"
-                                      : "var(--ref-card-subtle)",
-                                    borderColor: "var(--ref-card-border)",
-                                    color: active
-                                      ? "#18181b"
-                                      : "var(--ref-text-primary)",
-                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                                    active
+                                      ? "seg-btn-active"
+                                      : "edufit-surface-subtle"
+                                  }`}
                                 >
                                   {v.label}
                                 </button>
@@ -1498,10 +1533,7 @@ export default function MateriPage() {
                     </div>
 
                     {b.tableDescription && (
-                      <p
-                        className="text-xs leading-relaxed"
-                        style={{ color: "var(--ref-text-secondary)" }}
-                      >
+                      <p className="text-xs leading-relaxed opacity-75">
                         {b.tableDescription}
                       </p>
                     )}
@@ -1513,25 +1545,14 @@ export default function MateriPage() {
                         ] || b.tableVariants?.[0];
                       if (!activeVar) return null;
                       return (
-                        <div
-                          className="overflow-x-auto rounded-xl border"
-                          style={{ borderColor: "var(--ref-card-border)" }}
-                        >
+                        <div className="overflow-x-auto rounded-xl border border-hairline">
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
-                              <tr
-                                style={{
-                                  backgroundColor: "var(--ref-card-subtle)",
-                                }}
-                              >
+                              <tr className="edufit-surface-subtle">
                                 {activeVar.headers.map((h, hIdx) => (
                                   <th
                                     key={hIdx}
-                                    className="p-2.5 font-bold border-b"
-                                    style={{
-                                      borderColor: "var(--ref-card-border)",
-                                      color: "var(--ref-text-primary)",
-                                    }}
+                                    className="p-2.5 font-bold border-b border-hairline"
                                   >
                                     {h}
                                   </th>
@@ -1542,23 +1563,16 @@ export default function MateriPage() {
                               {activeVar.rows.map((r, rIdx) => (
                                 <tr
                                   key={rIdx}
-                                  className="border-b last:border-b-0"
-                                  style={{
-                                    borderColor: "var(--ref-card-border)",
-                                  }}
+                                  className="border-b border-hairline last:border-b-0"
                                 >
                                   {r.map((c, cIdx) => (
                                     <td
                                       key={cIdx}
                                       className={`p-2.5 align-top leading-relaxed ${
-                                        cIdx === 0 ? "font-bold" : ""
+                                        cIdx === 0
+                                          ? "font-bold"
+                                          : "opacity-80"
                                       }`}
-                                      style={{
-                                        color:
-                                          cIdx === 0
-                                            ? "var(--ref-text-primary)"
-                                            : "var(--ref-text-secondary)",
-                                      }}
                                     >
                                       {c}
                                     </td>
@@ -1572,10 +1586,7 @@ export default function MateriPage() {
                     })()}
 
                     {b.tableFootnote && (
-                      <p
-                        className="text-[11px]"
-                        style={{ color: "var(--ref-text-secondary)" }}
-                      >
+                      <p className="text-[11px] opacity-70">
                         {b.tableFootnote}
                       </p>
                     )}
@@ -1583,22 +1594,13 @@ export default function MateriPage() {
                 )}
 
                 {b.type === "tempo_simulator" && (
-                  <div
-                    className="rounded-2xl p-4 border space-y-4"
-                    style={{
-                      backgroundColor: "var(--ref-card-subtle)",
-                      borderColor: "var(--ref-card-border)",
-                    }}
-                  >
+                  <div className="rounded-2xl p-4 space-y-4 edufit-surface-subtle">
                     <div className="flex items-center justify-between gap-2">
-                      <h4
-                        className="font-bold text-xs sm:text-sm"
-                        style={{ color: "var(--ref-text-primary)" }}
-                      >
+                      <h4 className="font-bold text-xs sm:text-sm">
                         {b.simulatorTitle ||
                           "Simulasi Pola Tempo & Intensitas"}
                       </h4>
-                      <Activity size={15} className="text-[#ca8a04]" />
+                      <Activity size={15} className="text-gold-accent" />
                     </div>
 
                     {(() => {
@@ -1629,16 +1631,11 @@ export default function MateriPage() {
                                       [b.id]: 0,
                                     });
                                   }}
-                                  className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer"
-                                  style={{
-                                    backgroundColor: active
-                                      ? "var(--ref-dark-panel)"
-                                      : "var(--ref-card-solid)",
-                                    borderColor: "var(--ref-card-border)",
-                                    color: active
-                                      ? "#ffffff"
-                                      : "var(--ref-text-primary)",
-                                  }}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    active
+                                      ? "telemetry-bar-forest"
+                                      : "edufit-card-primary"
+                                  }`}
                                 >
                                   {m.name}
                                 </button>
@@ -1646,13 +1643,7 @@ export default function MateriPage() {
                             })}
                           </div>
 
-                          <div
-                            className="p-3.5 rounded-xl border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
-                          >
+                          <div className="p-3.5 rounded-xl edufit-card-primary">
                             <div
                               className="grid gap-2 items-end h-28 pt-2"
                               style={{
@@ -1689,38 +1680,23 @@ export default function MateriPage() {
                                     }
                                     className="flex flex-col items-center justify-end h-full gap-1.5 cursor-pointer group focus:outline-none"
                                   >
-                                    <span
-                                      className="text-[9px] font-bold opacity-75"
-                                      style={{
-                                        color: "var(--ref-text-secondary)",
-                                      }}
-                                    >
+                                    <span className="text-[9px] font-bold font-mono opacity-75">
                                       {levelTag}
                                     </span>
-                                    <div
-                                      className="w-full max-w-[36px] flex-1 rounded-lg flex items-end p-0.5"
-                                      style={{
-                                        backgroundColor:
-                                          "var(--ref-card-subtle)",
-                                      }}
-                                    >
+                                    <div className="w-full max-w-[36px] flex-1 rounded-lg flex items-end p-0.5 chart-track-pill">
                                       <div
-                                        className="w-full rounded-md transition-all duration-300"
-                                        style={{
-                                          height: `${heightPct}%`,
-                                          backgroundColor: isCurrent
-                                            ? "#facc15"
-                                            : "var(--ref-dark-panel)",
-                                        }}
+                                        className={`w-full rounded-md transition-all duration-300 ${
+                                          isCurrent
+                                            ? "chart-fill-gold"
+                                            : "chart-fill-emerald"
+                                        }`}
+                                        style={{ height: `${heightPct}%` }}
                                       />
                                     </div>
                                     <span
-                                      className="text-[10px] font-bold text-center leading-tight break-words w-full"
-                                      style={{
-                                        color: isCurrent
-                                          ? "var(--ref-text-primary)"
-                                          : "var(--ref-text-secondary)",
-                                      }}
+                                      className={`text-[10px] font-bold text-center leading-tight break-words w-full ${
+                                        isCurrent ? "opacity-100" : "opacity-60"
+                                      }`}
                                     >
                                       {st.label}
                                     </span>
@@ -1729,16 +1705,8 @@ export default function MateriPage() {
                               })}
                             </div>
 
-                            <div
-                              className="mt-3 pt-3 border-t flex items-center justify-between gap-2"
-                              style={{
-                                borderColor: "var(--ref-card-border)",
-                              }}
-                            >
-                              <span
-                                className="text-xs font-bold"
-                                style={{ color: "var(--ref-text-primary)" }}
-                              >
+                            <div className="mt-3 pt-3 border-t border-hairline flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold">
                                 Tahap {sIdx + 1}:{" "}
                                 <span className="underline">
                                   {currentStep?.label || "-"}
@@ -1754,13 +1722,9 @@ export default function MateriPage() {
                                       Math.max(1, currentMethod.steps.length),
                                   })
                                 }
-                                className="px-3 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer"
-                                style={{
-                                  backgroundColor: "#facc15",
-                                  color: "#18181b",
-                                }}
+                                className="px-3 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer btn-forest-gold"
                               >
-                                Tahap Berikutnya →
+                                Tahap Berikutnya
                               </button>
                             </div>
                           </div>
@@ -1769,10 +1733,7 @@ export default function MateriPage() {
                     })()}
 
                     {b.simulatorFootnote && (
-                      <p
-                        className="text-[11px]"
-                        style={{ color: "var(--ref-text-secondary)" }}
-                      >
+                      <p className="text-[11px] opacity-70">
                         {b.simulatorFootnote}
                       </p>
                     )}
@@ -1780,24 +1741,12 @@ export default function MateriPage() {
                 )}
 
                 {b.type === "video" && (
-                  <div
-                    className="p-4 rounded-2xl border space-y-2.5"
-                    style={{
-                      backgroundColor: "var(--ref-tint-sky-bg)",
-                      borderColor: "var(--ref-tint-sky-border)",
-                    }}
-                  >
-                    <h4
-                      className="font-bold text-xs sm:text-sm"
-                      style={{ color: "var(--ref-tint-sky-text)" }}
-                    >
+                  <div className="p-4 rounded-2xl space-y-2.5 badge-tint-sky">
+                    <h4 className="font-bold text-xs sm:text-sm">
                       {b.title || "Video Rujukan Pembelajaran"}
                     </h4>
                     {b.value && (
-                      <p
-                        className="text-xs leading-relaxed"
-                        style={{ color: "var(--ref-text-primary)" }}
-                      >
+                      <p className="text-xs leading-relaxed opacity-90">
                         {b.value}
                       </p>
                     )}
@@ -1809,20 +1758,13 @@ export default function MateriPage() {
                           [b.id]: !previewVideoLoaded[b.id],
                         })
                       }
-                      className="px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
-                      style={{
-                        backgroundColor: "var(--ref-dark-panel)",
-                        color: "#ffffff",
-                      }}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer telemetry-bar-forest"
                     >
-                      <Play size={13} className="text-[#facc15]" />
+                      <Play size={13} className="text-gold-accent" />
                       <span>{b.videoButtonLabel || "Putar Video"}</span>
                     </button>
                     {previewVideoLoaded[b.id] && b.videoUrl && (
-                      <div
-                        className="p-2.5 rounded-xl text-xs font-medium break-all"
-                        style={{ backgroundColor: "var(--ref-card-solid)" }}
-                      >
+                      <div className="p-2.5 rounded-xl text-xs font-mono break-all edufit-card-primary">
                         Tautan Video: {b.videoUrl}
                       </div>
                     )}
@@ -1830,46 +1772,20 @@ export default function MateriPage() {
                 )}
 
                 {b.type === "callout" && (
-                  <div
-                    className="p-4 rounded-2xl border-l-4 space-y-1"
-                    style={{
-                      backgroundColor: "var(--ref-tint-amber-bg)",
-                      borderLeftColor: "#facc15",
-                    }}
-                  >
-                    <h4
-                      className="font-bold text-xs sm:text-sm"
-                      style={{ color: "var(--ref-tint-amber-text)" }}
-                    >
+                  <div className="p-4 rounded-2xl border-l-4 border-l-gold-accent space-y-1 badge-tint-amber">
+                    <h4 className="font-bold text-xs sm:text-sm">
                       {b.title || "Catatan Penting"}
                     </h4>
-                    <p
-                      className="text-xs leading-relaxed"
-                      style={{ color: "var(--ref-text-primary)" }}
-                    >
-                      {b.value}
-                    </p>
+                    <p className="text-xs leading-relaxed">{b.value}</p>
                   </div>
                 )}
 
                 {b.type === "quiz" && (
-                  <div
-                    className="p-4 rounded-2xl border space-y-3"
-                    style={{
-                      backgroundColor: "var(--ref-card-subtle)",
-                      borderColor: "var(--ref-card-border)",
-                    }}
-                  >
-                    <h4
-                      className="font-bold text-xs sm:text-sm"
-                      style={{ color: "var(--ref-text-primary)" }}
-                    >
+                  <div className="p-4 rounded-2xl space-y-3 edufit-surface-subtle">
+                    <h4 className="font-bold text-xs sm:text-sm">
                       {b.title || "Kuis Cek Pemahaman"}
                     </h4>
-                    <p
-                      className="text-xs font-semibold"
-                      style={{ color: "var(--ref-text-primary)" }}
-                    >
+                    <p className="text-xs font-semibold">
                       {b.question || "Pertanyaan latihan..."}
                     </p>
                     <div className="space-y-1.5">
@@ -1886,31 +1802,22 @@ export default function MateriPage() {
                                 [b.id]: opt.key,
                               })
                             }
-                            className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer"
-                            style={{
-                              backgroundColor: chosen
+                            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                              chosen
                                 ? isCorrect
-                                  ? "var(--ref-tint-emerald-bg)"
-                                  : "var(--ref-tint-rose-bg)"
-                                : "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                              color: "var(--ref-text-primary)",
-                            }}
+                                  ? "badge-tint-emerald"
+                                  : "badge-tint-rose"
+                                : "edufit-card-primary"
+                            }`}
                           >
-                            <strong>{opt.key}.</strong>{" "}
+                            <strong className="font-mono">{opt.key}.</strong>{" "}
                             {opt.text || `Opsi ${opt.key}`}
                           </button>
                         );
                       })}
                     </div>
                     {previewQuizSelected[b.id] && b.explanation && (
-                      <div
-                        className="p-2.5 rounded-xl text-xs"
-                        style={{
-                          backgroundColor: "var(--ref-tint-emerald-bg)",
-                          color: "var(--ref-tint-emerald-text)",
-                        }}
-                      >
+                      <div className="p-2.5 rounded-xl text-xs badge-tint-emerald">
                         <strong>Kunci ({b.correctOption}):</strong>{" "}
                         {b.explanation}
                       </div>
@@ -1920,43 +1827,21 @@ export default function MateriPage() {
               </div>
             ))}
 
-            <div
-              className="mt-6 pt-5 border-t space-y-3"
-              style={{ borderColor: "var(--ref-card-border)" }}
-            >
-              <div
-                className="p-4 rounded-2xl border space-y-2.5"
-                style={{
-                  backgroundColor: "var(--ref-tint-amber-bg)",
-                  borderColor: "var(--ref-tint-amber-border)",
-                }}
-              >
+            <div className="mt-6 pt-5 border-t border-hairline space-y-3">
+              <div className="p-4 rounded-2xl space-y-2.5 badge-tint-amber">
                 <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: "var(--ref-tint-amber-text)" }}
-                  >
+                  <span className="text-xs font-bold">
                     Tugas Analisis & Refleksi Siswa
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-                    Dinilai Guru (A–D)
+                  <span className="text-[10px] font-bold font-mono uppercase tracking-wider opacity-75">
+                    DINILAI GURU (A–D)
                   </span>
                 </div>
-                <p
-                  className="text-xs font-semibold leading-relaxed"
-                  style={{ color: "var(--ref-text-primary)" }}
-                >
+                <p className="text-xs font-semibold leading-relaxed">
                   {triggerQuestion ||
                     "Pertanyaan pemantik yang Anda ketik di kiri akan muncul di sini untuk dijawab siswa..."}
                 </p>
-                <div
-                  className="p-3 rounded-xl border text-[11px] opacity-75"
-                  style={{
-                    backgroundColor: "var(--ref-card-solid)",
-                    borderColor: "var(--ref-card-border)",
-                    color: "var(--ref-text-secondary)",
-                  }}
-                >
+                <div className="p-3 rounded-xl text-[11px] opacity-75 edufit-card-primary">
                   Kolom jawaban siswa di aplikasi mobile...
                 </div>
               </div>
@@ -1972,34 +1857,22 @@ export default function MateriPage() {
   // ==========================================================================
   if (viewMode === "form") {
     return (
-      <div className="w-full pt-2 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
+      <div className="w-full pt-2 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+        {renderDynamicIsland()}
+
         {/* ARCHITECTURAL HEADER FOR SAAS BUILDER */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-8 mb-8 relative z-20">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-8 pb-8 mb-8 border-b border-hairline relative z-20">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-3 mb-5">
               <button
                 type="button"
                 onClick={() => setViewMode("list")}
-                className="px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 border transition-all hover:scale-[1.02] cursor-pointer"
-                style={{
-                  backgroundColor: isDark ? "#111111" : "#ffffff",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.08)",
-                }}
+                className="px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer edufit-card-primary"
               >
                 <ArrowLeft size={15} /> Kembali ke Daftar Materi
               </button>
 
-              <div
-                className="flex items-center p-1 rounded-2xl border"
-                style={{
-                  backgroundColor: isDark ? "#111111" : "#ffffff",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.08)",
-                }}
-              >
+              <div className="flex items-center p-1 rounded-2xl edufit-surface-subtle">
                 {[
                   { key: "editor", icon: Edit3, label: "Editor" },
                   { key: "split", icon: Columns, label: "Split Preview" },
@@ -2012,11 +1885,9 @@ export default function MateriPage() {
                       key={m.key}
                       type="button"
                       onClick={() => setWorkspaceLayout(m.key as any)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
-                      style={{
-                        backgroundColor: active ? "#facc15" : "transparent",
-                        color: active ? "#000000" : "inherit",
-                      }}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                        active ? "seg-btn-active" : "seg-btn-idle"
+                      }`}
                     >
                       <IconC size={13} /> {m.label}
                     </button>
@@ -2025,42 +1896,26 @@ export default function MateriPage() {
               </div>
 
               {workspaceLayout !== "editor" && (
-                <div
-                  className="flex items-center p-1 rounded-2xl border"
-                  style={{
-                    backgroundColor: isDark ? "#111111" : "#ffffff",
-                    borderColor: isDark
-                      ? "rgba(255,255,255,0.12)"
-                      : "rgba(0,0,0,0.08)",
-                  }}
-                >
+                <div className="flex items-center p-1 rounded-2xl edufit-surface-subtle">
                   <button
                     type="button"
                     onClick={() => setPreviewDevice("mobile")}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                    style={{
-                      backgroundColor:
-                        previewDevice === "mobile"
-                          ? "var(--ref-dark-panel)"
-                          : "transparent",
-                      color:
-                        previewDevice === "mobile" ? "#ffffff" : "inherit",
-                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                      previewDevice === "mobile"
+                        ? "telemetry-bar-forest"
+                        : "seg-btn-idle"
+                    }`}
                   >
                     <Smartphone size={13} /> Mobile
                   </button>
                   <button
                     type="button"
                     onClick={() => setPreviewDevice("tablet")}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                    style={{
-                      backgroundColor:
-                        previewDevice === "tablet"
-                          ? "var(--ref-dark-panel)"
-                          : "transparent",
-                      color:
-                        previewDevice === "tablet" ? "#ffffff" : "inherit",
-                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+                      previewDevice === "tablet"
+                        ? "telemetry-bar-forest"
+                        : "seg-btn-idle"
+                    }`}
                   >
                     <Tablet size={13} /> Tablet
                   </button>
@@ -2068,9 +1923,14 @@ export default function MateriPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-2 opacity-50">
-              <BookOpen size={16} /> SaaS Content Builder · Kurikulum Kelas{" "}
-              {activeGrade}
+            <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-2 opacity-60">
+              <span className="font-mono text-gold-accent">
+                00 / SAAS CONTENT BUILDER
+              </span>
+              <span>—</span>
+              <span className="inline-flex items-center gap-1.5 font-mono">
+                <BookOpen size={14} /> KURIKULUM KELAS {activeGrade}
+              </span>
             </div>
             <h1 className="text-4xl md:text-6xl font-light tracking-tighter leading-tight">
               {editingId ? "Edit" : "Susun"}{" "}
@@ -2082,27 +1942,26 @@ export default function MateriPage() {
 
           <div className="flex flex-wrap items-end gap-8 shrink-0">
             <div>
-              <div className="text-5xl md:text-6xl font-light tracking-tighter leading-none">
+              <div className="text-5xl md:text-6xl font-light font-mono tracking-tighter leading-none">
                 {contentBlocks.length}
               </div>
-              <div className="text-[11px] font-bold uppercase tracking-widest opacity-50 mt-2">
-                Blok Konten
+              <div className="text-[11px] font-bold uppercase tracking-widest opacity-55 mt-2">
+                01 / Blok Konten
               </div>
             </div>
             <div>
-              <div className="text-5xl md:text-6xl font-light tracking-tighter leading-none">
+              <div className="text-5xl md:text-6xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
                 ~{estimatedReadMinutes}m
               </div>
-              <div className="text-[11px] font-bold uppercase tracking-widest opacity-50 mt-2">
-                Waktu Baca
+              <div className="text-[11px] font-bold uppercase tracking-widest opacity-55 mt-2">
+                02 / Waktu Baca
               </div>
             </div>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-8 py-4 font-bold text-xs uppercase tracking-widest rounded-2xl shadow-md cursor-pointer transition-transform hover:scale-[1.02] text-white"
-              style={{ backgroundColor: "#10b981" }}
+              className="px-8 py-4 font-bold text-xs uppercase tracking-widest rounded-2xl shadow-md cursor-pointer transition-transform hover:scale-[1.02] btn-forest-emerald"
             >
               {isSubmitting ? "Menyimpan..." : "Simpan Modul"}
             </button>
@@ -2123,26 +1982,17 @@ export default function MateriPage() {
               onSubmit={handleSubmit}
               className={`${
                 workspaceLayout === "split" ? "xl:col-span-7" : "w-full"
-              } rounded-[2.5rem] p-8 md:p-10 border space-y-8 relative overflow-hidden shadow-sm`}
-              style={{
-                backgroundColor: isDark ? "#111111" : "#ffffff",
-                borderColor: isDark
-                  ? "rgba(255,255,255,0.08)"
-                  : "rgba(0,0,0,0.05)",
-              }}
+              } rounded-[2rem] p-8 md:p-10 space-y-8 relative overflow-hidden edufit-card-primary`}
             >
               {/* BAGIAN 1: IDENTITAS & SAMPUL MODUL */}
               <div className="space-y-5 relative z-10">
-                <div
-                  className="flex items-center justify-between border-b pb-4"
-                  style={{ borderColor: "var(--ref-card-border)" }}
-                >
+                <div className="flex items-center justify-between border-b border-hairline pb-4">
                   <h3 className="text-2xl font-light tracking-tight">
-                    1. Identitas &{" "}
+                    01 / Identitas &{" "}
                     <span className="font-semibold">Sampul Unit</span>
                   </h3>
-                  <span className="text-xs font-bold uppercase tracking-widest opacity-50">
-                    Kelas {activeGrade}
+                  <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-60">
+                    KELAS {activeGrade}
                   </span>
                 </div>
 
@@ -2156,12 +2006,7 @@ export default function MateriPage() {
                     onChange={(e) => setUnitName(e.target.value)}
                     type="text"
                     placeholder="Contoh: Daya Tahan Jantung Paru dan Peredaran Darah"
-                    className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight outline-none"
-                    style={{
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.2)"
-                        : "rgba(0,0,0,0.15)",
-                    }}
+                    className="w-full bg-transparent py-3 text-2xl font-light tracking-tight outline-none edufit-underline-select"
                   />
                 </div>
 
@@ -2174,12 +2019,7 @@ export default function MateriPage() {
                     onChange={(e) => setTriggerQuestion(e.target.value)}
                     rows={2}
                     placeholder="Contoh: Mengapa pemula yang cepat lelah lebih sesuai memulai latihan berselang daripada langsung berlari cepat terus-menerus?"
-                    className="w-full p-4 rounded-2xl text-sm font-medium border outline-none resize-y"
-                    style={{
-                      backgroundColor: "var(--ref-card-subtle)",
-                      borderColor: "var(--ref-card-border)",
-                      color: "var(--ref-text-primary)",
-                    }}
+                    className="w-full p-4 rounded-2xl text-sm font-medium outline-none resize-y edufit-surface-subtle"
                   />
                 </div>
 
@@ -2196,10 +2036,7 @@ export default function MateriPage() {
                       className="hidden"
                     />
                     {imageUrl ? (
-                      <div
-                        className="relative w-full h-36 rounded-2xl border overflow-hidden group"
-                        style={{ borderColor: "var(--ref-card-border)" }}
-                      >
+                      <div className="relative w-full h-36 rounded-2xl border border-hairline overflow-hidden group">
                         <img
                           src={imageUrl}
                           alt="Preview"
@@ -2216,7 +2053,7 @@ export default function MateriPage() {
                           <button
                             type="button"
                             onClick={() => setImageUrl("")}
-                            className="px-3.5 py-2 bg-red-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+                            className="px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer badge-tint-rose"
                           >
                             Hapus
                           </button>
@@ -2227,11 +2064,7 @@ export default function MateriPage() {
                         type="button"
                         onClick={() => heroFileInputRef.current?.click()}
                         disabled={isUploadingHero}
-                        className="w-full h-36 flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer transition-colors hover:opacity-80"
-                        style={{
-                          borderColor: "var(--ref-card-border)",
-                          backgroundColor: "var(--ref-card-subtle)",
-                        }}
+                        className="w-full h-36 flex flex-col items-center justify-center border-2 border-dashed border-hairline rounded-2xl cursor-pointer transition-colors hover:opacity-80 edufit-surface-subtle"
                       >
                         <UploadCloud className="w-7 h-7 mb-1.5 opacity-60" />
                         <span className="text-xs font-bold">
@@ -2252,20 +2085,10 @@ export default function MateriPage() {
                       onChange={(e) => setMediaUrl(e.target.value)}
                       type="url"
                       placeholder="https://www.youtube.com/watch?v=..."
-                      className="w-full px-4 py-3 rounded-2xl text-xs border outline-none"
-                      style={{
-                        backgroundColor: "var(--ref-card-subtle)",
-                        borderColor: "var(--ref-card-border)",
-                      }}
+                      className="w-full px-4 py-3 rounded-2xl text-xs font-mono outline-none edufit-surface-subtle"
                     />
-                    <p
-                      className="text-[11px] mt-3 p-3.5 rounded-2xl leading-relaxed"
-                      style={{
-                        backgroundColor: "var(--ref-card-subtle)",
-                        color: "var(--ref-text-secondary)",
-                      }}
-                    >
-                      Gunakan bagian <strong>2. Susunan Isi Materi</strong> di
+                    <p className="text-[11px] mt-3 p-3.5 rounded-2xl leading-relaxed opacity-75 edufit-surface-subtle">
+                      Gunakan bagian <strong>02 / Susunan Isi Materi</strong> di
                       bawah untuk menyisipkan sub-judul, paragraf, gambar
                       ber-caption, tabel, atau grafik latihan.
                     </p>
@@ -2275,21 +2098,15 @@ export default function MateriPage() {
 
               {/* BAGIAN 2: SUSUNAN BLOK ISI MATERI */}
               <div className="space-y-5 relative z-10">
-                <div
-                  className="flex items-center justify-between border-b pb-4"
-                  style={{ borderColor: "var(--ref-card-border)" }}
-                >
+                <div className="flex items-center justify-between border-b border-hairline pb-4">
                   <div>
                     <h3 className="text-2xl font-light tracking-tight">
-                      2. Susunan{" "}
+                      02 / Susunan{" "}
                       <span className="font-semibold">
                         Isi Materi ({contentBlocks.length} Bagian)
                       </span>
                     </h3>
-                    <p
-                      className="text-xs mt-1"
-                      style={{ color: "var(--ref-text-secondary)" }}
-                    >
+                    <p className="text-xs mt-1 opacity-60">
                       Atur urutan bagian materi menggunakan tombol panah
                       atas/bawah pada setiap kartu.
                     </p>
@@ -2300,25 +2117,12 @@ export default function MateriPage() {
                   {contentBlocks.map((block, index) => (
                     <div
                       key={block.id}
-                      className="rounded-3xl p-5 border space-y-4"
-                      style={{
-                        backgroundColor: "var(--ref-card-subtle)",
-                        borderColor: "var(--ref-card-border)",
-                      }}
+                      className="rounded-2xl p-5 space-y-4 edufit-surface-subtle"
                     >
-                      <div
-                        className="flex items-center justify-between pb-3 border-b"
-                        style={{ borderColor: "var(--ref-card-border)" }}
-                      >
+                      <div className="flex items-center justify-between pb-3 border-b border-hairline">
                         <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-7 h-7 rounded-xl text-xs font-bold flex items-center justify-center"
-                            style={{
-                              backgroundColor: "var(--ref-dark-panel)",
-                              color: "#facc15",
-                            }}
-                          >
-                            {index + 1}
+                          <span className="w-7 h-7 rounded-xl text-xs font-bold font-mono flex items-center justify-center telemetry-bar-forest text-gold-accent">
+                            {String(index + 1).padStart(2, "0")}
                           </span>
                           <span className="text-xs font-bold uppercase tracking-widest">
                             {block.type === "heading" && "Sub-Judul Bab"}
@@ -2345,7 +2149,7 @@ export default function MateriPage() {
                             type="button"
                             onClick={() => moveBlock(index, "up")}
                             disabled={index === 0}
-                            className="p-1.5 rounded-lg disabled:opacity-30 cursor-pointer"
+                            className="p-1.5 rounded-lg disabled:opacity-30 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5"
                             title="Geser ke Atas"
                           >
                             <ArrowUp size={14} />
@@ -2354,7 +2158,7 @@ export default function MateriPage() {
                             type="button"
                             onClick={() => moveBlock(index, "down")}
                             disabled={index === contentBlocks.length - 1}
-                            className="p-1.5 rounded-lg disabled:opacity-30 cursor-pointer"
+                            className="p-1.5 rounded-lg disabled:opacity-30 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5"
                             title="Geser ke Bawah"
                           >
                             <ArrowDown size={14} />
@@ -2362,7 +2166,7 @@ export default function MateriPage() {
                           <button
                             type="button"
                             onClick={() => duplicateBlock(index)}
-                            className="p-1.5 rounded-lg cursor-pointer"
+                            className="p-1.5 rounded-lg cursor-pointer hover:bg-black/5 dark:hover:bg-white/5"
                             title="Duplikat Bagian"
                           >
                             <Copy size={14} />
@@ -2370,7 +2174,7 @@ export default function MateriPage() {
                           <button
                             type="button"
                             onClick={() => removeBlock(block.id)}
-                            className="p-1.5 rounded-lg text-red-500 cursor-pointer"
+                            className="p-1.5 rounded-lg cursor-pointer badge-tint-rose"
                             title="Hapus Bagian"
                           >
                             <Trash2 size={14} />
@@ -2389,11 +2193,7 @@ export default function MateriPage() {
                             })
                           }
                           placeholder="Ketik sub-judul pembahasan (Cth: 1. Konsep Daya Tahan Jantung-Paru)..."
-                          className="w-full px-4 py-3 rounded-2xl text-sm font-bold border outline-none"
-                          style={{
-                            backgroundColor: "var(--ref-card-solid)",
-                            borderColor: "var(--ref-card-border)",
-                          }}
+                          className="w-full px-4 py-3 rounded-2xl text-sm font-bold outline-none edufit-card-primary"
                         />
                       )}
 
@@ -2405,11 +2205,7 @@ export default function MateriPage() {
                           }
                           rows={4}
                           placeholder="Ketik penjelasan materi di sini..."
-                          className="w-full p-4 rounded-2xl text-xs sm:text-sm leading-relaxed border outline-none resize-y"
-                          style={{
-                            backgroundColor: "var(--ref-card-solid)",
-                            borderColor: "var(--ref-card-border)",
-                          }}
+                          className="w-full p-4 rounded-2xl text-xs sm:text-sm leading-relaxed outline-none resize-y edufit-card-primary"
                         />
                       )}
 
@@ -2423,50 +2219,43 @@ export default function MateriPage() {
                                 updateBlock(block.id, { title: e.target.value })
                               }
                               placeholder="Judul pengantar daftar (Opsional)"
-                              className="flex-1 px-3.5 py-2.5 rounded-xl text-xs font-bold border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="flex-1 px-3.5 py-2.5 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                             />
-                            {["number", "bullet", "alpha"].map((st) => (
-                              <button
-                                key={st}
-                                type="button"
-                                onClick={() =>
-                                  updateBlock(block.id, {
-                                    listStyle: st as any,
-                                  })
-                                }
-                                className="px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer"
-                                style={{
-                                  backgroundColor:
-                                    (block.listStyle || "bullet") === st
-                                      ? "#facc15"
-                                      : "var(--ref-card-solid)",
-                                  color:
-                                    (block.listStyle || "bullet") === st
-                                      ? "#18181b"
-                                      : "var(--ref-text-primary)",
-                                  borderColor: "var(--ref-card-border)",
-                                }}
-                              >
-                                {st === "number"
-                                  ? "1. Angka"
-                                  : st === "bullet"
-                                  ? "• Poin"
-                                  : "a. Abjad"}
-                              </button>
-                            ))}
+                            {["number", "bullet", "alpha"].map((st) => {
+                              const active =
+                                (block.listStyle || "bullet") === st;
+                              return (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  onClick={() =>
+                                    updateBlock(block.id, {
+                                      listStyle: st as any,
+                                    })
+                                  }
+                                  className={`px-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                                    active
+                                      ? "seg-btn-active"
+                                      : "edufit-card-primary"
+                                  }`}
+                                >
+                                  {st === "number"
+                                    ? "1. Angka"
+                                    : st === "bullet"
+                                    ? "Poin"
+                                    : "a. Abjad"}
+                                </button>
+                              );
+                            })}
                           </div>
                           {(block.items || []).map((item, i) => (
                             <div key={i} className="flex items-center gap-2">
-                              <span className="text-xs font-bold w-5 text-center">
+                              <span className="text-xs font-bold font-mono w-5 text-center">
                                 {block.listStyle === "number"
                                   ? `${i + 1}.`
                                   : block.listStyle === "alpha"
                                   ? `${String.fromCharCode(97 + i)}.`
-                                  : "•"}
+                                  : "-"}
                               </span>
                               <input
                                 type="text"
@@ -2477,11 +2266,7 @@ export default function MateriPage() {
                                   updateBlock(block.id, { items: next });
                                 }}
                                 placeholder={`Isi butir ke-${i + 1}...`}
-                                className="w-full px-3.5 py-2 rounded-xl text-xs border"
-                                style={{
-                                  backgroundColor: "var(--ref-card-solid)",
-                                  borderColor: "var(--ref-card-border)",
-                                }}
+                                className="w-full px-3.5 py-2 rounded-xl text-xs outline-none edufit-card-primary"
                               />
                               <button
                                 type="button"
@@ -2493,7 +2278,7 @@ export default function MateriPage() {
                                     items: next.length ? next : [""],
                                   });
                                 }}
-                                className="p-1.5 text-red-500 cursor-pointer"
+                                className="p-1.5 rounded-lg badge-tint-rose cursor-pointer"
                               >
                                 <X size={14} />
                               </button>
@@ -2506,7 +2291,7 @@ export default function MateriPage() {
                                 items: [...(block.items || []), ""],
                               })
                             }
-                            className="text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            className="text-xs font-bold flex items-center gap-1 cursor-pointer text-emerald-accent"
                           >
                             <Plus size={13} /> Tambah Baris Poin
                           </button>
@@ -2523,41 +2308,34 @@ export default function MateriPage() {
                                 updateBlock(block.id, { title: e.target.value })
                               }
                               placeholder="Judul Kotak Lipat (Accordion)..."
-                              className="flex-1 px-3.5 py-2 rounded-xl text-xs font-bold border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="flex-1 px-3.5 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                             />
                             <div className="flex items-center gap-1">
                               {[
                                 { k: "text", l: "Teks Paragraf Bebas" },
                                 { k: "steps", l: "Daftar Tahapan" },
-                              ].map((m) => (
-                                <button
-                                  key={m.k}
-                                  type="button"
-                                  onClick={() =>
-                                    updateBlock(block.id, {
-                                      collapsibleMode: m.k as any,
-                                    })
-                                  }
-                                  className="px-3 py-1.5 rounded-xl text-[11px] font-bold border cursor-pointer"
-                                  style={{
-                                    backgroundColor:
-                                      (block.collapsibleMode || "steps") === m.k
-                                        ? "#facc15"
-                                        : "var(--ref-card-solid)",
-                                    color:
-                                      (block.collapsibleMode || "steps") === m.k
-                                        ? "#18181b"
-                                        : "var(--ref-text-primary)",
-                                    borderColor: "var(--ref-card-border)",
-                                  }}
-                                >
-                                  {m.l}
-                                </button>
-                              ))}
+                              ].map((m) => {
+                                const active =
+                                  (block.collapsibleMode || "steps") === m.k;
+                                return (
+                                  <button
+                                    key={m.k}
+                                    type="button"
+                                    onClick={() =>
+                                      updateBlock(block.id, {
+                                        collapsibleMode: m.k as any,
+                                      })
+                                    }
+                                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer ${
+                                      active
+                                        ? "seg-btn-active"
+                                        : "edufit-card-primary"
+                                    }`}
+                                  >
+                                    {m.l}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
 
@@ -2569,11 +2347,7 @@ export default function MateriPage() {
                                 updateBlock(block.id, { value: e.target.value })
                               }
                               placeholder="Tuliskan isi penjelasan lengkap di dalam kotak lipat ini..."
-                              className="w-full p-3.5 rounded-xl text-xs leading-relaxed border outline-none resize-y"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="w-full p-3.5 rounded-xl text-xs leading-relaxed outline-none resize-y edufit-card-primary"
                             />
                           ) : (
                             <div className="space-y-2">
@@ -2593,12 +2367,7 @@ export default function MateriPage() {
                                         });
                                       }}
                                       placeholder="Tahap"
-                                      className="w-28 px-3 py-2 rounded-xl text-xs font-bold border"
-                                      style={{
-                                        backgroundColor:
-                                          "var(--ref-card-solid)",
-                                        borderColor: "var(--ref-card-border)",
-                                      }}
+                                      className="w-28 px-3 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                                     />
                                     <input
                                       type="text"
@@ -2613,12 +2382,7 @@ export default function MateriPage() {
                                         });
                                       }}
                                       placeholder="Penjelasan tahap..."
-                                      className="flex-1 px-3 py-2 rounded-xl text-xs border"
-                                      style={{
-                                        backgroundColor:
-                                          "var(--ref-card-solid)",
-                                        borderColor: "var(--ref-card-border)",
-                                      }}
+                                      className="flex-1 px-3 py-2 rounded-xl text-xs outline-none edufit-card-primary"
                                     />
                                     <button
                                       type="button"
@@ -2629,7 +2393,7 @@ export default function MateriPage() {
                                           ).filter((_, idx) => idx !== cIdx),
                                         })
                                       }
-                                      className="p-2 text-red-500 cursor-pointer"
+                                      className="p-2 rounded-lg badge-tint-rose cursor-pointer"
                                     >
                                       <X size={14} />
                                     </button>
@@ -2646,7 +2410,7 @@ export default function MateriPage() {
                                     ],
                                   })
                                 }
-                                className="text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                className="text-xs font-bold flex items-center gap-1 cursor-pointer text-emerald-accent"
                               >
                                 <Plus size={13} /> Tambah Tahap
                               </button>
@@ -2667,11 +2431,7 @@ export default function MateriPage() {
                                 })
                               }
                               placeholder="Nomor/Label (Cth: GAMBAR 1.1)"
-                              className="px-3 py-2 rounded-xl text-xs font-bold border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="px-3 py-2 rounded-xl text-xs font-bold font-mono outline-none edufit-card-primary"
                             />
                             <input
                               type="text"
@@ -2680,18 +2440,11 @@ export default function MateriPage() {
                                 updateBlock(block.id, { title: e.target.value })
                               }
                               placeholder="Judul / Nama Gambar"
-                              className="px-3 py-2 rounded-xl text-xs font-bold border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="px-3 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                             />
                           </div>
                           <div className="flex flex-col sm:flex-row gap-2.5">
-                            <label
-                              className="cursor-pointer px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 text-white"
-                              style={{ backgroundColor: "#10b981" }}
-                            >
+                            <label className="cursor-pointer px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 btn-forest-emerald">
                               <UploadCloud size={15} />
                               <span>
                                 {uploadingBlockId === block.id
@@ -2720,11 +2473,7 @@ export default function MateriPage() {
                                 })
                               }
                               placeholder="Atau tempel URL gambar..."
-                              className="w-full px-3 py-2 rounded-xl text-xs border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="w-full px-3 py-2 rounded-xl text-xs font-mono outline-none edufit-card-primary"
                             />
                           </div>
                           <input
@@ -2734,11 +2483,7 @@ export default function MateriPage() {
                               updateBlock(block.id, { caption: e.target.value })
                             }
                             placeholder="Keterangan bawah / Caption sumber gambar..."
-                            className="w-full px-3 py-2 rounded-xl text-xs border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full px-3 py-2 rounded-xl text-xs outline-none edufit-card-primary"
                           />
                         </div>
                       )}
@@ -2755,11 +2500,7 @@ export default function MateriPage() {
                                 })
                               }
                               placeholder="Nama / Judul Tabel..."
-                              className="flex-1 px-3 py-2 rounded-xl text-xs font-bold border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="flex-1 px-3 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                             />
                             <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
                               <input
@@ -2793,11 +2534,7 @@ export default function MateriPage() {
                           {(block.tableVariants || []).map((variant, vIdx) => (
                             <div
                               key={variant.id}
-                              className="p-3 rounded-xl border space-y-2"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="p-3 rounded-xl space-y-2 edufit-card-primary"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-bold">
@@ -2822,12 +2559,7 @@ export default function MateriPage() {
                                         tableVariants: next,
                                       });
                                     }}
-                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer"
-                                    style={{
-                                      backgroundColor:
-                                        "var(--ref-tint-emerald-bg)",
-                                      color: "var(--ref-tint-emerald-text)",
-                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer badge-tint-emerald"
                                   >
                                     + Kolom
                                   </button>
@@ -2846,11 +2578,7 @@ export default function MateriPage() {
                                         tableVariants: next,
                                       });
                                     }}
-                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer"
-                                    style={{
-                                      backgroundColor: "var(--ref-tint-sky-bg)",
-                                      color: "var(--ref-tint-sky-text)",
-                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer badge-tint-sky"
                                   >
                                     + Baris
                                   </button>
@@ -2863,11 +2591,7 @@ export default function MateriPage() {
                                       {variant.headers.map((h, hIdx) => (
                                         <th
                                           key={hIdx}
-                                          className="p-1.5 border"
-                                          style={{
-                                            borderColor:
-                                              "var(--ref-card-border)",
-                                          }}
+                                          className="p-1.5 border border-hairline"
                                         >
                                           <input
                                             type="text"
@@ -2894,11 +2618,7 @@ export default function MateriPage() {
                                         {row.map((cell, cIdx) => (
                                           <td
                                             key={cIdx}
-                                            className="p-1.5 border"
-                                            style={{
-                                              borderColor:
-                                                "var(--ref-card-border)",
-                                            }}
+                                            className="p-1.5 border border-hairline"
                                           >
                                             <input
                                               type="text"
@@ -2934,11 +2654,7 @@ export default function MateriPage() {
                               })
                             }
                             placeholder="Catatan kaki tabel (Opsional)..."
-                            className="w-full px-3 py-2 rounded-xl text-xs border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full px-3 py-2 rounded-xl text-xs outline-none edufit-card-primary"
                           />
                         </div>
                       )}
@@ -2954,11 +2670,7 @@ export default function MateriPage() {
                               })
                             }
                             placeholder="Judul Grafik Simulasi..."
-                            className="w-full px-3.5 py-2 rounded-xl text-xs font-bold border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full px-3.5 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                           />
 
                           {(() => {
@@ -2968,41 +2680,31 @@ export default function MateriPage() {
                               methods[activeMIdx] || methods[0];
 
                             return (
-                              <div
-                                className="p-3.5 rounded-xl border space-y-3"
-                                style={{
-                                  backgroundColor: "var(--ref-card-solid)",
-                                  borderColor: "var(--ref-card-border)",
-                                }}
-                              >
+                              <div className="p-3.5 rounded-xl space-y-3 edufit-card-primary">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <div className="flex flex-wrap gap-1.5">
-                                    {methods.map((m, mIdx) => (
-                                      <button
-                                        key={m.id}
-                                        type="button"
-                                        onClick={() =>
-                                          setEditorTempoTab({
-                                            ...editorTempoTab,
-                                            [block.id]: mIdx,
-                                          })
-                                        }
-                                        className="px-3 py-1.5 rounded-xl text-xs font-bold border cursor-pointer"
-                                        style={{
-                                          backgroundColor:
-                                            activeMIdx === mIdx
-                                              ? "#facc15"
-                                              : "var(--ref-card-subtle)",
-                                          color:
-                                            activeMIdx === mIdx
-                                              ? "#18181b"
-                                              : "var(--ref-text-primary)",
-                                          borderColor: "var(--ref-card-border)",
-                                        }}
-                                      >
-                                        {m.name}
-                                      </button>
-                                    ))}
+                                    {methods.map((m, mIdx) => {
+                                      const active = activeMIdx === mIdx;
+                                      return (
+                                        <button
+                                          key={m.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setEditorTempoTab({
+                                              ...editorTempoTab,
+                                              [block.id]: mIdx,
+                                            })
+                                          }
+                                          className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer ${
+                                            active
+                                              ? "seg-btn-active"
+                                              : "edufit-surface-subtle"
+                                          }`}
+                                        >
+                                          {m.name}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
 
                                   <button
@@ -3028,24 +2730,14 @@ export default function MateriPage() {
                                         [block.id]: next.length - 1,
                                       });
                                     }}
-                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer"
-                                    style={{
-                                      backgroundColor:
-                                        "var(--ref-tint-emerald-bg)",
-                                      color: "var(--ref-tint-emerald-text)",
-                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer badge-tint-emerald"
                                   >
                                     + Metode Baru
                                   </button>
                                 </div>
 
                                 {activeMethod && (
-                                  <div
-                                    className="space-y-2.5 pt-2 border-t"
-                                    style={{
-                                      borderColor: "var(--ref-card-border)",
-                                    }}
-                                  >
+                                  <div className="space-y-2.5 pt-2 border-t border-hairline">
                                     <div className="flex items-center justify-between gap-2">
                                       <input
                                         type="text"
@@ -3059,12 +2751,7 @@ export default function MateriPage() {
                                           });
                                         }}
                                         placeholder="Nama Metode..."
-                                        className="px-3 py-1.5 rounded-lg text-xs font-bold border"
-                                        style={{
-                                          backgroundColor:
-                                            "var(--ref-card-subtle)",
-                                          borderColor: "var(--ref-card-border)",
-                                        }}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-bold outline-none edufit-surface-subtle"
                                       />
                                       <span className="text-[11px] opacity-70">
                                         Atur label & tinggi batang grafik:
@@ -3075,17 +2762,11 @@ export default function MateriPage() {
                                       {activeMethod.steps.map((st, sIdx) => (
                                         <div
                                           key={sIdx}
-                                            className="p-2.5 rounded-xl border space-y-2"
-                                          style={{
-                                            backgroundColor:
-                                              "var(--ref-card-subtle)",
-                                            borderColor:
-                                              "var(--ref-card-border)",
-                                          }}
+                                          className="p-2.5 rounded-xl space-y-2 edufit-surface-subtle"
                                         >
                                           <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold opacity-60">
-                                              Tahap {sIdx + 1}
+                                            <span className="text-[10px] font-bold font-mono opacity-60">
+                                              TAHAP {sIdx + 1}
                                             </span>
                                             {activeMethod.steps.length > 2 && (
                                               <button
@@ -3101,7 +2782,7 @@ export default function MateriPage() {
                                                     tempoMethods: next,
                                                   });
                                                 }}
-                                                className="text-red-500"
+                                                className="text-red-500 cursor-pointer"
                                               >
                                                 <X size={12} />
                                               </button>
@@ -3119,13 +2800,7 @@ export default function MateriPage() {
                                                 tempoMethods: next,
                                               });
                                             }}
-                                            className="w-full px-2.5 py-1 rounded-lg text-xs font-bold border"
-                                            style={{
-                                              backgroundColor:
-                                                "var(--ref-card-solid)",
-                                              borderColor:
-                                                "var(--ref-card-border)",
-                                            }}
+                                            className="w-full px-2.5 py-1 rounded-lg text-xs font-bold outline-none edufit-card-primary"
                                           />
                                           <div className="grid grid-cols-3 gap-1">
                                             {[
@@ -3145,17 +2820,11 @@ export default function MateriPage() {
                                                     tempoMethods: next,
                                                   });
                                                 }}
-                                                className="py-1 rounded-md text-[10px] font-bold cursor-pointer"
-                                                style={{
-                                                  backgroundColor:
-                                                    st.level === opt.lv
-                                                      ? "var(--ref-dark-panel)"
-                                                      : "var(--ref-card-solid)",
-                                                  color:
-                                                    st.level === opt.lv
-                                                      ? "#fff"
-                                                      : "var(--ref-text-secondary)",
-                                                }}
+                                                className={`py-1 rounded-md text-[10px] font-bold cursor-pointer ${
+                                                  st.level === opt.lv
+                                                    ? "telemetry-bar-forest"
+                                                    : "edufit-card-primary opacity-70"
+                                                }`}
                                               >
                                                 {opt.t}
                                               </button>
@@ -3177,7 +2846,7 @@ export default function MateriPage() {
                                           tempoMethods: next,
                                         });
                                       }}
-                                      className="text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                      className="text-xs font-bold flex items-center gap-1 cursor-pointer text-emerald-accent"
                                     >
                                       <Plus size={13} /> Tambah Batang Tahap
                                     </button>
@@ -3199,11 +2868,7 @@ export default function MateriPage() {
                                 updateBlock(block.id, { title: e.target.value })
                               }
                               placeholder="Judul Video Rujukan"
-                              className="px-3 py-2 rounded-xl text-xs font-bold border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="px-3 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                             />
                             <input
                               type="text"
@@ -3214,11 +2879,7 @@ export default function MateriPage() {
                                 })
                               }
                               placeholder="URL YouTube (https://...)"
-                              className="px-3 py-2 rounded-xl text-xs border"
-                              style={{
-                                backgroundColor: "var(--ref-card-solid)",
-                                borderColor: "var(--ref-card-border)",
-                              }}
+                              className="px-3 py-2 rounded-xl text-xs font-mono outline-none edufit-card-primary"
                             />
                           </div>
                           <textarea
@@ -3228,11 +2889,7 @@ export default function MateriPage() {
                               updateBlock(block.id, { value: e.target.value })
                             }
                             placeholder="Panduan pengamatan video untuk siswa..."
-                            className="w-full p-3 rounded-xl text-xs border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full p-3 rounded-xl text-xs outline-none edufit-card-primary"
                           />
                         </div>
                       )}
@@ -3246,11 +2903,7 @@ export default function MateriPage() {
                               updateBlock(block.id, { title: e.target.value })
                             }
                             placeholder="Judul Kotak Catatan (Cth: Tips Keselamatan / Catatan Praktik)"
-                            className="w-full px-3 py-2 rounded-xl text-xs font-bold border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full px-3 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                           />
                           <textarea
                             rows={2}
@@ -3259,11 +2912,7 @@ export default function MateriPage() {
                               updateBlock(block.id, { value: e.target.value })
                             }
                             placeholder="Isi catatan penting..."
-                            className="w-full p-3 rounded-xl text-xs border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full p-3 rounded-xl text-xs outline-none edufit-card-primary"
                           />
                         </div>
                       )}
@@ -3279,11 +2928,7 @@ export default function MateriPage() {
                               })
                             }
                             placeholder="Pertanyaan Kuis Cek Pemahaman..."
-                            className="w-full px-3 py-2 rounded-xl text-xs font-bold border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full px-3 py-2 rounded-xl text-xs font-bold outline-none edufit-card-primary"
                           />
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {(block.options || []).map((opt, oIdx) => (
@@ -3298,17 +2943,11 @@ export default function MateriPage() {
                                       correctOption: opt.key,
                                     })
                                   }
-                                  className="w-7 h-7 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
-                                  style={{
-                                    backgroundColor:
-                                      block.correctOption === opt.key
-                                        ? "#facc15"
-                                        : "var(--ref-card-solid)",
-                                    color:
-                                      block.correctOption === opt.key
-                                        ? "#18181b"
-                                        : "var(--ref-text-secondary)",
-                                  }}
+                                  className={`w-7 h-7 rounded-lg text-xs font-bold font-mono shrink-0 cursor-pointer ${
+                                    block.correctOption === opt.key
+                                      ? "seg-btn-active"
+                                      : "edufit-card-primary opacity-70"
+                                  }`}
                                   title="Klik untuk jadikan Kunci Jawaban"
                                 >
                                   {opt.key}
@@ -3322,11 +2961,7 @@ export default function MateriPage() {
                                     updateBlock(block.id, { options: next });
                                   }}
                                   placeholder={`Jawaban ${opt.key}...`}
-                                  className="w-full px-3 py-1.5 rounded-xl text-xs border"
-                                  style={{
-                                    backgroundColor: "var(--ref-card-solid)",
-                                    borderColor: "var(--ref-card-border)",
-                                  }}
+                                  className="w-full px-3 py-1.5 rounded-xl text-xs outline-none edufit-card-primary"
                                 />
                               </div>
                             ))}
@@ -3340,11 +2975,7 @@ export default function MateriPage() {
                               })
                             }
                             placeholder="Penjelasan pembahasan kunci jawaban..."
-                            className="w-full px-3 py-2 rounded-xl text-xs border"
-                            style={{
-                              backgroundColor: "var(--ref-card-solid)",
-                              borderColor: "var(--ref-card-border)",
-                            }}
+                            className="w-full px-3 py-2 rounded-xl text-xs outline-none edufit-card-primary"
                           />
                         </div>
                       )}
@@ -3353,18 +2984,9 @@ export default function MateriPage() {
                 </div>
 
                 {/* PALET TOMBOL TAMBAH BAGIAN MATERI */}
-                <div
-                  className="p-5 rounded-3xl border space-y-3"
-                  style={{
-                    backgroundColor: "var(--ref-card-subtle)",
-                    borderColor: "var(--ref-card-border)",
-                  }}
-                >
-                  <span
-                    className="text-xs font-bold uppercase tracking-widest block"
-                    style={{ color: "var(--ref-text-secondary)" }}
-                  >
-                    + Tambahkan Komponen Baru ke Dalam Materi:
+                <div className="p-5 rounded-2xl space-y-3 edufit-surface-subtle">
+                  <span className="text-xs font-bold font-mono uppercase tracking-widest block opacity-70">
+                    + TAMBAHKAN KOMPONEN BARU KE DALAM MATERI:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -3401,12 +3023,7 @@ export default function MateriPage() {
                           key={btn.t}
                           type="button"
                           onClick={() => addBlock(btn.t as BlockType)}
-                          className="px-4 py-2.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition-transform hover:scale-105"
-                          style={{
-                            backgroundColor: "var(--ref-card-solid)",
-                            borderColor: "var(--ref-card-border)",
-                            color: "var(--ref-text-primary)",
-                          }}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-transform hover:scale-105 edufit-card-primary"
                         >
                           <IconB size={13} /> {btn.l}
                         </button>
@@ -3436,77 +3053,79 @@ export default function MateriPage() {
   }
 
   // ==========================================================================
-  // VIEW MODE: LIST MATERI ("THE MASTERPIECE ADMINISTRATOR")
+  // VIEW MODE: LIST MATERI
   // ==========================================================================
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {renderDynamicIsland()}
+
       {/* ====================================================================
           ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
          ==================================================================== */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 mb-10 relative z-10">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest mb-4 opacity-50">
-            <BookOpen size={16} /> SaaS Content Management System • Kurikulum
-            Kelas {activeGrade}
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+            <span className="font-mono text-gold-accent">
+              00 / SAAS CONTENT MANAGEMENT
+            </span>
+            <span>—</span>
+            <span className="inline-flex items-center gap-1.5">
+              <BookOpen size={15} />
+              Kurikulum Kelas {activeGrade}
+            </span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-tight">
+          <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
             Materi & <br />
             <span className="font-semibold">Refleksi Siswa</span>
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka (Naked Giant Numbers) */}
-        <div className="flex flex-wrap gap-12 md:gap-20 items-baseline shrink-0">
+        {/* 3 Angka Raksasa Terbuka */}
+        <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : materials.length}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Unit Kelas {activeGrade}
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              01 / Unit Kelas {activeGrade}
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none text-emerald-500">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading ? "—" : totalBlocksActiveGrade}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Blok Konten SaaS
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              02 / Blok Konten SaaS
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : reflectionStats.total}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-50 mt-4">
-              Jawaban Refleksi
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+              03 / Jawaban Refleksi
             </div>
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI MATERI (MURNI GARIS-GARIS TANPA PILL BIRU/HIJAU!)
+          ZONA 2: 4 BAR TELEMETRI MATERI
          ==================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-8 relative z-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         {/* Bar 1: Cakupan Seluruh Jenjang */}
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Total Kurikulum</span>
-            <span>Kelas 10–12</span>
+            <span className="font-mono">KELAS 10–12</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-dark-panel)",
-              color: "var(--ref-dark-panel-text)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
+            <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${allMaterials.length} Modul`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-60">
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
               Fase E & F
             </span>
           </div>
@@ -3516,48 +3135,29 @@ export default function MateriPage() {
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Penilaian Guru</span>
-            <span>Grade A–D</span>
+            <span className="font-mono">GRADE A–D</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 flex items-center justify-between"
-            style={{
-              backgroundColor: "#facc15",
-              color: "#18181b",
-            }}
-          >
-            <span className="text-2xl font-semibold tracking-tight">
+          <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-gold">
+            <span className="text-2xl font-semibold font-mono tracking-tight">
               {isLoading ? "—" : `${reflectionStats.graded} Dinilai`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider">
-              {reflectionStats.pct}% Tuntas
+            <span className="text-[11px] font-bold font-mono uppercase tracking-wider">
+              {reflectionStats.pct}% TUNTAS
             </span>
           </div>
         </div>
 
-        {/* Bar 3: Striped Track Murni (TANPA PILL BORDER BIRU/HIJAU DI DALAMNYA!) */}
+        {/* Bar 3: Striped Track Murni */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kepadatan Komponen SaaS</span>
-            <span>Kelas {activeGrade}</span>
+            <span className="font-mono">KELAS {activeGrade}</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-6 border relative overflow-hidden flex items-center justify-between"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              backgroundImage: "var(--ref-stripe-pattern)",
-            }}
-          >
-            <span
-              className="text-2xl font-light tracking-tight relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+            <span className="text-2xl font-light font-mono tracking-tight relative z-10">
               {isLoading ? "—" : `${totalBlocksActiveGrade} Blok Aktif`}
             </span>
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest opacity-60 relative z-10"
-              style={{ color: "var(--ref-text-primary)" }}
-            >
+            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
               Sinkron Mobile
             </span>
           </div>
@@ -3567,17 +3167,10 @@ export default function MateriPage() {
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Pemantik</span>
-            <span>Refleksi</span>
+            <span className="font-mono">REFLEKSI</span>
           </div>
-          <div
-            className="h-14 rounded-2xl px-5 flex items-center justify-center border"
-            style={{
-              backgroundColor: "var(--ref-card-solid)",
-              borderColor: "var(--ref-card-border)",
-              color: "var(--ref-text-primary)",
-            }}
-          >
-            <span className="text-2xl font-light tracking-tight">
+          <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {isLoading
                 ? "—"
                 : `${
@@ -3591,94 +3184,77 @@ export default function MateriPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (3 KOLOM x col-span-4 • min-h-[390px])
+          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
          ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
         {/* BENTO 1 (PATTERN POLKADOT HALUS): PILIH JENJANG KELAS & LOMPAT CEPAT EDITOR */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-visible flex flex-col justify-between min-h-[390px] border group"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.1)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.08] rounded-[2.5rem] overflow-hidden"
-            style={{
-              backgroundImage:
-                "radial-gradient(currentColor 2px, transparent 2px)",
-              backgroundSize: "24px 24px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-light tracking-tight">
-                Kendali Materi
-              </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
+                <span className="font-mono">01 /</span>
+                <SlidersHorizontal size={14} />
+                <span>Filter Modul</span>
+              </div>
               <button
                 type="button"
                 onClick={handleExportMateriCSV}
-                className="w-10 h-10 rounded-full flex items-center justify-center border transition-transform hover:scale-105 cursor-pointer"
-                style={{
-                  backgroundColor: "var(--ref-card-subtle)",
-                  borderColor: "var(--ref-card-border)",
-                }}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-105 cursor-pointer edufit-surface-subtle"
                 title="Unduh Data Kurikulum CSV"
               >
-                <Download size={16} />
+                <Download size={15} />
               </button>
             </div>
-            <p className="text-sm mb-6 leading-relaxed font-medium opacity-50">
+
+            <h2 className="text-3xl font-light tracking-tight mb-2">
+              Kendali Materi
+            </h2>
+            <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
               Pilih tingkatan kelas atau lompat cepat ke editor unit materi.
             </p>
 
-            {/* Segmented Filter Kelas (Kuning Emas = Kelas Aktif) */}
-            <div
-              className="flex gap-1.5 p-1.5 rounded-full mb-6"
-              style={{
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.05)"
-                  : "rgba(0,0,0,0.05)",
-              }}
-            >
-              {[10, 11, 12].map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setActiveGrade(g)}
-                  className="flex-1 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer"
-                  style={{
-                    backgroundColor:
-                      activeGrade === g ? "#facc15" : "transparent",
-                    color: activeGrade === g ? "#000" : "inherit",
-                    opacity: activeGrade === g ? 1 : 0.5,
-                  }}
-                >
-                  Kelas {g}
-                </button>
-              ))}
+            {/* Segmented Filter Kelas */}
+            <div className="flex gap-1.5 p-1.5 rounded-2xl mb-6 edufit-surface-subtle">
+              {[10, 11, 12].map((g) => {
+                const active = activeGrade === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => {
+                      setActiveGrade(g);
+                      triggerDynamicIsland(
+                        `Filter Modul Kelas ${g}`,
+                        `Menampilkan daftar unit pembelajaran Kelas ${g}.`,
+                        "info"
+                      );
+                    }}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
+                    }`}
+                  >
+                    Kelas {g}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Bottom-Bordered Custom Dropdown Lompat Cepat Unit Materi */}
             <div className="relative w-full mb-6" ref={quickJumpRef}>
               <div
                 onClick={() => setIsQuickJumpOpen(!isQuickJumpOpen)}
-                className="w-full bg-transparent border-b-2 py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center transition-colors select-none"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.12)",
-                }}
+                className={`w-full bg-transparent py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
+                  isQuickJumpOpen ? "edufit-underline-select-active" : ""
+                }`}
               >
                 <span className="truncate pr-3">
                   Buka Cepat ({materials.length} Unit Kelas {activeGrade})
                 </span>
                 <ChevronDown
-                  size={24}
-                  className={`transition-transform duration-300 opacity-50 shrink-0 ${
+                  size={22}
+                  className={`transition-transform duration-300 opacity-60 shrink-0 ${
                     isQuickJumpOpen ? "rotate-180" : ""
                   }`}
                 />
@@ -3691,13 +3267,7 @@ export default function MateriPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.98 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden border max-h-60 overflow-y-auto no-scrollbar"
-                    style={{
-                      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.1)",
-                    }}
+                    className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
                     {materials.length === 0 ? (
                       <div className="p-5 text-sm opacity-50 text-center">
@@ -3711,12 +3281,13 @@ export default function MateriPage() {
                             setIsQuickJumpOpen(false);
                             openEditForm(m);
                           }}
-                          className={`px-6 py-4 text-lg font-light cursor-pointer transition-colors flex items-center justify-between ${
-                            isDark ? "hover:bg-white/5" : "hover:bg-black/5"
-                          }`}
+                          className="px-6 py-4 text-base font-medium cursor-pointer transition-colors flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5"
                         >
                           <span className="truncate pr-3">
-                            0{idx + 1}. {m.unit_name}
+                            <span className="font-mono text-gold-accent mr-2">
+                              0{idx + 1} /
+                            </span>
+                            {m.unit_name}
                           </span>
                           <ArrowUpRight size={16} className="opacity-50" />
                         </div>
@@ -3731,46 +3302,32 @@ export default function MateriPage() {
           <button
             type="button"
             onClick={openAddForm}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md text-white relative z-10"
-            style={{ backgroundColor: "#10b981" }}
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md relative z-10 btn-forest-emerald"
           >
             <Plus size={16} strokeWidth={2.5} /> Tambah Modul Materi Baru
           </button>
         </div>
 
         {/* BENTO 2 (PATTERN GRID MILIMETER): GRAFIK BATANG VERTIKAL BERTITIK KOMPONEN PER UNIT */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.06]"
-            style={{
-              backgroundImage:
-                "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-              backgroundSize: "26px 26px",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+          <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Layers size={16} /> Kepadatan Blok Konten per Unit
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">02 /</span>
+              <Layers size={15} />
+              <span>Kepadatan Blok per Unit</span>
             </div>
-            <span className="text-xs font-bold opacity-50">
-              Klik batang untuk edit
+            <span className="text-[11px] font-bold font-mono opacity-55">
+              KLIK BATANG
             </span>
           </div>
 
           <div className="my-4 flex items-end gap-3 relative z-10">
-            <div className="text-6xl font-light tracking-tighter leading-none">
+            <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : totalBlocksActiveGrade}
             </div>
-            <div className="text-sm font-semibold opacity-50 mb-1">
+            <div className="text-sm font-semibold opacity-55 mb-1">
               Total Blok SaaS Kelas {activeGrade}
             </div>
           </div>
@@ -3796,6 +3353,9 @@ export default function MateriPage() {
                   const bCount = parseMaterialToBlocks(mat).length;
                   const heightPct = Math.round((bCount / maxBlocks) * 100);
                   const isHighest = bCount === maxBlocks && bCount > 0;
+                  const fillClass = isHighest
+                    ? "chart-fill-gold"
+                    : "chart-fill-primary";
 
                   return (
                     <button
@@ -3805,36 +3365,22 @@ export default function MateriPage() {
                       className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
                       title={`${mat.unit_name}: ${bCount} Blok Konten`}
                     >
-                      <span className="text-[11px] font-bold opacity-75">
+                      <span className="text-[11px] font-bold font-mono opacity-80">
                         {bCount}b
                       </span>
-                      <div
-                        className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px]"
-                        style={{
-                          backgroundColor: isDark
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(24,24,27,0.07)",
-                        }}
-                      >
+                      <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                         <div
-                          className="w-full rounded-full transition-all duration-500 group-hover:scale-y-105"
+                          className={`w-full rounded-full transition-all duration-500 group-hover:scale-y-105 ${fillClass}`}
                           style={{
-                            height: `${Math.max(bCount > 0 ? 18 : 8, heightPct)}%`,
-                            backgroundColor: isHighest
-                              ? "#facc15"
-                              : "var(--ref-text-primary)",
+                            height: `${Math.max(
+                              bCount > 0 ? 18 : 8,
+                              heightPct
+                            )}%`,
                           }}
                         />
                       </div>
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor: isHighest
-                            ? "#facc15"
-                            : "var(--ref-text-primary)",
-                        }}
-                      />
-                      <span className="text-[10px] font-bold opacity-60 truncate max-w-full">
+                      <span className={`w-2 h-2 rounded-full ${fillClass}`} />
+                      <span className="text-[10px] font-bold font-mono opacity-65 truncate max-w-full">
                         U{idx + 1}
                       </span>
                     </button>
@@ -3846,26 +3392,14 @@ export default function MateriPage() {
         </div>
 
         {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS REFLEKSI & KURIKULUM */}
-        <div
-          className="lg:col-span-4 p-8 md:p-10 rounded-[2.5rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[390px] border"
-          style={{
-            backgroundColor: isDark ? "#111111" : "#ffffff",
-            borderColor: isDark
-              ? "rgba(255,255,255,0.05)"
-              : "rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.02] dark:opacity-[0.05]"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, currentColor, currentColor 2px, transparent 2px, transparent 16px)",
-            }}
-          />
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+          <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-50 text-xs font-bold uppercase tracking-widest">
-              <Activity size={16} /> Indeks Kurikulum
+            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
+              <span className="font-mono">03 /</span>
+              <Activity size={15} />
+              <span>Indeks Kurikulum</span>
             </div>
             <div className="flex items-center gap-1">
               {[
@@ -3879,13 +3413,9 @@ export default function MateriPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                    style={{
-                      backgroundColor: active
-                        ? "#facc15"
-                        : "var(--ref-card-subtle)",
-                      color: active ? "#000" : "var(--ref-text-secondary)",
-                    }}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    }`}
                   >
                     {m.label}
                   </button>
@@ -3929,29 +3459,28 @@ export default function MateriPage() {
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke={
-                      isDark
-                        ? "rgba(255,255,255,0.16)"
-                        : "rgba(24,24,27,0.16)"
-                    }
                     strokeWidth="6"
                     strokeDasharray="2 5"
+                    className="gauge-circle-track"
                   />
                   <circle
                     cx="70"
                     cy="70"
                     r={radius}
                     fill="none"
-                    stroke="#facc15"
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700"
+                    className={`transition-all duration-700 ${
+                      gaugeMode === "graded"
+                        ? "gauge-circle-emerald"
+                        : "gauge-circle-gold"
+                    }`}
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light tracking-tighter leading-none">
+                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
                     {isLoading ? "—" : gaugeValue}
                   </span>
                   <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
@@ -3963,16 +3492,9 @@ export default function MateriPage() {
           })()}
 
           <div className="relative z-10">
-            <div
-              className="h-3 w-full rounded-full flex overflow-hidden mb-3"
-              style={{
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.05)",
-              }}
-            >
+            <div className="h-2.5 w-full rounded-full flex overflow-hidden mb-3 chart-track-pill">
               <div
-                className="h-full bg-blue-400"
+                className="h-full chart-fill-sky"
                 style={{
                   width: `${
                     (gradeCountBreakdown.g10 / gradeCountBreakdown.total) * 100
@@ -3980,16 +3502,15 @@ export default function MateriPage() {
                 }}
               />
               <div
-                className="h-full"
+                className="h-full chart-fill-gold"
                 style={{
                   width: `${
                     (gradeCountBreakdown.g11 / gradeCountBreakdown.total) * 100
                   }%`,
-                  backgroundColor: "#facc15",
                 }}
               />
               <div
-                className="h-full bg-emerald-400"
+                className="h-full chart-fill-emerald"
                 style={{
                   width: `${
                     (gradeCountBreakdown.g12 / gradeCountBreakdown.total) * 100
@@ -3997,37 +3518,27 @@ export default function MateriPage() {
                 }}
               />
             </div>
-            <div className="flex justify-between text-[11px] font-bold tracking-widest uppercase opacity-70">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-blue-400" /> Kls 10 (
-                {gradeCountBreakdown.g10})
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: "#facc15" }}
-                />{" "}
-                Kls 11 ({gradeCountBreakdown.g11})
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-emerald-400" /> Kls 12 (
-                {gradeCountBreakdown.g12})
-              </div>
+            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-2 border-t border-hairline">
+              <span>Kls 10 ({gradeCountBreakdown.g10})</span>
+              <span>Kls 11 ({gradeCountBreakdown.g11})</span>
+              <span>Kls 12 ({gradeCountBreakdown.g12})</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          ZONA 4: GRID KARTU BESAR UNIT MATERI (min-h-[320px] • PASTEL/DARK)
-          100% Mengikuti Gaya Kartu Bawah "THE MASTERPIECE ADMINISTRATOR"
+          ZONA 4: GRID KARTU BESAR UNIT MATERI (PASTEL LIGHT / DEEP FOREST DARK)
          ==================================================================== */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 relative z-10">
         <div>
-          <h3 className="text-2xl font-light tracking-tight">
+          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
+            04 / MODUL PEMBELAJARAN INTERAKTIF
+          </div>
+          <h3 className="text-3xl font-light tracking-tight">
             Daftar Unit Materi Kelas {activeGrade} ({materials.length})
           </h3>
-          <p className="text-xs font-medium opacity-50 mt-1">
+          <p className="text-xs font-medium opacity-55 mt-1">
             Klik kartu unit materi untuk membuka SaaS Content Builder dan Live
             Preview Aplikasi Siswa.
           </p>
@@ -4036,8 +3547,7 @@ export default function MateriPage() {
         <button
           type="button"
           onClick={openAddForm}
-          className="px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md text-white cursor-pointer"
-          style={{ backgroundColor: "#10b981" }}
+          className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md cursor-pointer btn-forest-emerald"
         >
           <Plus size={15} strokeWidth={2.5} /> Tambah Modul Kelas {activeGrade}
         </button>
@@ -4048,19 +3558,11 @@ export default function MateriPage() {
           [1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-[320px] rounded-[2.5rem] animate-pulse"
-              style={{ backgroundColor: "var(--ref-card-subtle)" }}
+              className="h-[320px] rounded-[2rem] animate-pulse edufit-surface-subtle"
             />
           ))
         ) : materials.length === 0 ? (
-          <div
-            className="xl:col-span-3 p-16 text-center rounded-[2.5rem] border border-dashed opacity-50"
-            style={{
-              borderColor: isDark
-                ? "rgba(255,255,255,0.2)"
-                : "rgba(0,0,0,0.2)",
-            }}
-          >
+          <div className="xl:col-span-3 p-16 text-center rounded-[2rem] border border-dashed border-hairline opacity-60">
             <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <h3 className="text-xl font-light">
               Belum ada unit materi untuk Kelas {activeGrade}.
@@ -4068,7 +3570,8 @@ export default function MateriPage() {
           </div>
         ) : (
           materials.map((mat, index) => {
-            const bgLight = bentoColors[index % bentoColors.length];
+            const showcaseClass =
+              BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
             const blocks = parseMaterialToBlocks(mat);
             const tableCount = blocks.filter((b) => b.type === "table").length;
             const figCount = blocks.filter((b) => b.type === "figure").length;
@@ -4081,27 +3584,14 @@ export default function MateriPage() {
               <div
                 key={mat.id}
                 onClick={() => openEditForm(mat)}
-                className="p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[320px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group border cursor-pointer"
-                style={{
-                  backgroundColor: isDark ? "#111111" : bgLight,
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.1)"
-                    : "transparent",
-                }}
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[320px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass}`}
               >
-                <div
-                  className="absolute inset-0 pointer-events-none transition-opacity opacity-[0.03] dark:opacity-[0.05]"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(currentColor 2px, transparent 2px)",
-                    backgroundSize: "24px 24px",
-                  }}
-                />
+                <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 {/* Baris Atas Kartu Unit */}
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold tracking-widest uppercase opacity-65">
-                    UNIT 0{index + 1} • KELAS {mat.grade_level}
+                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                    UNIT 0{index + 1} · KELAS {mat.grade_level}
                   </span>
 
                   <div className="flex items-center gap-1.5">
@@ -4111,12 +3601,7 @@ export default function MateriPage() {
                         e.stopPropagation();
                         openEditForm(mat);
                       }}
-                      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.06)"
-                          : "rgba(0,0,0,0.06)",
-                      }}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
                       title="Edit Modul"
                     >
                       <Edit3 size={15} />
@@ -4124,20 +3609,13 @@ export default function MateriPage() {
                     <button
                       type="button"
                       onClick={(e) => handleDelete(mat.id, mat.unit_name, e)}
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-500/15 transition-colors cursor-pointer"
+                      className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose hover:opacity-80"
                       title="Hapus Modul"
                     >
                       <Trash2 size={15} />
                     </button>
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{
-                        backgroundColor: isDark
-                          ? "rgba(255,255,255,0.06)"
-                          : "rgba(0,0,0,0.06)",
-                      }}
-                    >
-                      <ArrowUpRight size={18} strokeWidth={1.5} />
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-black/5 dark:bg-white/5">
+                      <ArrowUpRight size={18} strokeWidth={1.75} />
                     </div>
                   </div>
                 </div>
@@ -4158,22 +3636,22 @@ export default function MateriPage() {
                 {/* Baris Bawah Metrik Blok & Jawaban Refleksi */}
                 <div className="flex items-end justify-between border-t border-black/10 dark:border-white/10 pt-5 relative z-10">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Komponen SaaS ({tableCount} Tabel · {figCount} Gambar)
                     </div>
-                    <div className="text-3xl font-light leading-none">
+                    <div className="text-3xl font-light font-mono leading-none">
                       {blocks.length}{" "}
-                      <span className="text-sm font-medium opacity-60">
+                      <span className="text-sm font-sans font-medium opacity-60">
                         Blok
                       </span>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-50 mb-1">
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Refleksi Siswa
                     </div>
-                    <div className="text-4xl font-light leading-none">
+                    <div className="text-4xl font-light font-mono leading-none">
                       {unitRefStat.graded}/{unitRefStat.total}
                     </div>
                   </div>

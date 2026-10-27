@@ -3,313 +3,420 @@
 
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, Menu, Moon, Radio, Sun, X } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  BookOpen,
+  Home,
+  LogOut,
+  Menu,
+  Moon,
+  Radio,
+  RefreshCw,
+  Sun,
+  Target,
+  X,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export default function NavbarGuru() {
-    const pathname = usePathname();
-    const router = useRouter();
-    const { resolvedTheme, setTheme } = useTheme();
-    const [mounted, setMounted] = useState(false);
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
-    const [isScrolled, setIsScrolled] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
-    useEffect(() => {
-        setMounted(true);
-        const handleScroll = () => setIsScrolled(window.scrollY > 20);
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
+  // State Popover Aktivitas Kelas Real-Time (Kembar dengan Sidebar Admin)
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
-    if (pathname?.startsWith("/guru/live-asesmen")) {
-        return null;
-    }
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-    const menuItems = [
-        { label: "Dashboard", href: "/guru" },
-        { label: "Live Asesmen", href: "/guru/live-asesmen", isLive: true },
-        { label: "Teori", href: "/guru/teori" },
-        { label: "Praktik", href: "/guru/praktik" },
-        { label: "Rancangan", href: "/guru/rancangan" },
-    ];
+  useEffect(() => {
+    setLogoError(false);
+  }, [resolvedTheme]);
 
-    const isLinkActive = (href: string) => {
-        if (href === "/guru") return pathname === "/guru";
-        return pathname.startsWith(href);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-    const handleLogout = () => {
-        toast("Keluar dari Akun?", {
-            description: "Anda akan mengakhiri sesi aktif di Ruang Guru.",
-            action: {
-                label: "Ya, Keluar",
-                onClick: async () => {
-                    await supabase.auth.signOut();
-                    router.push("/login");
-                    toast.success("Berhasil keluar dari sistem.");
-                },
-            },
-            cancel: {
-                label: "Batal",
-                onClick: () => {},
-            },
+  // Sembunyikan navbar ketika guru sedang berada di dalam ruang Live Asesmen layar penuh
+  if (pathname?.startsWith("/guru/live-asesmen")) {
+    return null;
+  }
+
+  const fetchTeacherActivity = async () => {
+    setLoadingLogs(true);
+    try {
+      const [refRes, progRes, metRes] = await Promise.all([
+        supabase
+          .from("student_reflections")
+          .select("id, unit_name, created_at, grade")
+          .order("created_at", { ascending: false })
+          .limit(2),
+        supabase
+          .from("student_programs")
+          .select("id, type, status, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(2),
+        supabase
+          .from("student_physical_metrics")
+          .select("id, tkji_category, total_tkji_score, created_at")
+          .order("created_at", { ascending: false })
+          .limit(2),
+      ]);
+
+      const combined: any[] = [];
+      (refRes.data || []).forEach((r: any) => {
+        combined.push({
+          id: `ref-${r.id}`,
+          code: "PRAKTIK",
+          title: `Refleksi: ${r.unit_name}`,
+          subtitle: r.grade
+            ? `Sudah dinilai (${r.grade})`
+            : "Menunggu koreksi Guru",
+          href: "/guru/praktik",
         });
-    };
+      });
+      (progRes.data || []).forEach((p: any) => {
+        combined.push({
+          id: `prog-${p.id}`,
+          code: "FITT",
+          title: `Rancangan ${String(p.type || "Awal").toUpperCase()}`,
+          subtitle: `Status: ${p.status || "Terkumpul"}`,
+          href: "/guru/rancangan",
+        });
+      });
+      (metRes.data || []).forEach((m: any) => {
+        combined.push({
+          id: `met-${m.id}`,
+          code: "TKJI",
+          title: `Pengukuran TKJI (Skor ${m.total_tkji_score || "-"})`,
+          subtitle: `Kategori: ${m.tkji_category || "Tercatat"}`,
+          href: "/guru/live-asesmen",
+        });
+      });
 
-    const isDark = mounted && resolvedTheme === "dark";
+      setRecentLogs(combined.slice(0, 5));
+    } catch {
+      setRecentLogs([]);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
 
-    return (
-        <>
-            {/* 1. DESKTOP HEADER */}
-            <header
-                className={`hidden lg:flex fixed left-1/2 -translate-x-1/2 z-[60] transition-all duration-300 items-center justify-between
-                ${
-                    isScrolled
-                        ? "top-4 w-[92%] max-w-[1080px] rounded-full px-4 py-2 shadow-xl border backdrop-blur-2xl"
-                        : "top-0 w-[95%] max-w-[1150px] rounded-none rounded-b-2xl px-8 py-4 shadow-none border-transparent bg-transparent"
+  const toggleNotifPopover = () => {
+    const next = !notifOpen;
+    setNotifOpen(next);
+    if (next) fetchTeacherActivity();
+  };
+
+  const menuItems = [
+    { icon: Home, label: "Dashboard", href: "/guru", idx: "01" },
+    {
+      icon: Radio,
+      label: "Live Asesmen",
+      href: "/guru/live-asesmen",
+      isLive: true,
+      idx: "02",
+    },
+    { icon: BookOpen, label: "Teori", href: "/guru/teori", idx: "03" },
+    { icon: Activity, label: "Praktik", href: "/guru/praktik", idx: "04" },
+    { icon: Target, label: "Rancangan", href: "/guru/rancangan", idx: "05" },
+  ];
+
+  const isLinkActive = (href: string) => {
+    if (href === "/guru") return pathname === "/guru";
+    return pathname?.startsWith(href);
+  };
+
+  const handleLogout = () => {
+    toast("Keluar dari Akun?", {
+      description: "Anda akan mengakhiri sesi aktif di Ruang Guru.",
+      action: {
+        label: "Ya, Keluar",
+        onClick: async () => {
+          toast.loading("Memproses log out...");
+          await supabase.auth.signOut();
+          router.push("/login");
+          toast.dismiss();
+        },
+      },
+      cancel: { label: "Batal" },
+    });
+  };
+
+  const isDark = mounted && resolvedTheme === "dark";
+
+  return (
+    <header
+      id="edufit-top-navbar"
+      className="sticky top-0 z-[70] w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 pt-4 pb-2 transition-all duration-300"
+    >
+      <div className="flex items-center justify-between gap-4">
+        {/* 1. KIRI: IDENTITAS BRAND & PERAN ARSITEKTURAL (IDENTIK DENGAN ADMIN) */}
+        <Link
+          href="/guru"
+          className="flex items-center gap-3 shrink-0 py-1 transition-transform hover:scale-[1.02] focus:outline-none"
+        >
+          {mounted && !logoError ? (
+            <img
+              src={isDark ? "/images/logo-putih.png" : "/images/logo-hitam.png"}
+              alt="EduFit"
+              onError={() => setLogoError(true)}
+              className="h-12 sm:h-14 md:h-16 w-auto object-contain transition-opacity duration-300"
+            />
+          ) : (
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-extrabold tracking-tighter">
+                EduFit<span className="text-gold-accent">.</span>
+              </span>
+              <span className="hidden sm:inline-block text-[10px] font-mono font-bold uppercase tracking-widest opacity-55">
+                GURU / STUDIO
+              </span>
+            </div>
+          )}
+        </Link>
+
+        {/* 2. TENGAH: DEK NAVIGASI UTAMA ARSITEKTURAL (IDENTIK DENGAN ADMIN) */}
+        <nav className="hidden xl:flex items-center p-1.5 rounded-2xl backdrop-blur-xl overflow-x-auto no-scrollbar edufit-card-primary">
+          {menuItems.map((item) => {
+            const isActive = isLinkActive(item.href);
+            const IconComp = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`relative px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-colors whitespace-nowrap flex items-center gap-2 group ${
+                  isActive
+                    ? "text-ink-dark font-bold"
+                    : "opacity-65 hover:opacity-100"
                 }`}
-                style={{
-                    backgroundColor: isScrolled
-                        ? isDark
-                            ? "rgba(17,17,17,0.85)"
-                            : "rgba(255,255,255,0.85)"
-                        : "transparent",
-                    borderColor: isScrolled
-                        ? isDark
-                            ? "rgba(255,255,255,0.05)"
-                            : "rgba(0,0,0,0.05)"
-                        : "transparent",
-                }}
-            >
-                <div
-                    className={`flex items-center transition-all duration-300 ${
-                        isScrolled ? "h-12 pl-2 pr-6 border-r" : "h-16 pr-8"
-                    }`}
-                    style={{
-                        borderColor: isScrolled
-                            ? isDark
-                                ? "rgba(255,255,255,0.1)"
-                                : "rgba(0,0,0,0.1)"
-                            : "transparent",
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="edufitGuruNavIndicator"
+                    className="absolute inset-0 rounded-xl btn-forest-gold shadow-sm"
+                    transition={{
+                      type: "spring",
+                      stiffness: 380,
+                      damping: 32,
                     }}
-                >
-                    {mounted && (
-                        <img
-                            src={isDark ? "/images/logo-putih.png" : "/images/logo-hitam.png"}
-                            alt="EduFit"
-                            className="h-full object-contain"
-                        />
-                    )}
-                </div>
-
-                <nav className="flex items-center gap-1">
-                    {menuItems.map((item) => {
-                        const active = isLinkActive(item.href);
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className="relative px-5 py-2.5 rounded-full text-sm font-bold transition-all z-10 flex items-center gap-2"
-                                style={{
-                                    color: active
-                                        ? "#000"
-                                        : isDark
-                                        ? "rgba(255,255,255,0.6)"
-                                        : "rgba(0,0,0,0.6)",
-                                }}
-                            >
-                                {active && (
-                                    <motion.div
-                                        layoutId="navIndicator"
-                                        className="absolute inset-0 rounded-full -z-10 shadow-sm"
-                                        style={{ backgroundColor: "#facc15" }}
-                                        transition={{
-                                            type: "spring",
-                                            stiffness: 400,
-                                            damping: 30,
-                                        }}
-                                    />
-                                )}
-                                {item.isLive && (
-                                    <Radio
-                                        size={14}
-                                        className={
-                                            active
-                                                ? "text-black animate-pulse"
-                                                : "text-[#facc15] animate-pulse"
-                                        }
-                                    />
-                                )}
-                                {item.label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                <div
-                    className={`flex items-center gap-2 transition-all duration-300 ${
-                        isScrolled ? "pl-4 border-l" : ""
-                    }`}
-                    style={{
-                        borderColor: isScrolled
-                            ? isDark
-                                ? "rgba(255,255,255,0.1)"
-                                : "rgba(0,0,0,0.1)"
-                            : "transparent",
-                    }}
-                >
-                    {mounted && (
-                        <button
-                            onClick={() => setTheme(isDark ? "light" : "dark")}
-                            className="w-11 h-11 flex items-center justify-center rounded-full transition-all hover:text-[#facc15] cursor-pointer"
-                            style={{
-                                backgroundColor: isDark
-                                    ? "rgba(255,255,255,0.05)"
-                                    : "rgba(0,0,0,0.05)",
-                            }}
-                        >
-                            {isDark ? (
-                                <Sun size={22} strokeWidth={2} />
-                            ) : (
-                                <Moon size={22} strokeWidth={2} />
-                            )}
-                        </button>
-                    )}
-                    <button
-                        onClick={handleLogout}
-                        className="w-11 h-11 flex items-center justify-center rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all cursor-pointer"
-                        title="Keluar / Logout"
-                    >
-                        <LogOut size={22} strokeWidth={2} />
-                    </button>
-                </div>
-            </header>
-
-            {/* 2. MOBILE HEADER */}
-            <header
-                className={`lg:hidden fixed top-0 left-0 right-0 h-20 z-[60] flex items-center justify-between px-6 transition-all duration-300 ${
-                    isScrolled ? "backdrop-blur-xl border-b shadow-sm" : ""
-                }`}
-                style={{
-                    backgroundColor: isScrolled
-                        ? isDark
-                            ? "rgba(5,5,5,0.9)"
-                            : "rgba(255,255,255,0.9)"
-                        : "transparent",
-                    borderColor: isScrolled
-                        ? isDark
-                            ? "rgba(255,255,255,0.1)"
-                            : "rgba(0,0,0,0.1)"
-                        : "transparent",
-                }}
-            >
-                {mounted && (
-                    <img
-                        src={isDark ? "/images/logo-putih.png" : "/images/logo-hitam.png"}
-                        alt="EduFit"
-                        className="h-8 object-contain"
-                    />
+                  />
                 )}
-                <button
-                    onClick={() => setIsMobileOpen(true)}
-                    className="p-2 cursor-pointer"
-                    style={{ color: isDark ? "#fff" : "#000" }}
-                >
-                    <Menu size={28} />
-                </button>
-            </header>
+                <IconComp
+                  size={15}
+                  strokeWidth={isActive ? 2.4 : 1.9}
+                  className={`relative z-10 transition-transform duration-200 group-hover:scale-110 ${
+                    item.isLive && !isActive ? "text-emerald-accent" : ""
+                  }`}
+                />
+                <span className="relative z-10 tracking-tight">
+                  {item.label}
+                </span>
+                {item.isLive && (
+                  <span
+                    className={`relative z-10 text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-md ${
+                      isActive
+                        ? "telemetry-bar-forest text-gold-accent"
+                        : "badge-tint-emerald"
+                    }`}
+                  >
+                    LIVE
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
-            {/* 3. MOBILE MENU OVERLAY */}
+        {/* 3. KANAN: TOMBOL TEMA, LONCENG TELEMETRI KELAS, & LOGOUT (IDENTIK DENGAN ADMIN) */}
+        <div className="flex items-center gap-2.5 shrink-0" ref={notifRef}>
+          {mounted && (
+            <button
+              type="button"
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              className="flex items-center justify-center gap-2 px-4 h-11 rounded-xl text-[13px] font-semibold backdrop-blur-xl transition-all hover:scale-[1.02] active:scale-95 cursor-pointer edufit-card-primary"
+              title="Ganti Mode Terang / Gelap"
+            >
+              <motion.div
+                key={isDark ? "dark-icon" : "light-icon"}
+                initial={{ rotate: -45, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                transition={{ duration: 0.25 }}
+              >
+                {isDark ? (
+                  <Sun size={16} className="text-gold-accent" />
+                ) : (
+                  <Moon size={16} />
+                )}
+              </motion.div>
+              <span className="hidden sm:inline font-mono text-xs uppercase tracking-wider">
+                {isDark ? "DARK" : "LIGHT"}
+              </span>
+            </button>
+          )}
+
+          {/* Tombol Aktivitas Kelas Real-time */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={toggleNotifPopover}
+              className="w-11 h-11 rounded-xl flex items-center justify-center backdrop-blur-xl transition-transform hover:scale-105 cursor-pointer relative edufit-card-primary"
+              title="Lihat Aktivitas Siswa Terbaru"
+            >
+              <Bell size={16} />
+              <span className="w-2 h-2 rounded-full absolute top-2.5 right-2.5 chart-fill-gold" />
+            </button>
+
             <AnimatePresence>
-                {isMobileOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="lg:hidden fixed inset-0 z-[100] p-6 flex flex-col"
-                        style={{ backgroundColor: isDark ? "#050505" : "#fcfcfc" }}
+              {notifOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.18 }}
+                  className="absolute right-0 mt-2 w-80 rounded-2xl p-4 z-50 shadow-2xl edufit-dropdown-menu"
+                >
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-hairline">
+                    <span className="text-xs font-bold font-mono uppercase tracking-wider">
+                      00 / AKTIVITAS KELAS TERBARU
+                    </span>
+                    <button
+                      type="button"
+                      onClick={fetchTeacherActivity}
+                      className="p-1.5 rounded-lg opacity-70 hover:opacity-100 cursor-pointer edufit-surface-subtle"
+                      title="Muat Ulang"
                     >
-                        <div className="flex justify-end mb-10">
-                            <button
-                                onClick={() => setIsMobileOpen(false)}
-                                className="p-2 cursor-pointer"
-                                style={{ color: isDark ? "#fff" : "#000" }}
-                            >
-                                <X size={32} />
-                            </button>
-                        </div>
+                      <RefreshCw
+                        size={13}
+                        className={loadingLogs ? "animate-spin" : ""}
+                      />
+                    </button>
+                  </div>
 
-                        <div className="flex flex-col gap-6 text-3xl font-light tracking-tight flex-1">
-                            {menuItems.map((item) => (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    onClick={() => setIsMobileOpen(false)}
-                                    className={`flex items-center gap-3 ${
-                                        isLinkActive(item.href) ? "font-bold" : ""
-                                    }`}
-                                    style={{
-                                        color: isLinkActive(item.href)
-                                            ? "#facc15"
-                                            : isDark
-                                            ? "rgba(255,255,255,0.4)"
-                                            : "rgba(0,0,0,0.4)",
-                                    }}
-                                >
-                                    {item.label}
-                                    {item.isLive && (
-                                        <Radio size={22} className="text-[#facc15] animate-pulse" />
-                                    )}
-                                </Link>
-                            ))}
-                        </div>
-
-                        <div
-                            className="pb-8 pt-8 space-y-8 border-t"
-                            style={{
-                                borderColor: isDark
-                                    ? "rgba(255,255,255,0.1)"
-                                    : "rgba(0,0,0,0.1)",
-                            }}
+                  {loadingLogs ? (
+                    <p className="text-xs py-6 text-center opacity-60">
+                      Memuat aktivitas siswa...
+                    </p>
+                  ) : recentLogs.length === 0 ? (
+                    <p className="text-xs py-6 text-center opacity-60">
+                      Belum ada aktivitas siswa terbaru.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {recentLogs.map((log) => (
+                        <Link
+                          key={log.id}
+                          href={log.href}
+                          onClick={() => setNotifOpen(false)}
+                          className="block p-3 rounded-xl transition-transform hover:scale-[1.01] edufit-surface-subtle"
                         >
-                            {mounted && (
-                                <button
-                                    onClick={() => {
-                                        setTheme(isDark ? "light" : "dark");
-                                        setIsMobileOpen(false);
-                                    }}
-                                    className="flex items-center gap-4 text-2xl transition-all cursor-pointer"
-                                    style={{
-                                        color: isDark
-                                            ? "rgba(255,255,255,0.8)"
-                                            : "rgba(0,0,0,0.8)",
-                                    }}
-                                >
-                                    {isDark ? (
-                                        <>
-                                            <Sun size={28} /> Mode Terang
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Moon size={28} /> Mode Gelap
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                            <button
-                                onClick={handleLogout}
-                                className="flex items-center gap-4 text-2xl text-red-500 hover:text-red-400 transition-colors cursor-pointer"
-                            >
-                                <LogOut size={28} /> Keluar
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <p className="text-xs font-bold truncate">
+                              {log.title}
+                            </p>
+                            <span className="text-[10px] font-mono font-bold text-gold-accent shrink-0">
+                              {log.code}
+                            </span>
+                          </div>
+                          <p className="text-[11px] opacity-65 truncate">
+                            {log.subtitle}
+                          </p>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
             </AnimatePresence>
-        </>
-    );
+          </div>
+
+          {/* Tombol Logout */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-11 h-11 rounded-xl flex items-center justify-center transition-all hover:scale-105 cursor-pointer badge-tint-rose"
+            title="Keluar dari Ruang Guru (Logout)"
+          >
+            <LogOut size={16} />
+          </button>
+
+          {/* Tombol Menu Hamburger Mobile & Tablet */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="xl:hidden w-11 h-11 rounded-xl flex items-center justify-center transition-transform active:scale-95 cursor-pointer edufit-card-primary"
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
+      </div>
+
+      {/* DRAWER MENU MOBILE & TABLET (IDENTIK DENGAN ADMIN) */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22 }}
+            className="xl:hidden mt-3 p-5 rounded-2xl shadow-2xl edufit-card-primary"
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {menuItems.map((item) => {
+                const isActive = isLinkActive(item.href);
+                const IconComp = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+                      isActive ? "seg-btn-active" : "edufit-surface-subtle"
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] opacity-60">
+                      {item.idx}/
+                    </span>
+                    <IconComp size={15} />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-hairline flex items-center justify-between">
+              <span className="text-xs font-mono uppercase tracking-wider opacity-60">
+                PORTAL PENDIDIK PJOK EDUFIT
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer badge-tint-rose"
+              >
+                <LogOut size={14} /> Keluar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </header>
+  );
 }
