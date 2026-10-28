@@ -8,20 +8,24 @@ import {
   AlertCircle,
   ArrowUpRight,
   Bell,
+  BookOpen,
   BrainCircuit,
+  Calendar,
   CheckCircle2,
   ChevronDown,
-  Copy,
+  Database,
   Plus,
+  Radio,
   School,
   SlidersHorizontal,
+  Target,
   TrendingUp,
   UserCheck,
   UsersRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface IslandNotification {
@@ -38,6 +42,86 @@ const BENTO_SHOWCASE_CLASSES = [
   "bento-showcase-3",
 ];
 
+const ACADEMIC_YEAR_OPTIONS = [
+  "2026/2027",
+  "2025/2026",
+  "2024/2025",
+  "2023/2024",
+  "2022/2023",
+];
+
+const SMK_KEYWORDS = [
+  "tkj",
+  "rpl",
+  "tkr",
+  "tkro",
+  "tbsm",
+  "akl",
+  "otkp",
+  "bdp",
+  "dkv",
+  "multimedia",
+  "akuntansi",
+  "perkantoran",
+  "pemasaran",
+  "perhotelan",
+  "kuliner",
+  "tata boga",
+  "tataboga",
+  "busana",
+  "mesin",
+  "pengelasan",
+  "elektro",
+  "listrik",
+  "otomotif",
+  "farmasi",
+  "keperawatan",
+  "jaringan",
+  "rekayasa",
+];
+
+const DEFAULT_SMA_STREAMS = [
+  { id: "sma-mipa-1", name: "MIPA 1" },
+  { id: "sma-mipa-2", name: "MIPA 2" },
+  { id: "sma-mipa-3", name: "MIPA 3" },
+  { id: "sma-mipa-4", name: "MIPA 4" },
+  { id: "sma-mipa-5", name: "MIPA 5" },
+  { id: "sma-ips-1", name: "IPS 1" },
+  { id: "sma-ips-2", name: "IPS 2" },
+  { id: "sma-ips-3", name: "IPS 3" },
+  { id: "sma-ips-4", name: "IPS 4" },
+  { id: "sma-merdeka-1", name: "Merdeka 1" },
+  { id: "sma-merdeka-2", name: "Merdeka 2" },
+];
+
+// Ekstrak Tahun Ajaran dari nama kelas (jika memakai format "X MIPA 5 [2026/2027]") atau dari created_at
+function extractClassYearLabel(cls: any): string {
+  const rawName = String(cls?.name || "");
+  const bracketMatch = rawName.match(/\[(\d{4}\/\d{4})\]/);
+  if (bracketMatch?.[1]) return bracketMatch[1];
+
+  const yearMatch = rawName.match(/(20\d{2}\/20\d{2}|20\d{2})/);
+  if (yearMatch?.[1]) {
+    if (yearMatch[1].includes("/")) return yearMatch[1];
+    const y = Number(yearMatch[1]);
+    return `${y}/${y + 1}`;
+  }
+
+  if (cls?.created_at) {
+    const d = new Date(cls.created_at);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      return `${y}/${y + 1}`;
+    }
+  }
+  return "2026/2027";
+}
+
+function cleanDisplayClassName(name?: string): string {
+  if (!name) return "Kelas";
+  return name.replace(/\s*\[\d{4}\/\d{4}\]\s*/g, "").trim();
+}
+
 export default function DashboardGuru() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -48,8 +132,9 @@ export default function DashboardGuru() {
   const [classes, setClasses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -72,32 +157,45 @@ export default function DashboardGuru() {
     []
   );
 
-  // Mode Circular Gauge di Bento 3 (Diperbaiki agar konsisten dengan data IMT)
   const [gaugeMode, setGaugeMode] = useState<"normal" | "kurang" | "lebih">(
     "normal"
   );
 
-  // State Form Buka Kelas
+  // State Form Buka Kelas (Dilengkapi Tahun Ajaran & Filter SMA/SMK)
   const [gradeLevel, setGradeLevel] = useState<number>(10);
+  const [academicYear, setAcademicYear] = useState<string>("2026/2027");
   const [availableClasses, setAvailableClasses] = useState<any[]>([]);
   const [selectedSchoolClass, setSelectedSchoolClass] = useState<any>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // State Form Registrasi Siswa (DILENGKAPI GENDER L / P)
+  // Filter Tahun Ajaran pada Direktori Rombel Aktif
+  const [activeYearFilter, setActiveYearFilter] = useState<string>("all");
+
+  // State Form Registrasi Siswa
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentPassword, setStudentPassword] = useState("");
   const [studentGender, setStudentGender] = useState<"L" | "P">("L");
+  const [studentBirthDate, setStudentBirthDate] =
+    useState<string>("2009-05-15");
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [isClassSelectOpen, setIsClassSelectOpen] = useState(false);
   const [isSubmittingStudent, setIsSubmittingStudent] = useState(false);
 
   const [stats, setStats] = useState({
     totalStudents: 0,
+    maleCount: 0,
+    femaleCount: 0,
     pretestAvg: 0,
     posttestAvg: 0,
+    avgTkjiScore: 0,
+    tkjiTestedCount: 0,
+    pendingReflectionsCount: 0,
+    gradedReflectionsCount: 0,
+    pendingProgramsCount: 0,
+    completedMaterialsCount: 0,
     bmiStats: { normal: 0, kurang: 0, lebih: 0, total: 0 },
   });
 
@@ -124,7 +222,7 @@ export default function DashboardGuru() {
 
       const { data: prof } = await supabase
         .from("user_profiles")
-        .select("*, schools(name)")
+        .select("*, schools(name, school_type)")
         .eq("id", session.user.id)
         .single();
       setProfile(prof);
@@ -133,70 +231,186 @@ export default function DashboardGuru() {
         .from("classes")
         .select(`*, student_classes(student_id)`)
         .eq("guru_id", session.user.id)
+        .order("grade_level", { ascending: true })
         .order("created_at", { ascending: false });
       setClasses(clsData || []);
 
       const studentIds =
         clsData?.flatMap((c) =>
-          c.student_classes.map((sc: any) => sc.student_id)
+          (c.student_classes || []).map((sc: any) => sc.student_id)
         ) || [];
-      const uniqueStudentIds = [...new Set(studentIds)];
+      const uniqueStudentIds = [...new Set(studentIds)].filter(Boolean);
 
       let preAvg = 0,
         postAvg = 0,
+        maleCount = 0,
+        femaleCount = 0,
+        avgTkjiScore = 0,
+        tkjiTestedCount = 0,
+        pendingReflectionsCount = 0,
+        gradedReflectionsCount = 0,
+        pendingProgramsCount = 0,
+        completedMaterialsCount = 0,
         bmiData = { normal: 0, kurang: 0, lebih: 0, total: 0 };
 
       if (uniqueStudentIds.length > 0) {
-        const { data: evals } = await supabase
-          .from("student_evaluation_scores")
-          .select("score, master_evaluations(type)")
-          .in("student_id", uniqueStudentIds);
-        if (evals) {
-          const pretests = evals.filter(
-            (e: any) => e.master_evaluations?.type === "pretest"
+        const [
+          stuProfRes,
+          evalsRes,
+          metricsRes,
+          refRes,
+          progRes,
+          matProgRes,
+        ] = await Promise.all([
+          supabase
+            .from("user_profiles")
+            .select("id, gender")
+            .in("id", uniqueStudentIds),
+          supabase
+            .from("student_evaluation_scores")
+            .select("score, master_evaluations(type)")
+            .in("student_id", uniqueStudentIds),
+          supabase
+            .from("student_physical_metrics")
+            .select(
+              "student_id, calculated_bmi, bmi_category, total_tkji_score, created_at"
+            )
+            .in("student_id", uniqueStudentIds)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("student_reflections")
+            .select("id, answer_text, grade, score")
+            .in("student_id", uniqueStudentIds),
+          supabase
+            .from("student_programs")
+            .select("id, status, score_analisis")
+            .in("student_id", uniqueStudentIds),
+          supabase
+            .from("student_material_progress")
+            .select("id, status")
+            .in("student_id", uniqueStudentIds),
+        ]);
+
+        (stuProfRes.data || []).forEach((sp: any) => {
+          const g = String(sp.gender || "L").toUpperCase();
+          if (g === "P" || g.includes("PUTRI") || g.includes("PEREMPUAN")) {
+            femaleCount++;
+          } else {
+            maleCount++;
+          }
+        });
+
+        const evals = evalsRes.data || [];
+        const pretests = evals.filter(
+          (e: any) =>
+            e.master_evaluations?.type === "pretest" &&
+            e.score !== null &&
+            e.score !== undefined
+        );
+        const posttests = evals.filter(
+          (e: any) =>
+            e.master_evaluations?.type === "posttest" &&
+            e.score !== null &&
+            e.score !== undefined
+        );
+        if (pretests.length) {
+          preAvg = Math.round(
+            pretests.reduce((acc, curr) => acc + Number(curr.score || 0), 0) /
+              pretests.length
           );
-          const posttests = evals.filter(
-            (e: any) => e.master_evaluations?.type === "posttest"
-          );
-          if (pretests.length)
-            preAvg = Math.round(
-              pretests.reduce((acc, curr) => acc + Number(curr.score || 0), 0) /
-                pretests.length
-            );
-          if (posttests.length)
-            postAvg = Math.round(
-              posttests.reduce(
-                (acc, curr) => acc + Number(curr.score || 0),
-                0
-              ) / posttests.length
-            );
         }
-        const { data: metrics } = await supabase
-          .from("student_physical_metrics")
-          .select("bmi_category")
-          .in("student_id", uniqueStudentIds);
-        if (metrics) {
-          metrics.forEach((m) => {
-            const cat = m.bmi_category?.toLowerCase() || "";
-            if (cat.includes("normal")) bmiData.normal++;
-            else if (cat.includes("kurus") || cat.includes("sangat kurus"))
+        if (posttests.length) {
+          postAvg = Math.round(
+            posttests.reduce((acc, curr) => acc + Number(curr.score || 0), 0) /
+              posttests.length
+          );
+        }
+
+        const latestMetricByStudent: Record<string, any> = {};
+        (metricsRes.data || []).forEach((m: any) => {
+          if (!latestMetricByStudent[m.student_id]) {
+            latestMetricByStudent[m.student_id] = m;
+          }
+        });
+
+        let tkjiSum = 0;
+        Object.values(latestMetricByStudent).forEach((m: any) => {
+          if (m.total_tkji_score && Number(m.total_tkji_score) > 0) {
+            tkjiTestedCount++;
+            tkjiSum += Number(m.total_tkji_score);
+          }
+
+          const cat = String(m.bmi_category || "")
+            .trim()
+            .toLowerCase();
+          const hasValidBmi =
+            (m.calculated_bmi && Number(m.calculated_bmi) > 0) ||
+            cat.length > 0;
+
+          if (hasValidBmi) {
+            if (cat.includes("normal")) {
+              bmiData.normal++;
+              bmiData.total++;
+            } else if (cat.includes("kurus") || cat.includes("sangat kurus")) {
               bmiData.kurang++;
-            else if (
+              bmiData.total++;
+            } else if (
               cat.includes("gemuk") ||
               cat.includes("obesitas") ||
               cat.includes("berlebih") ||
               cat.includes("overweight")
-            )
+            ) {
               bmiData.lebih++;
-          });
-          bmiData.total = metrics.length;
+              bmiData.total++;
+            }
+          }
+        });
+
+        if (tkjiTestedCount > 0) {
+          avgTkjiScore = Number((tkjiSum / tkjiTestedCount).toFixed(1));
         }
+
+        (refRes.data || []).forEach((r: any) => {
+          const isGraded = Boolean(
+            r.grade || (r.score !== null && r.score !== undefined)
+          );
+          const hasAns = Boolean(
+            r.answer_text &&
+              r.answer_text.trim() !== "" &&
+              r.answer_text !== "Dinilai langsung oleh Guru"
+          );
+          if (isGraded) gradedReflectionsCount++;
+          else if (hasAns) pendingReflectionsCount++;
+        });
+
+        (progRes.data || []).forEach((p: any) => {
+          const st = String(p.status || "").toLowerCase();
+          const isGraded =
+            st === "dinilai" ||
+            st === "graded" ||
+            (p.score_analisis && Number(p.score_analisis) > 0);
+          if (!isGraded) pendingProgramsCount++;
+        });
+
+        (matProgRes.data || []).forEach((mp: any) => {
+          if (String(mp.status || "").toLowerCase() === "selesai") {
+            completedMaterialsCount++;
+          }
+        });
       }
 
       setStats({
         totalStudents: uniqueStudentIds.length,
+        maleCount,
+        femaleCount,
         pretestAvg: preAvg,
         posttestAvg: postAvg,
+        avgTkjiScore,
+        tkjiTestedCount,
+        pendingReflectionsCount,
+        gradedReflectionsCount,
+        pendingProgramsCount,
+        completedMaterialsCount,
         bmiStats: bmiData,
       });
     } catch (error) {
@@ -210,6 +424,14 @@ export default function DashboardGuru() {
     fetchDashboardData();
   }, []);
 
+  // Filter otomatis daftar kelas sesuai status sekolah (SMA vs SMK)
+  const schoolType = useMemo(() => {
+    const rawType = String(profile?.schools?.school_type || "").toUpperCase();
+    const rawName = String(profile?.schools?.name || "").toUpperCase();
+    if (rawType === "SMK" || rawName.includes("SMK")) return "SMK";
+    return "SMA";
+  }, [profile]);
+
   useEffect(() => {
     if (!profile?.school_id) return;
     const fetchSchoolClasses = async () => {
@@ -219,29 +441,69 @@ export default function DashboardGuru() {
         .eq("school_id", profile.school_id)
         .eq("grade_level", gradeLevel)
         .order("name");
-      setAvailableClasses(data || []);
+
+      const rawList = data || [];
+
+      if (schoolType === "SMA") {
+        // Saring keluar jurusan-jurusan kejuruan SMK jika sekolah ini berstatus SMA
+        const smaFiltered = rawList.filter((item: any) => {
+          const lower = String(item.name || "").toLowerCase();
+          return !SMK_KEYWORDS.some((kw) => lower.includes(kw));
+        });
+
+        setAvailableClasses(
+          smaFiltered.length > 0 ? smaFiltered : DEFAULT_SMA_STREAMS
+        );
+      } else {
+        setAvailableClasses(rawList);
+      }
       setSelectedSchoolClass(null);
     };
     fetchSchoolClasses();
-  }, [gradeLevel, profile]);
+  }, [gradeLevel, profile, schoolType]);
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSchoolClass) {
       triggerDynamicIsland(
         "Pilih Kelas Terlebih Dahulu",
-        "Tentukan jurusan/rombel dari daftar yang dipetakan Admin.",
+        `Tentukan rombel ${schoolType} yang ingin dibuka.`,
         "error"
       );
       return;
     }
-    const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
     const prefix = gradeLevel === 10 ? "X" : gradeLevel === 11 ? "XI" : "XII";
     const cleanedMasterName = String(selectedSchoolClass.name || "")
       .trim()
       .replace(/^(XII|XI|X|12|11|10)\s*[-·]?\s+/i, "")
       .trim();
-    const finalClassName = `${prefix} ${cleanedMasterName || selectedSchoolClass.name}`;
+
+    // Sematkan Tahun Ajaran pada nama kelas agar X MIPA 5 [2024/2025] dan X MIPA 5 [2026/2027] terbedakan dengan jelas
+    const finalClassName = `${prefix} ${
+      cleanedMasterName || selectedSchoolClass.name
+    } [${academicYear}]`;
+
+    // Cek apakah kelas dengan nama dan tahun ajaran yang sama persis sudah pernah dibuka
+    const isDuplicate = classes.some(
+      (c) =>
+        String(c.name || "").toLowerCase() === finalClassName.toLowerCase() &&
+        Number(c.grade_level) === gradeLevel
+    );
+
+    if (isDuplicate) {
+      triggerDynamicIsland(
+        "Kelas Sudah Terdaftar",
+        `${finalClassName} sudah ada di daftar ruang kelas aktif Anda.`,
+        "error"
+      );
+      return;
+    }
+
+    const internalCode = Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase();
 
     const { error } = await supabase.from("classes").insert([
       {
@@ -249,9 +511,10 @@ export default function DashboardGuru() {
         school_id: profile.school_id,
         name: finalClassName,
         grade_level: gradeLevel,
-        class_code: newCode,
+        class_code: internalCode,
       },
     ]);
+
     if (error) {
       toast.error("Gagal membuat kelas");
       triggerDynamicIsland(
@@ -261,10 +524,11 @@ export default function DashboardGuru() {
       );
       return;
     }
-    toast.success(`Kelas ${finalClassName} berhasil dibuka! Kode: ${newCode}`);
+
+    toast.success(`Kelas ${finalClassName} berhasil dibuka!`);
     triggerDynamicIsland(
-      `Sesi Kelas ${finalClassName} Dibuka`,
-      `Kode Bergabung Siswa: ${newCode}`,
+      `Sesi Kelas Dibuka`,
+      `${finalClassName} siap menerima penempatan siswa.`,
       "success"
     );
     setSelectedSchoolClass(null);
@@ -300,6 +564,7 @@ export default function DashboardGuru() {
         password: studentPassword,
         full_name: studentName.trim(),
         gender: studentGender,
+        birth_date: studentBirthDate,
         school_id: profile.school_id,
         class_id: selectedClassId,
       }),
@@ -309,7 +574,10 @@ export default function DashboardGuru() {
 
       await supabase
         .from("user_profiles")
-        .update({ gender: studentGender })
+        .update({
+          gender: studentGender,
+          birth_date: studentBirthDate || "2009-05-15",
+        })
         .eq("email", studentEmail.trim());
 
       return data;
@@ -326,6 +594,7 @@ export default function DashboardGuru() {
         setStudentEmail("");
         setStudentPassword("");
         setStudentGender("L");
+        setStudentBirthDate("2009-05-15");
         setSelectedClassId("");
         triggerDynamicIsland(
           "Akun Siswa Berhasil Dibuat",
@@ -344,16 +613,19 @@ export default function DashboardGuru() {
     setIsSubmittingStudent(false);
   };
 
-  const copyCode = (code: string, className?: string) => {
-    navigator.clipboard.writeText(code);
-    triggerDynamicIsland(
-      `Kode Kelas Disalin: ${code}`,
-      className
-        ? `Bagikan kode ini kepada siswa kelas ${className}.`
-        : "Kode kelas berhasil disalin ke papan klip.",
-      "info"
+  // Daftar Tahun Ajaran unik yang dimiliki kelas-kelas Guru
+  const availableYearTabs = useMemo(() => {
+    const years = new Set<string>();
+    classes.forEach((c) => years.add(extractClassYearLabel(c)));
+    return Array.from(years).sort().reverse();
+  }, [classes]);
+
+  const filteredClassesByYear = useMemo(() => {
+    if (activeYearFilter === "all") return classes;
+    return classes.filter(
+      (c) => extractClassYearLabel(c) === activeYearFilter
     );
-  };
+  }, [classes, activeYearFilter]);
 
   if (!mounted) return null;
 
@@ -378,7 +650,6 @@ export default function DashboardGuru() {
   const kognitifGain = stats.posttestAvg - stats.pretestAvg;
   const selectedClassObj = classes.find((c) => c.id === selectedClassId);
 
-  // Kalkulasi gauge persentase yang kini sinkron 100% dengan tab IMT di Bento 3
   const gaugePct =
     gaugeMode === "normal"
       ? bmiNormalPct
@@ -388,14 +659,15 @@ export default function DashboardGuru() {
 
   const radius = 58;
   const circumference = 2 * Math.PI * radius;
+  // Diperbaiki: Jika 0%, maka dashOffset = circumference penuh (tidak muncul garis chart palsu)
   const dashOffset =
-    circumference - (Math.max(10, gaugePct) / 100) * circumference;
+    gaugePct <= 0
+      ? circumference
+      : circumference - (gaugePct / 100) * circumference;
 
   return (
     <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
-         ==================================================================== */}
+      {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -450,19 +722,16 @@ export default function DashboardGuru() {
         )}
       </AnimatePresence>
 
-      {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
-         ==================================================================== */}
+      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA (BEBAS 01/ 02/) */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / PORTAL PENDIDIK PJOK
-            </span>
+            <span className="text-gold-accent">Portal Pendidik PJOK</span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <School size={15} />
-              {profile?.schools?.name || "Institusi Sekolah Mitra"}
+              {profile?.schools?.name || "Institusi Sekolah Mitra"} (Jenjang{" "}
+              {schoolType})
             </span>
           </div>
           <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
@@ -473,46 +742,42 @@ export default function DashboardGuru() {
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka */}
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
             <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {classes.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Ruang Kelas
+              Ruang Kelas Aktif
             </div>
           </div>
-          <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
+          <Link href="/guru/siswa" className="group block">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent group-hover:opacity-80 transition-opacity">
               {stats.totalStudents}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Siswa Terdaftar
+              Total Siswa ({stats.maleCount}L · {stats.femaleCount}P)
             </div>
-          </div>
-          <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
+          </Link>
+          <Link href="/guru/teori" className="group block">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none group-hover:text-gold-accent transition-colors">
               {stats.posttestAvg}%
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Skor Posttest
+              Rata-Rata Posttest
             </div>
-          </div>
+          </Link>
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI RUANG GURU
-         ==================================================================== */}
+      {/* ZONA 2: 4 BAR TELEMETRI RUANG GURU */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
-        {/* Bar 1: Rata-rata Pretest */}
         <Link
           href="/guru/teori"
           className="lg:col-span-3 space-y-2 block group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Rata-rata Pretest</span>
+            <span>Rata-Rata Pretest</span>
             <span className="font-mono">TES AWAL</span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-forest">
@@ -525,15 +790,14 @@ export default function DashboardGuru() {
           </div>
         </Link>
 
-        {/* Bar 2: Rata-rata Posttest */}
         <Link
           href="/guru/teori"
           className="lg:col-span-3 space-y-2 block group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Rata-rata Posttest</span>
+            <span>Rata-Rata Posttest</span>
             <span className="font-mono">
-              {kognitifGain >= 0 ? `+${kognitifGain} PT` : `${kognitifGain} PT`}
+              {kognitifGain >= 0 ? `+${kognitifGain} Poin` : `${kognitifGain} Poin`}
             </span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-gold">
@@ -546,68 +810,78 @@ export default function DashboardGuru() {
           </div>
         </Link>
 
-        {/* Bar 3: Striped Track Murni */}
-        <div className="sm:col-span-2 lg:col-span-4 space-y-2">
+        <Link
+          href={
+            stats.pendingReflectionsCount > 0
+              ? "/guru/praktik"
+              : "/guru/rancangan"
+          }
+          className="sm:col-span-2 lg:col-span-4 space-y-2 block group"
+        >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Partisipasi Kelas</span>
-            <span className="font-mono">{classes.length} ROMBEL AKTIF</span>
+            <span>Tugas & Rancangan Masuk</span>
+            <span className="font-mono">
+              {stats.completedMaterialsCount} MODUL SELESAI
+            </span>
           </div>
-          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-striped">
             <span className="text-2xl font-light font-mono tracking-tight relative z-10">
-              {isLoading ? "—" : `${stats.totalStudents} Siswa`}
+              {stats.pendingReflectionsCount + stats.pendingProgramsCount}{" "}
+              Antrean
             </span>
             <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
-              Terdaftar
+              {stats.pendingReflectionsCount} Materi ·{" "}
+              {stats.pendingProgramsCount} Program
             </span>
           </div>
-        </div>
+        </Link>
 
-        {/* Bar 4: IMT Normal */}
         <Link
           href="/guru/live-asesmen"
           className="sm:col-span-2 lg:col-span-2 space-y-2 block group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>IMT Normal</span>
-            <span className="font-mono">FISIK</span>
+            <span>Skor TKJI</span>
+            <span className="font-mono">{stats.tkjiTestedCount} SISWA</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-between transition-transform group-hover:scale-[1.02] edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
-              {bmiNormalPct}%
+            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
+              {stats.avgTkjiScore}/25
             </span>
             <ArrowUpRight size={16} className="opacity-50" />
           </div>
         </Link>
       </div>
 
-      {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
-         ==================================================================== */}
+      {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1 (PATTERN POLKADOT HALUS): FORM BUKA KELAS BARU */}
+        {/* BENTO 1: FORM BUKA KELAS BARU (DENGAN FILTER SMA/SMK & TAHUN AJARAN) */}
         <div
-          className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary"
+          className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary"
           ref={dropdownRef}
         >
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55 mb-3">
-              <span className="font-mono">01 /</span>
-              <SlidersHorizontal size={14} />
-              <span>Manajemen Rombel</span>
+            <div className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal size={14} />
+                <span>Manajemen Rombel {schoolType}</span>
+              </span>
+              <span className="font-mono text-gold-accent">{academicYear}</span>
             </div>
 
             <h2 className="text-3xl font-light tracking-tight mb-2">
               Buka Sesi Kelas
             </h2>
-            <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
-              Pilih daftar kelas SMA/SMK yang telah disediakan Admin untuk mulai
-              mengajar.
+            <p className="text-sm mb-5 leading-relaxed font-medium opacity-55">
+              Pilih angkatan, tahun ajaran, dan rombel {schoolType} untuk
+              memisahkan kelas antar angkatan.
             </p>
 
-            <form onSubmit={handleCreateClass} className="space-y-6">
-              <div className="flex gap-1.5 p-1.5 rounded-2xl mb-4 edufit-surface-subtle">
+            <form onSubmit={handleCreateClass} className="space-y-4">
+              {/* Pilihan Jenjang Kelas 10 / 11 / 12 */}
+              <div className="flex gap-1.5 p-1.5 rounded-2xl edufit-surface-subtle">
                 {[10, 11, 12].map((g) => {
                   const active = gradeLevel === g;
                   return (
@@ -615,7 +889,7 @@ export default function DashboardGuru() {
                       key={g}
                       type="button"
                       onClick={() => setGradeLevel(g)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                         active ? "seg-btn-active" : "seg-btn-idle"
                       }`}
                     >
@@ -625,7 +899,32 @@ export default function DashboardGuru() {
                 })}
               </div>
 
-              <div className="relative w-full mb-6">
+              {/* Pilihan Tahun Ajaran untuk membedakan X MIPA 5 (2024/2025) vs X MIPA 5 (2026/2027) */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1.5">
+                  Tahun Ajaran Rombel
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {ACADEMIC_YEAR_OPTIONS.slice(0, 3).map((yr) => {
+                    const active = academicYear === yr;
+                    return (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() => setAcademicYear(yr)}
+                        className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                          active ? "seg-btn-active" : "edufit-surface-subtle"
+                        }`}
+                      >
+                        {yr}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Dropdown Pilihan Rombel SMA */}
+              <div className="relative w-full pt-1">
                 <div
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className={`w-full bg-transparent py-3 text-2xl font-light tracking-tight cursor-pointer flex justify-between items-center select-none edufit-underline-select ${
@@ -641,7 +940,7 @@ export default function DashboardGuru() {
                             ? "XI"
                             : "XII"
                         } ${selectedSchoolClass.name}`
-                      : "Pilih Jurusan / Kelas..."}
+                      : `Pilih Rombel ${schoolType}...`}
                   </span>
                   <ChevronDown
                     size={22}
@@ -662,7 +961,7 @@ export default function DashboardGuru() {
                     >
                       {availableClasses.length === 0 ? (
                         <div className="p-6 text-sm font-medium opacity-55 text-center">
-                          Admin belum memetakan kelas untuk angkatan ini.
+                          Belum ada daftar kelas untuk angkatan ini.
                         </div>
                       ) : (
                         availableClasses.map((c) => (
@@ -672,18 +971,23 @@ export default function DashboardGuru() {
                               setSelectedSchoolClass(c);
                               setIsDropdownOpen(false);
                             }}
-                            className={`px-6 py-4 text-lg font-medium cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${
+                            className={`px-6 py-3.5 text-base font-medium cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-between ${
                               selectedSchoolClass?.id === c.id
-                                ? "text-gold-accent"
+                                ? "text-gold-accent font-bold"
                                 : ""
                             }`}
                           >
-                            {gradeLevel === 10
-                              ? "X"
-                              : gradeLevel === 11
-                              ? "XI"
-                              : "XII"}{" "}
-                            {c.name}
+                            <span>
+                              {gradeLevel === 10
+                                ? "X"
+                                : gradeLevel === 11
+                                ? "XI"
+                                : "XII"}{" "}
+                              {c.name}
+                            </span>
+                            <span className="text-xs font-mono opacity-55">
+                              {academicYear}
+                            </span>
                           </div>
                         ))
                       )}
@@ -698,26 +1002,25 @@ export default function DashboardGuru() {
             type="button"
             onClick={handleCreateClass}
             disabled={!selectedSchoolClass}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-emerald"
+            className="w-full py-4 mt-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-emerald"
           >
-            <Plus size={16} strokeWidth={2.5} /> Buka Sesi Kelas Baru
+            <Plus size={16} strokeWidth={2.5} /> Buka Kelas ({academicYear})
           </button>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): EVALUASI KOGNITIF */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+        {/* BENTO 2: EVALUASI KOGNITIF */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BrainCircuit size={15} />
               <span>Evaluasi Kognitif Siswa</span>
             </div>
             {kognitifGain !== 0 && (
-              <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-accent flex items-center gap-1">
+              <span className="text-xs font-bold font-mono uppercase tracking-wider text-gold-accent flex items-center gap-1">
                 <TrendingUp size={14} />
-                {kognitifGain > 0 ? `+${kognitifGain} PT` : `${kognitifGain} PT`}
+                {kognitifGain > 0 ? `+${kognitifGain} Poin` : `${kognitifGain} Poin`}
               </span>
             )}
           </div>
@@ -727,11 +1030,10 @@ export default function DashboardGuru() {
               {stats.posttestAvg}%
             </div>
             <div className="text-sm font-semibold opacity-55 mb-1">
-              Rata-rata Skor Posttest
+              Rata-Rata Skor Posttest
             </div>
           </div>
 
-          {/* Grafik Batang Vertikal Bertitik (Pretest vs Posttest) */}
           <div className="grid grid-cols-2 gap-6 items-end pt-4 h-44 relative z-10">
             {[
               {
@@ -745,7 +1047,7 @@ export default function DashboardGuru() {
                 isHighlight: true,
               },
             ].map((bar) => {
-              const heightPct = Math.max(15, bar.score);
+              const heightPct = bar.score <= 0 ? 4 : Math.max(12, bar.score);
               const fillClass = bar.isHighlight
                 ? "chart-fill-gold"
                 : "chart-fill-primary";
@@ -773,13 +1075,12 @@ export default function DashboardGuru() {
           </div>
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): PROFIL FISIK IMT */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* BENTO 3: PROFIL FISIK IMT (DIPERBAIKI: TEKS DI BAWAH CHART & 0% MURNI TANPA GARIS PALSU) */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
               <span>Komposisi Fisik (IMT)</span>
             </div>
@@ -806,49 +1107,49 @@ export default function DashboardGuru() {
             </div>
           </div>
 
-          <div className="relative flex flex-col items-center justify-center my-2 z-10">
-            <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
-              <circle
-                cx="70"
-                cy="70"
-                r={radius}
-                fill="none"
-                strokeWidth="6"
-                strokeDasharray="2 5"
-                className="gauge-circle-track"
-              />
-              <circle
-                cx="70"
-                cy="70"
-                r={radius}
-                fill="none"
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                className={`transition-all duration-700 ${
-                  gaugeMode === "normal"
-                    ? "gauge-circle-emerald"
-                    : "gauge-circle-gold"
-                }`}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-              <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                {gaugeMode === "normal"
-                  ? `${bmiNormalPct}%`
-                  : gaugeMode === "kurang"
-                  ? `${stats.bmiStats.kurang}`
-                  : `${stats.bmiStats.lebih}`}
-              </span>
-              <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
-                {gaugeMode === "normal"
-                  ? `${stats.bmiStats.normal} Siswa IMT Normal`
-                  : gaugeMode === "kurang"
-                  ? `Siswa IMT Kurus (${bmiKurangPct}%)`
-                  : `Siswa IMT Berlebih (${bmiLebihPct}%)`}
-              </span>
+          {/* Lingkaran Chart Murni Hanya Berisi Angka Persentase, Keterangan Teks Berada di Bawahnya */}
+          <div className="flex flex-col items-center justify-center my-3 relative z-10">
+            <div className="relative flex items-center justify-center">
+              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
+                <circle
+                  cx="70"
+                  cy="70"
+                  r={radius}
+                  fill="none"
+                  strokeWidth="6"
+                  strokeDasharray="2 5"
+                  className="gauge-circle-track"
+                />
+                {gaugePct > 0 && (
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="none"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={dashOffset}
+                    className="transition-all duration-700 gauge-circle-gold"
+                  />
+                )}
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-4xl font-light font-mono tracking-tighter leading-none">
+                  {gaugePct}%
+                </span>
+              </div>
             </div>
+
+            <p className="text-xs font-semibold opacity-70 mt-3 text-center">
+              {stats.bmiStats.total === 0
+                ? "Belum ada siswa yang diukur IMT"
+                : gaugeMode === "normal"
+                ? `${stats.bmiStats.normal} dari ${stats.bmiStats.total} Siswa Berstatus IMT Normal`
+                : gaugeMode === "kurang"
+                ? `${stats.bmiStats.kurang} dari ${stats.bmiStats.total} Siswa Berstatus IMT Kurus`
+                : `${stats.bmiStats.lebih} dari ${stats.bmiStats.total} Siswa Berstatus IMT Berlebih`}
+            </p>
           </div>
 
           <div className="relative z-10">
@@ -860,7 +1161,7 @@ export default function DashboardGuru() {
                     style={{ width: `${bmiKurangPct}%` }}
                   />
                   <div
-                    className="h-full chart-fill-emerald"
+                    className="h-full chart-fill-gold"
                     style={{ width: `${bmiNormalPct}%` }}
                   />
                   <div
@@ -879,18 +1180,133 @@ export default function DashboardGuru() {
         </div>
       </div>
 
-      {/* HEADER RUANG KELAS & TOMBOL REGISTRASI SISWA */}
+      {/* ZONA 3.5: PINTASAN MENU UTAMA GURU */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-12 relative z-10">
+        <Link
+          href="/guru/siswa"
+          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+        >
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+              Direktori & Arsip
+            </span>
+            <div className="text-xl font-semibold tracking-tight">
+              Data Murid & Rapor
+            </div>
+            <p className="text-xs opacity-60">
+              Kelola {stats.totalStudents} profil siswa & arsip tahunan
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+            <UsersRound size={18} />
+          </div>
+        </Link>
+
+        <Link
+          href="/guru/praktik"
+          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+        >
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+              Pemantik & Jurnal
+            </span>
+            <div className="text-xl font-semibold tracking-tight">
+              Koreksi Materi Siswa
+            </div>
+            <p className="text-xs opacity-60">
+              {stats.pendingReflectionsCount} menunggu ·{" "}
+              {stats.gradedReflectionsCount} selesai dinilai
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+            <BookOpen size={18} />
+          </div>
+        </Link>
+
+        <Link
+          href="/guru/rancangan"
+          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+        >
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+              Program Latihan Kelas XII
+            </span>
+            <div className="text-xl font-semibold tracking-tight">
+              Evaluasi Rancangan
+            </div>
+            <p className="text-xs opacity-60">
+              {stats.pendingProgramsCount} rancangan perlu koreksi rubrik
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+            <Target size={18} />
+          </div>
+        </Link>
+
+        <Link
+          href="/guru/kurikulum"
+          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+        >
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+              Referensi Materi
+            </span>
+            <div className="text-xl font-semibold tracking-tight">
+              Kurikulum & Algoritma
+            </div>
+            <p className="text-xs opacity-60">
+              Lihat modul bacaan, video praktik & matriks latihan
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+            <Database size={18} />
+          </div>
+        </Link>
+      </div>
+
+      {/* ZONA 4: DIREKTORI RUANG KELAS AKTIF (DENGAN FILTER TAHUN AJARAN & TANPA KODE KELAS) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-            04 / DIREKTORI ROMBEL AKTIF
+          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+            Direktori Rombel Aktif
           </div>
           <h3 className="text-3xl font-light tracking-tight">
-            Ruang Kelas Aktif ({classes.length})
+            Ruang Kelas Anda ({filteredClassesByYear.length})
           </h3>
-          <p className="text-xs font-medium opacity-55 mt-1">
-            Daftar kelas yang sedang Anda ampu pada semester berjalan.
-          </p>
+          {availableYearTabs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-4 mt-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveYearFilter("all")}
+                className={`text-xs font-bold uppercase tracking-widest transition-opacity cursor-pointer ${
+                  activeYearFilter === "all"
+                    ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
+                    : "opacity-45 hover:opacity-80"
+                }`}
+              >
+                Semua Tahun ({classes.length})
+              </button>
+              {availableYearTabs.map((yr) => (
+                <button
+                  key={yr}
+                  type="button"
+                  onClick={() => setActiveYearFilter(yr)}
+                  className={`text-xs font-bold font-mono uppercase tracking-widest transition-opacity cursor-pointer ${
+                    activeYearFilter === yr
+                      ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
+                      : "opacity-45 hover:opacity-80"
+                  }`}
+                >
+                  TA {yr} (
+                  {
+                    classes.filter((c) => extractClassYearLabel(c) === yr)
+                      .length
+                  }
+                  )
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <button
@@ -902,61 +1318,63 @@ export default function DashboardGuru() {
         </button>
       </div>
 
-      {/* DAFTAR KELAS GRID (PASTEL LIGHT / DEEP FOREST DARK) */}
+      {/* DAFTAR KELAS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10 mb-12">
-        {classes.length === 0 ? (
+        {filteredClassesByYear.length === 0 ? (
           <div className="xl:col-span-3 flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-60">
             <div className="text-xl font-light tracking-tight">
-              Belum ada kelas yang dibuka. Silakan buat sesi kelas di atas.
+              Belum ada kelas yang dibuka pada tahun ajaran ini.
             </div>
           </div>
         ) : (
-          classes.map((cls, index) => {
+          filteredClassesByYear.map((cls, index) => {
             const showcaseClass =
               BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
+            const yearLabel = extractClassYearLabel(cls);
+            const cleanName = cleanDisplayClassName(cls.name);
+
             return (
               <div
                 key={cls.id}
-                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group ${showcaseClass}`}
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[290px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group ${showcaseClass}`}
               >
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
-                    KELAS {cls.grade_level} · SEMESTER AKTIF
+                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-75">
+                    KELAS {cls.grade_level} · TA {yearLabel}
                   </span>
-                  <Link
-                    href="/guru/live-asesmen"
-                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
-                    title="Buka Studio Live Asesmen"
-                  >
-                    <ArrowUpRight size={18} strokeWidth={1.75} />
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/guru/siswa?classId=${cls.id}`}
+                      className="px-3 py-2 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-colors bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15"
+                      title="Kelola Daftar Murid & Rapor Kelas Ini"
+                    >
+                      Data Murid
+                    </Link>
+                    <Link
+                      href={`/guru/live-asesmen?classId=${cls.id}`}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15"
+                      title="Buka Studio Live Asesmen untuk Kelas Ini"
+                    >
+                      <Radio size={17} strokeWidth={2} />
+                    </Link>
+                  </div>
                 </div>
 
                 <div className="my-6 relative z-10">
-                  <div className="text-4xl font-light tracking-tighter leading-tight mb-3">
-                    {cls.name}
+                  <div className="text-4xl font-light tracking-tighter leading-tight mb-2">
+                    {cleanName}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold opacity-60 uppercase tracking-widest">
-                      Kode Bergabung:
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => copyCode(cls.class_code, cls.name)}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono inline-flex items-center gap-1.5 cursor-pointer bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 transition-colors"
-                      title="Salin Kode Kelas"
-                    >
-                      {cls.class_code} <Copy size={12} className="opacity-70" />
-                    </button>
-                  </div>
+                  <span className="inline-block px-3 py-1 rounded-xl text-xs font-mono font-bold bg-black/10 dark:bg-white/10">
+                    Tahun Ajaran {yearLabel}
+                  </span>
                 </div>
 
                 <div className="flex items-end justify-between border-t border-black/10 dark:border-white/10 pt-5 relative z-10">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
-                      Partisipasi Siswa
+                      Jumlah Peserta Didik
                     </div>
                     <div className="text-3xl font-light font-mono leading-none">
                       {cls.student_classes?.length || 0}{" "}
@@ -966,14 +1384,13 @@ export default function DashboardGuru() {
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
-                      Status Ruang
-                    </div>
-                    <div className="text-sm font-bold text-emerald-accent">
-                      Aktif Mengajar
-                    </div>
-                  </div>
+                  <Link
+                    href={`/guru/siswa?classId=${cls.id}`}
+                    className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider underline underline-offset-4 opacity-80 hover:opacity-100"
+                  >
+                    <span>Lihat Anggota</span>
+                    <ArrowUpRight size={15} />
+                  </Link>
                 </div>
               </div>
             );
@@ -984,12 +1401,12 @@ export default function DashboardGuru() {
       {/* MODAL REGISTRASI AKUN SISWA */}
       <AnimatePresence>
         {isStudentModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
               onClick={() => setIsStudentModalOpen(false)}
             />
 
@@ -1007,15 +1424,15 @@ export default function DashboardGuru() {
                 <X size={18} />
               </button>
 
-              <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
-                OTORISASI PESERTA DIDIK
+              <span className="text-xs font-bold uppercase tracking-widest text-gold-accent block mb-1">
+                Pendaftaran Peserta Didik
               </span>
               <h2 className="text-3xl font-light tracking-tight mb-2">
                 Registrasi <span className="font-semibold">Siswa Baru</span>
               </h2>
               <p className="text-sm opacity-55 mb-8 font-medium">
-                Buat akun siswa beserta jenis kelaminnya agar norma TKJI dan
-                4.800 algoritma latihan sesuai sasaran.
+                Siswa yang didaftarkan akan langsung masuk ke kelas yang Anda
+                pilih tanpa perlu memasukkan kode kelas.
               </p>
 
               <form onSubmit={handleAddStudent} className="space-y-6">
@@ -1029,14 +1446,14 @@ export default function DashboardGuru() {
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
                       type="text"
-                      placeholder="Masukkan nama asli siswa..."
+                      placeholder="Masukkan nama lengkap siswa..."
                       className="w-full bg-transparent py-3 text-2xl font-light tracking-tight focus:outline-none edufit-underline-select"
                     />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-3 block">
-                      Jenis Kelamin (Menentukan Norma TKJI & Algoritma)
+                      Jenis Kelamin
                     </label>
                     <div className="grid grid-cols-2 gap-4 p-1.5 rounded-2xl edufit-surface-subtle">
                       <button
@@ -1069,6 +1486,78 @@ export default function DashboardGuru() {
 
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">
+                      Tanggal Lahir Siswa
+                    </label>
+                    <div className="relative">
+                      <Calendar
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 opacity-50 pointer-events-none"
+                      />
+                      <input
+                        required
+                        type="date"
+                        value={studentBirthDate}
+                        onChange={(e) => setStudentBirthDate(e.target.value)}
+                        className="w-full pl-11 pr-4 py-4 rounded-2xl text-sm font-mono focus:outline-none edufit-surface-subtle"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">
+                      Penempatan Kelas
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsClassSelectOpen(!isClassSelectOpen)}
+                        className="w-full p-4 rounded-2xl text-sm font-bold flex items-center justify-between cursor-pointer edufit-surface-subtle"
+                      >
+                        <span className="truncate pr-2">
+                          {selectedClassObj
+                            ? `${cleanDisplayClassName(
+                                selectedClassObj.name
+                              )} (${extractClassYearLabel(selectedClassObj)})`
+                            : "-- Pilih Rombel --"}
+                        </span>
+                        <ChevronDown size={18} className="shrink-0" />
+                      </button>
+                      <AnimatePresence>
+                        {isClassSelectOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 6 }}
+                            className="absolute left-0 right-0 mt-2 rounded-2xl shadow-2xl z-50 max-h-48 overflow-y-auto p-2 no-scrollbar edufit-dropdown-menu"
+                          >
+                            {classes.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClassId(c.id);
+                                  setIsClassSelectOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer flex items-center justify-between ${
+                                  selectedClassId === c.id
+                                    ? "text-gold-accent"
+                                    : ""
+                                }`}
+                              >
+                                <span>{cleanDisplayClassName(c.name)}</span>
+                                <span className="text-xs font-mono opacity-60">
+                                  TA {extractClassYearLabel(c)}
+                                </span>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">
                       Email Siswa
                     </label>
                     <input
@@ -1096,50 +1585,6 @@ export default function DashboardGuru() {
                   </div>
                 </div>
 
-                <div className="pt-2 relative">
-                  <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">
-                    Penempatan Kelas
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsClassSelectOpen(!isClassSelectOpen)}
-                    className="w-full p-4 rounded-2xl text-sm font-bold flex items-center justify-between cursor-pointer edufit-surface-subtle"
-                  >
-                    <span>
-                      {selectedClassObj
-                        ? `${selectedClassObj.name} (Kelas ${selectedClassObj.grade_level})`
-                        : "-- Pilih kelas yang Anda ampu --"}
-                    </span>
-                    <ChevronDown size={18} />
-                  </button>
-                  <AnimatePresence>
-                    {isClassSelectOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 6 }}
-                        className="absolute left-0 right-0 mt-2 rounded-2xl shadow-2xl z-50 max-h-48 overflow-y-auto p-2 no-scrollbar edufit-dropdown-menu"
-                      >
-                        {classes.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedClassId(c.id);
-                              setIsClassSelectOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer ${
-                              selectedClassId === c.id ? "text-gold-accent" : ""
-                            }`}
-                          >
-                            {c.name} (Kelas {c.grade_level})
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
                 <button
                   type="submit"
                   disabled={isSubmittingStudent}
@@ -1147,7 +1592,7 @@ export default function DashboardGuru() {
                 >
                   {isSubmittingStudent
                     ? "Memproses ke Server..."
-                    : "Buat Akun Siswa"}
+                    : "Buat Akun & Masukkan ke Kelas"}
                 </button>
               </form>
             </motion.div>

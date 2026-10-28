@@ -4,21 +4,22 @@
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    Activity,
-    AlertCircle,
-    ArrowUpRight,
-    Bell,
-    BookOpen,
-    BrainCircuit,
-    CheckCircle2,
-    ChevronDown,
-    Download,
-    LayoutGrid,
-    Search,
-    SlidersHorizontal,
-    Table2,
-    Users,
-    X,
+  Activity,
+  AlertCircle,
+  ArrowUpRight,
+  Bell,
+  BookOpen,
+  BrainCircuit,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  FileQuestion,
+  LayoutGrid,
+  Search,
+  SlidersHorizontal,
+  Table2,
+  Users,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -27,6 +28,18 @@ interface TpObjective {
   code: string;
   text: string;
   mappingDesc?: string;
+}
+
+interface StudentAnswerDetail {
+  questionId: string;
+  evalType: "pretest" | "posttest";
+  tpCode: string;
+  questionText: string;
+  selectedOption: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  optionText: string;
+  correctOptionText: string;
 }
 
 interface StudentTheoryRow {
@@ -47,6 +60,21 @@ interface StudentTheoryRow {
       postTotal: number;
     }
   >;
+  answerSheet: StudentAnswerDetail[];
+}
+
+interface QuestionAnalyticsItem {
+  id: string;
+  evalType: "pretest" | "posttest";
+  evalTitle: string;
+  tpCode: string;
+  questionText: string;
+  options: { A: string; B: string; C: string; D: string };
+  correctAnswer: string;
+  totalAttempts: number;
+  correctCount: number;
+  accuracyPct: number;
+  optionCounts: { A: number; B: number; C: number; D: number };
 }
 
 interface IslandNotification {
@@ -126,8 +154,9 @@ export default function TeoriPage() {
     setMounted(true);
   }, []);
 
-  // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -159,7 +188,12 @@ export default function TeoriPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "complete" | "partial" | "empty"
   >("all");
-  const [viewMode, setViewMode] = useState<"bento" | "table">("bento");
+  const [viewMode, setViewMode] = useState<"bento" | "table" | "questions">(
+    "bento"
+  );
+  const [questionTypeFilter, setQuestionTypeFilter] = useState<
+    "all" | "pretest" | "posttest"
+  >("all");
   const [chartMode, setChartMode] = useState<"post" | "pre">("post");
   const [gaugeMode, setGaugeMode] = useState<
     "posttest" | "ketuntasan" | "partisipasi"
@@ -169,6 +203,7 @@ export default function TeoriPage() {
   const [rawStudents, setRawStudents] = useState<any[]>([]);
   const [rawScores, setRawScores] = useState<any[]>([]);
   const [rawAnswers, setRawAnswers] = useState<any[]>([]);
+  const [rawQuestions, setRawQuestions] = useState<any[]>([]);
   const [instrumentData, setInstrumentData] = useState<any>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -177,6 +212,10 @@ export default function TeoriPage() {
 
   const [selectedStudent, setSelectedStudent] =
     useState<StudentTheoryRow | null>(null);
+  const [modalTab, setModalTab] = useState<"tp" | "answers">("tp");
+  const [modalAnswerFilter, setModalAnswerFilter] = useState<
+    "posttest" | "pretest"
+  >("posttest");
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -216,7 +255,7 @@ export default function TeoriPage() {
           setClasses([]);
           setIsLoading(false);
         }
-      } catch (err: any) {
+      } catch {
         toast.error("Gagal memuat daftar kelas");
         setIsLoading(false);
       }
@@ -248,7 +287,7 @@ export default function TeoriPage() {
     if (!cls?.id) return;
     setIsLoading(true);
     try {
-      const [stdRes, instRes] = await Promise.all([
+      const [stdRes, instRes, qBankRes] = await Promise.all([
         supabase
           .from("student_classes")
           .select("student_id, user_profiles(full_name)")
@@ -258,6 +297,13 @@ export default function TeoriPage() {
           .select("*")
           .eq("grade_level", cls.grade_level)
           .maybeSingle(),
+        supabase
+          .from("question_bank")
+          .select(
+            "id, evaluation_id, learning_objective_code, question_text, option_a, option_b, option_c, option_d, correct_answer, master_evaluations!inner(id, grade_level, type, title)"
+          )
+          .eq("master_evaluations.grade_level", cls.grade_level)
+          .order("created_at", { ascending: true }),
       ]);
 
       if (stdRes.error) throw stdRes.error;
@@ -265,6 +311,7 @@ export default function TeoriPage() {
       const stdList = stdRes.data || [];
       setRawStudents(stdList);
       setInstrumentData(instRes.data || null);
+      setRawQuestions(qBankRes.data || []);
 
       const studentIds = stdList
         .map((sc: any) => sc.student_id)
@@ -288,7 +335,7 @@ export default function TeoriPage() {
         supabase
           .from("student_answers")
           .select(
-            "is_correct, question_bank!inner(learning_objective_code), student_evaluation_scores!inner(student_id, master_evaluations!inner(type, grade_level))"
+            "id, question_id, selected_option, is_correct, question_bank!inner(id, learning_objective_code, question_text, option_a, option_b, option_c, option_d, correct_answer), student_evaluation_scores!inner(student_id, master_evaluations!inner(type, grade_level))"
           )
           .in("student_evaluation_scores.student_id", studentIds),
       ]);
@@ -396,29 +443,57 @@ export default function TeoriPage() {
           };
         });
 
+        const answerSheet: StudentAnswerDetail[] = [];
+
         rawAnswers.forEach((ans: any) => {
           if (ans.student_evaluation_scores?.student_id !== sId) return;
-          const code = (
-            ans.question_bank?.learning_objective_code || ""
-          ).trim();
-          const type =
-            ans.student_evaluation_scores?.master_evaluations?.type;
-          if (!code) return;
-          if (!tpBreakdown[code]) {
-            tpBreakdown[code] = {
-              preCorrect: 0,
-              preTotal: 0,
-              postCorrect: 0,
-              postTotal: 0,
-            };
+          const qb = ans.question_bank || {};
+          const code = (qb.learning_objective_code || "").trim();
+          const type = ans.student_evaluation_scores?.master_evaluations
+            ?.type as "pretest" | "posttest";
+
+          if (code) {
+            if (!tpBreakdown[code]) {
+              tpBreakdown[code] = {
+                preCorrect: 0,
+                preTotal: 0,
+                postCorrect: 0,
+                postTotal: 0,
+              };
+            }
+            if (type === "pretest") {
+              tpBreakdown[code].preTotal++;
+              if (ans.is_correct) tpBreakdown[code].preCorrect++;
+            } else if (type === "posttest") {
+              tpBreakdown[code].postTotal++;
+              if (ans.is_correct) tpBreakdown[code].postCorrect++;
+            }
           }
-          if (type === "pretest") {
-            tpBreakdown[code].preTotal++;
-            if (ans.is_correct) tpBreakdown[code].preCorrect++;
-          } else if (type === "posttest") {
-            tpBreakdown[code].postTotal++;
-            if (ans.is_correct) tpBreakdown[code].postCorrect++;
-          }
+
+          const selOpt = String(ans.selected_option || "")
+            .trim()
+            .toUpperCase();
+          const corrOpt = String(qb.correct_answer || "")
+            .trim()
+            .toUpperCase();
+          const optMap: Record<string, string> = {
+            A: qb.option_a || "-",
+            B: qb.option_b || "-",
+            C: qb.option_c || "-",
+            D: qb.option_d || "-",
+          };
+
+          answerSheet.push({
+            questionId: ans.question_id || qb.id,
+            evalType: type || "pretest",
+            tpCode: code || "TP",
+            questionText: qb.question_text || "Butir soal",
+            selectedOption: selOpt || "-",
+            correctAnswer: corrOpt || "-",
+            isCorrect: Boolean(ans.is_correct),
+            optionText: optMap[selOpt] || "-",
+            correctOptionText: optMap[corrOpt] || "-",
+          });
         });
 
         return {
@@ -431,10 +506,108 @@ export default function TeoriPage() {
           postDate,
           status,
           tpBreakdown,
+          answerSheet,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rawStudents, rawScores, rawAnswers, selectedClass, activeTpList]);
+
+  const questionAnalytics: QuestionAnalyticsItem[] = useMemo(() => {
+    const mapByQuestionId: Record<string, QuestionAnalyticsItem> = {};
+
+    rawQuestions.forEach((q: any) => {
+      mapByQuestionId[q.id] = {
+        id: q.id,
+        evalType: (q.master_evaluations?.type || "pretest") as
+          | "pretest"
+          | "posttest",
+        evalTitle: q.master_evaluations?.title || "Evaluasi Teori",
+        tpCode: q.learning_objective_code || "TP",
+        questionText: q.question_text || "",
+        options: {
+          A: q.option_a || "-",
+          B: q.option_b || "-",
+          C: q.option_c || "-",
+          D: q.option_d || "-",
+        },
+        correctAnswer: String(q.correct_answer || "A")
+          .trim()
+          .toUpperCase(),
+        totalAttempts: 0,
+        correctCount: 0,
+        accuracyPct: 0,
+        optionCounts: { A: 0, B: 0, C: 0, D: 0 },
+      };
+    });
+
+    rawAnswers.forEach((ans: any) => {
+      const qId = ans.question_id || ans.question_bank?.id;
+      if (!qId) return;
+
+      if (!mapByQuestionId[qId] && ans.question_bank) {
+        const qb = ans.question_bank;
+        mapByQuestionId[qId] = {
+          id: qId,
+          evalType: (ans.student_evaluation_scores?.master_evaluations?.type ||
+            "pretest") as "pretest" | "posttest",
+          evalTitle: "Evaluasi Teori",
+          tpCode: qb.learning_objective_code || "TP",
+          questionText: qb.question_text || "",
+          options: {
+            A: qb.option_a || "-",
+            B: qb.option_b || "-",
+            C: qb.option_c || "-",
+            D: qb.option_d || "-",
+          },
+          correctAnswer: String(qb.correct_answer || "A")
+            .trim()
+            .toUpperCase(),
+          totalAttempts: 0,
+          correctCount: 0,
+          accuracyPct: 0,
+          optionCounts: { A: 0, B: 0, C: 0, D: 0 },
+        };
+      }
+
+      const item = mapByQuestionId[qId];
+      if (!item) return;
+
+      item.totalAttempts++;
+      if (ans.is_correct) item.correctCount++;
+      const opt = String(ans.selected_option || "")
+        .trim()
+        .toUpperCase();
+      if (opt === "A" || opt === "B" || opt === "C" || opt === "D") {
+        item.optionCounts[opt]++;
+      }
+    });
+
+    return Object.values(mapByQuestionId)
+      .map((item) => ({
+        ...item,
+        accuracyPct:
+          item.totalAttempts > 0
+            ? Math.round((item.correctCount / item.totalAttempts) * 100)
+            : 0,
+      }))
+      .sort((a, b) => a.accuracyPct - b.accuracyPct);
+  }, [rawQuestions, rawAnswers]);
+
+  const filteredQuestions = useMemo(() => {
+    return questionAnalytics.filter((q) => {
+      if (questionTypeFilter !== "all" && q.evalType !== questionTypeFilter)
+        return false;
+      if (selectedTpCode && q.tpCode !== selectedTpCode) return false;
+      if (
+        searchQuery &&
+        !q.questionText.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !q.tpCode.toLowerCase().includes(searchQuery.toLowerCase())
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [questionAnalytics, questionTypeFilter, selectedTpCode, searchQuery]);
 
   const stats = useMemo(() => {
     const totalSiswa = studentsData.length;
@@ -612,9 +785,7 @@ export default function TeoriPage() {
 
   return (
     <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
-         ==================================================================== */}
+      {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -669,20 +840,20 @@ export default function TeoriPage() {
         )}
       </AnimatePresence>
 
-      {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
-         ==================================================================== */}
+      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA (BEBAS 01/ 02/) */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / ANALITIK KOGNITIF PRE & POST
+            <span className="text-gold-accent">
+              Analitik Kognitif & Bedah Soal
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <BrainCircuit size={15} />
               {selectedClass
-                ? `${activeClassName} · Sinkron ${lastSyncTime || "Live"}`
+                ? `${activeClassName} · ${rawQuestions.length} Butir Soal · Sinkron ${
+                    lastSyncTime || "Live"
+                  }`
                 : "Evaluasi Pretest & Posttest Kurikulum PJOK"}
             </span>
           </div>
@@ -692,7 +863,6 @@ export default function TeoriPage() {
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka */}
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <button
             type="button"
@@ -703,7 +873,7 @@ export default function TeoriPage() {
               {isLoading ? "—" : stats.totalSiswa}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Siswa Kelas
+              Total Siswa Kelas
             </div>
           </button>
 
@@ -716,7 +886,7 @@ export default function TeoriPage() {
               {isLoading ? "—" : `${stats.avgPre}%`}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Rata-rata Pretest
+              Rata-Rata Pretest
             </div>
           </button>
 
@@ -725,28 +895,25 @@ export default function TeoriPage() {
             onClick={() => setChartMode("post")}
             className="text-left cursor-pointer group"
           >
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent group-hover:opacity-85 transition-opacity">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent group-hover:opacity-85 transition-opacity">
               {isLoading ? "—" : `${stats.avgPost}%`}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Rata-rata Posttest
+              Rata-Rata Posttest
             </div>
           </button>
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI KOGNITIF
-         ==================================================================== */}
+      {/* ZONA 2: 4 BAR TELEMETRI KOGNITIF */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
-        {/* Bar 1: Rata-rata Pretest */}
         <button
           type="button"
           onClick={() => setChartMode("pre")}
           className="lg:col-span-3 space-y-2 text-left cursor-pointer group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Rata-rata Pretest</span>
+            <span>Rata-Rata Pretest</span>
             <span className="font-mono">{stats.preCount} SISWA</span>
           </div>
           <div
@@ -765,18 +932,17 @@ export default function TeoriPage() {
           </div>
         </button>
 
-        {/* Bar 2: Rata-rata Posttest & Gain Score */}
         <button
           type="button"
           onClick={() => setChartMode("post")}
           className="lg:col-span-3 space-y-2 text-left cursor-pointer group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Rata-rata Posttest</span>
+            <span>Rata-Rata Posttest</span>
             <span className="font-mono">
               {stats.classGain >= 0
-                ? `+${stats.classGain} PT`
-                : `${stats.classGain} PT`}
+                ? `+${stats.classGain} Poin`
+                : `${stats.classGain} Poin`}
             </span>
           </div>
           <div
@@ -795,7 +961,6 @@ export default function TeoriPage() {
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Partisipasi Ujian Teori</span>
@@ -813,31 +978,27 @@ export default function TeoriPage() {
           </div>
         </div>
 
-        {/* Bar 4: Ketuntasan Kognitif (>= 75) */}
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Ketuntasan</span>
             <span className="font-mono">SKOR &ge; 75</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
               {isLoading ? "—" : `${stats.ketuntasanPct}%`}
             </span>
           </div>
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
-         ==================================================================== */}
+      {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1 (PATTERN POLKADOT): KENDALI ROMBEL */}
+        {/* BENTO 1: KENDALI ROMBEL */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55 mb-3">
-              <span className="font-mono">01 /</span>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
               <SlidersHorizontal size={14} />
               <span>Filter Angkatan & Rombel</span>
             </div>
@@ -847,10 +1008,9 @@ export default function TeoriPage() {
             </h2>
             <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
               Pilih jenjang angkatan dan rombel kelas untuk menganalisis hasil
-              Pretest serta Posttest siswa.
+              Pretest, Posttest, dan distribusi jawaban soal.
             </p>
 
-            {/* Filter Jenjang Kelas */}
             <div className="flex gap-1.5 p-1.5 rounded-2xl mb-6 edufit-surface-subtle">
               {[
                 { val: "all", label: "Semua" },
@@ -874,7 +1034,6 @@ export default function TeoriPage() {
               })}
             </div>
 
-            {/* Dropdown Rombel Kelas */}
             <div className="relative w-full mb-6" ref={classDropdownRef}>
               <div
                 onClick={() =>
@@ -942,13 +1101,12 @@ export default function TeoriPage() {
           </button>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): CAPAIAN PER TUJUAN PEMBELAJARAN (TP) */}
+        {/* BENTO 2: CAPAIAN PER TUJUAN PEMBELAJARAN (TP) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BrainCircuit size={15} />
               <span>Capaian Kisi-Kisi TP</span>
             </div>
@@ -978,13 +1136,12 @@ export default function TeoriPage() {
                 {activeTpObj
                   ? `${activeTpObj.code}: ${activeTpObj.title}`
                   : chartMode === "post"
-                  ? "Rata-rata Posttest Kelas"
-                  : "Rata-rata Pretest Kelas"}
+                  ? "Rata-Rata Posttest Kelas"
+                  : "Rata-Rata Pretest Kelas"}
               </div>
             </div>
           </div>
 
-          {/* Grafik Batang Vertikal Bertitik per Kode TP */}
           <div
             className="grid gap-4 items-end pt-4 h-44 relative z-10"
             style={{
@@ -996,13 +1153,13 @@ export default function TeoriPage() {
           >
             {stats.tpBars.map((bar) => {
               const val = chartMode === "post" ? bar.post : bar.pre;
+              const heightPct = val <= 0 ? 4 : Math.max(12, val);
               const isHighest = bar.code === highestTpBar.code && val > 0;
               const isSelected = selectedTpCode === bar.code;
-              const fillClass = isSelected
-                ? "chart-fill-emerald"
-                : isHighest
-                ? "chart-fill-gold"
-                : "chart-fill-primary";
+              const fillClass =
+                isSelected || isHighest
+                  ? "chart-fill-gold"
+                  : "chart-fill-primary";
 
               return (
                 <button
@@ -1020,7 +1177,7 @@ export default function TeoriPage() {
                   <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                     <div
                       className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{ height: `${Math.max(15, val)}%` }}
+                      style={{ height: `${heightPct}%` }}
                     />
                   </div>
                   <span className={`w-2 h-2 rounded-full ${fillClass}`} />
@@ -1033,13 +1190,12 @@ export default function TeoriPage() {
           </div>
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES): INDEKS KOGNITIF KELAS */}
+        {/* BENTO 3: INDEKS KOGNITIF KELAS (DIPERBAIKI: 0% MURNI & TEKS DI BAWAH LINGKARAN) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
               <span>Indeks Kognitif Kelas</span>
             </div>
@@ -1067,20 +1223,6 @@ export default function TeoriPage() {
           </div>
 
           {(() => {
-            const gaugeValue =
-              gaugeMode === "posttest"
-                ? `${stats.avgPost}%`
-                : gaugeMode === "ketuntasan"
-                ? `${stats.ketuntasanPct}%`
-                : `${stats.participationPct}%`;
-
-            const gaugeLabel =
-              gaugeMode === "posttest"
-                ? "Rata-rata Skor Posttest Akhir"
-                : gaugeMode === "ketuntasan"
-                ? "Siswa Mencapai Skor >= 75"
-                : "Partisipasi Ujian Kognitif Kelas";
-
             const gaugePct =
               gaugeMode === "posttest"
                 ? stats.avgPost
@@ -1088,15 +1230,24 @@ export default function TeoriPage() {
                 ? stats.ketuntasanPct
                 : stats.participationPct;
 
+            const gaugeLabel =
+              gaugeMode === "posttest"
+                ? "Rata-Rata Skor Posttest Akhir"
+                : gaugeMode === "ketuntasan"
+                ? "Proporsi Siswa Mencapai Skor >= 75"
+                : "Partisipasi Ujian Kognitif Kelas";
+
             const radius = 58;
             const circumference = 2 * Math.PI * radius;
             const dashOffset =
-              circumference - (Math.max(10, gaugePct) / 100) * circumference;
+              gaugePct <= 0
+                ? circumference
+                : circumference - (gaugePct / 100) * circumference;
 
             return (
               <div className="relative flex flex-col items-center justify-center my-2 z-10">
                 <div className="relative flex items-center justify-center">
-                  <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+                  <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
                     <circle
                       cx="70"
                       cy="70"
@@ -1106,29 +1257,27 @@ export default function TeoriPage() {
                       strokeDasharray="2 5"
                       className="gauge-circle-track"
                     />
-                    <circle
-                      cx="70"
-                      cy="70"
-                      r={radius}
-                      fill="none"
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={dashOffset}
-                      className={`transition-all duration-700 ${
-                        gaugeMode === "ketuntasan"
-                          ? "gauge-circle-emerald"
-                          : "gauge-circle-gold"
-                      }`}
-                    />
+                    {gaugePct > 0 && (
+                      <circle
+                        cx="70"
+                        cy="70"
+                        r={radius}
+                        fill="none"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={dashOffset}
+                        className="transition-all duration-700 gauge-circle-gold"
+                      />
+                    )}
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                      {isLoading ? "—" : gaugeValue}
+                      {isLoading ? "—" : `${gaugePct}%`}
                     </span>
                   </div>
                 </div>
-                <span className="text-xs font-semibold opacity-60 mt-3 text-center">
+                <span className="text-xs font-semibold opacity-65 mt-3 text-center">
                   {gaugeLabel}
                 </span>
               </div>
@@ -1147,74 +1296,130 @@ export default function TeoriPage() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 4: HEADER FILTER, MODE SWITCHER (BENTO VS TABEL), & PENCARIAN
-         ==================================================================== */}
+      {/* ZONA 4: HEADER FILTER & SWITCHER MODE */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-            04 / REKAPITULASI CAPAIAN PESERTA DIDIK
+          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+            Rekapitulasi Capaian & Diagnostik Butir Soal
           </div>
           <h3 className="text-3xl font-light tracking-tight">
-            Rekapitulasi Nilai Teori ({filteredData.length})
+            {viewMode === "questions"
+              ? `Analisis Butir Soal (${filteredQuestions.length})`
+              : `Rekapitulasi Nilai Teori (${filteredData.length})`}
           </h3>
-          <div className="flex flex-wrap items-center gap-4 mt-2">
-            {[
-              { key: "all", label: `Semua (${stats.totalSiswa})` },
-              {
-                key: "complete",
-                label: `Lengkap Pre & Post (${stats.completeCount})`,
-              },
-              { key: "partial", label: `Baru 1 Tes (${stats.partialCount})` },
-              { key: "empty", label: `Belum Ujian (${stats.emptyCount})` },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setStatusFilter(tab.key as any)}
-                className={`text-xs font-bold uppercase tracking-widest transition-opacity cursor-pointer ${
-                  statusFilter === tab.key
-                    ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
-                    : "opacity-45 hover:opacity-80"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+
+          {viewMode === "questions" ? (
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              {[
+                { key: "all", label: `Semua Soal (${questionAnalytics.length})` },
+                {
+                  key: "pretest",
+                  label: `Pretest (${
+                    questionAnalytics.filter((q) => q.evalType === "pretest")
+                      .length
+                  })`,
+                },
+                {
+                  key: "posttest",
+                  label: `Posttest (${
+                    questionAnalytics.filter((q) => q.evalType === "posttest")
+                      .length
+                  })`,
+                },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setQuestionTypeFilter(tab.key as any)}
+                  className={`text-xs font-bold uppercase tracking-widest transition-opacity cursor-pointer ${
+                    questionTypeFilter === tab.key
+                      ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
+                      : "opacity-45 hover:opacity-80"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              {selectedTpCode && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTpCode(null)}
+                  className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg badge-tint-amber cursor-pointer"
+                >
+                  Filter TP: {selectedTpCode} ×
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              {[
+                { key: "all", label: `Semua (${stats.totalSiswa})` },
+                {
+                  key: "complete",
+                  label: `Lengkap Pre & Post (${stats.completeCount})`,
+                },
+                { key: "partial", label: `Baru 1 Tes (${stats.partialCount})` },
+                { key: "empty", label: `Belum Ujian (${stats.emptyCount})` },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.key as any)}
+                  className={`text-xs font-bold uppercase tracking-widest transition-opacity cursor-pointer ${
+                    statusFilter === tab.key
+                      ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
+                      : "opacity-45 hover:opacity-80"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Switcher Mode Kartu Bento vs Tabel Rekapitulasi */}
           <div className="flex p-1.5 rounded-2xl edufit-surface-subtle">
             <button
               type="button"
               onClick={() => setViewMode("bento")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "bento" ? "seg-btn-active" : "seg-btn-idle"
               }`}
             >
-              <LayoutGrid size={14} /> Kartu Bento
+              <LayoutGrid size={14} /> Kartu
             </button>
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "table" ? "seg-btn-active" : "seg-btn-idle"
               }`}
             >
-              <Table2 size={14} /> Tabel Lengkap
+              <Table2 size={14} /> Tabel
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("questions")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "questions" ? "seg-btn-active" : "seg-btn-idle"
+              }`}
+            >
+              <FileQuestion size={14} /> Bedah Soal
             </button>
           </div>
 
-          {/* Search Input */}
-          <div className="relative flex-1 sm:w-72">
+          <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 opacity-50 w-4 h-4" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama siswa..."
+              placeholder={
+                viewMode === "questions"
+                  ? "Cari teks soal / TP..."
+                  : "Cari nama siswa..."
+              }
               className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs font-semibold outline-none transition-colors edufit-card-primary"
             />
             {searchQuery && (
@@ -1230,9 +1435,7 @@ export default function TeoriPage() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ISI ZONA 4: MODE BENTO PASTEL / DEEP FOREST ATAU MODE TABEL LENGKAP
-         ==================================================================== */}
+      {/* ISI ZONA 4 */}
       {classes.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
           <Users className="w-10 h-10 mb-3" />
@@ -1244,9 +1447,103 @@ export default function TeoriPage() {
       ) : isLoading ? (
         <div className="flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55 animate-pulse">
           <div className="text-xl font-light tracking-tight">
-            Menarik data evaluasi kognitif siswa...
+            Menarik data evaluasi kognitif & bank soal...
           </div>
         </div>
+      ) : viewMode === "questions" ? (
+        filteredQuestions.length === 0 ? (
+          <div className="flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
+            <div className="text-xl font-light tracking-tight">
+              Belum ada butir soal pada bank soal jenjang ini.
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 mb-12">
+            {filteredQuestions.map((q, idx) => {
+              const isHardQuestion =
+                q.totalAttempts > 0 && q.accuracyPct < 55;
+              return (
+                <div
+                  key={q.id}
+                  className={`p-7 sm:p-8 rounded-[2rem] flex flex-col justify-between gap-5 edufit-card-primary ${
+                    isHardQuestion ? "bento-showcase-selected" : ""
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                          {q.tpCode}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase edufit-surface-subtle">
+                          {q.evalType === "posttest" ? "Posttest" : "Pretest"} ·
+                          Soal #{idx + 1}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`px-3 py-1 rounded-xl text-xs font-mono font-bold ${
+                          q.totalAttempts === 0
+                            ? "edufit-surface-subtle opacity-60"
+                            : q.accuracyPct >= 75
+                            ? "badge-tint-emerald"
+                            : q.accuracyPct >= 55
+                            ? "badge-tint-amber"
+                            : "badge-tint-rose"
+                        }`}
+                      >
+                        {q.totalAttempts > 0
+                          ? `Akurasi Kelas: ${q.accuracyPct}% (${q.correctCount}/${q.totalAttempts})`
+                          : "Belum Dijawab Siswa"}
+                      </span>
+                    </div>
+
+                    <p className="text-base font-medium leading-relaxed">
+                      {q.questionText}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                    {(["A", "B", "C", "D"] as const).map((optKey) => {
+                      const isCorrectKey = q.correctAnswer === optKey;
+                      const pickedCount = q.optionCounts[optKey] || 0;
+                      const pickedPct =
+                        q.totalAttempts > 0
+                          ? Math.round((pickedCount / q.totalAttempts) * 100)
+                          : 0;
+
+                      return (
+                        <div
+                          key={optKey}
+                          className={`p-3.5 rounded-2xl text-xs flex flex-col justify-between gap-2 ${
+                            isCorrectKey
+                              ? "badge-tint-emerald font-semibold"
+                              : "edufit-surface-subtle"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-mono font-bold">
+                              {optKey}. {q.options[optKey]}
+                            </span>
+                            {isCorrectKey && (
+                              <span className="text-[10px] font-mono font-bold uppercase shrink-0">
+                                Kunci
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] font-mono opacity-75 pt-1 border-t border-black/10 dark:border-white/10">
+                            <span>Dipilih {pickedCount} Siswa</span>
+                            <span>{pickedPct}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
       ) : filteredData.length === 0 ? (
         <div className="flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
           <div className="text-xl font-light tracking-tight">
@@ -1254,7 +1551,6 @@ export default function TeoriPage() {
           </div>
         </div>
       ) : viewMode === "bento" ? (
-        /* MODE 1: BENTO KARTU PASTEL LIGHT / DEEP FOREST DARK */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10 mb-12">
           {filteredData.map((row, index) => {
             const showcaseClass =
@@ -1265,7 +1561,10 @@ export default function TeoriPage() {
             return (
               <div
                 key={row.id}
-                onClick={() => setSelectedStudent(row)}
+                onClick={() => {
+                  setSelectedStudent(row);
+                  setModalTab("tp");
+                }}
                 className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
                   isComplete ? "bento-showcase-selected" : ""
                 }`}
@@ -1299,12 +1598,17 @@ export default function TeoriPage() {
                             : "badge-tint-rose"
                         }`}
                       >
-                        GAIN:{" "}
-                        {row.selisih > 0 ? `+${row.selisih}` : row.selisih} PT
+                        Selisih:{" "}
+                        {row.selisih > 0 ? `+${row.selisih}` : row.selisih} Poin
                       </span>
                     ) : (
                       <span className="px-3 py-1 rounded-xl text-xs font-bold font-mono bg-black/10 dark:bg-white/10">
-                        GAIN: MENUNGGU TES LENGKAP
+                        Menunggu Tes Lengkap
+                      </span>
+                    )}
+                    {row.answerSheet.length > 0 && (
+                      <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-black/10 dark:bg-white/10">
+                        {row.answerSheet.length} Jawaban
                       </span>
                     )}
                   </div>
@@ -1324,7 +1628,7 @@ export default function TeoriPage() {
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Posttest Akhir
                     </div>
-                    <div className="text-4xl font-light font-mono leading-none text-emerald-accent">
+                    <div className="text-4xl font-light font-mono leading-none text-gold-accent">
                       {row.posttest !== null ? `${row.posttest}` : "—"}
                     </div>
                   </div>
@@ -1334,7 +1638,6 @@ export default function TeoriPage() {
           })}
         </div>
       ) : (
-        /* MODE 2: TABEL REKAPITULASI LENGKAP */
         <div className="rounded-[2rem] p-8 md:p-10 overflow-hidden flex flex-col relative z-10 mb-12 edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
@@ -1350,14 +1653,17 @@ export default function TeoriPage() {
                   <th className="py-4 px-6 text-center">
                     Progres Kognitif (Selisih)
                   </th>
-                  <th className="py-4 px-6 text-right">Detail TP</th>
+                  <th className="py-4 px-6 text-right">Detail TP & Jawaban</th>
                 </tr>
               </thead>
               <tbody className="text-sm font-medium">
                 {filteredData.map((row) => (
                   <tr
                     key={row.id}
-                    onClick={() => setSelectedStudent(row)}
+                    onClick={() => {
+                      setSelectedStudent(row);
+                      setModalTab("tp");
+                    }}
                     className="border-b border-hairline transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] cursor-pointer"
                   >
                     <td className="py-5 px-6 font-bold text-base">
@@ -1398,14 +1704,14 @@ export default function TeoriPage() {
                           }`}
                         >
                           {row.selisih > 0 ? `+${row.selisih}` : row.selisih}{" "}
-                          POIN
+                          Poin
                         </span>
                       )}
                     </td>
 
                     <td className="py-5 px-6 text-right">
-                      <span className="inline-flex items-center gap-1 text-xs font-bold font-mono uppercase tracking-widest opacity-65 hover:opacity-100">
-                        ANALISIS <ArrowUpRight size={14} />
+                      <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest opacity-65 hover:opacity-100">
+                        Lihat Rincian <ArrowUpRight size={14} />
                       </span>
                     </td>
                   </tr>
@@ -1416,17 +1722,15 @@ export default function TeoriPage() {
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL DETAIL KOGNITIF & CAPAIAN TP SISWA
-         ==================================================================== */}
+      {/* MODAL DETAIL KOGNITIF, CAPAIAN TP & LEMBAR JAWABAN SISWA */}
       <AnimatePresence>
         {selectedStudent && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/65 backdrop-blur-md"
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
               onClick={() => setSelectedStudent(null)}
             />
 
@@ -1436,33 +1740,55 @@ export default function TeoriPage() {
               exit={{ scale: 0.96, y: 20, opacity: 0 }}
               className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col rounded-[2rem] relative z-10 shadow-2xl edufit-card-primary"
             >
-              {/* HEADER MODAL */}
-              <div className="p-6 sm:p-8 border-b border-hairline flex justify-between items-center gap-4 shrink-0">
+              <div className="p-6 sm:p-8 border-b border-hairline flex flex-wrap justify-between items-center gap-4 shrink-0">
                 <div>
-                  <span className="text-[11px] font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
-                    PROFIL KOGNITIF SISWA · {activeClassName}
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-gold-accent block mb-1">
+                    Profil Kognitif Siswa · {activeClassName}
                   </span>
                   <h2 className="text-3xl sm:text-4xl font-light tracking-tight">
                     {selectedStudent.name}
                   </h2>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedStudent(null)}
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose"
-                >
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <div className="flex p-1.5 rounded-2xl edufit-surface-subtle">
+                    <button
+                      type="button"
+                      onClick={() => setModalTab("tp")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                        modalTab === "tp" ? "seg-btn-active" : "seg-btn-idle"
+                      }`}
+                    >
+                      Capaian TP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalTab("answers")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                        modalTab === "answers"
+                          ? "seg-btn-active"
+                          : "seg-btn-idle"
+                      }`}
+                    >
+                      Lembar Jawaban ({selectedStudent.answerSheet.length})
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStudent(null)}
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center transition-colors cursor-pointer badge-tint-rose"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
-              {/* ISI MODAL */}
               <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 space-y-6">
-                {/* Ringkasan 3 Kartu Angka */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="p-6 rounded-2xl edufit-surface-subtle">
-                    <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-2">
-                      01 / SKOR PRETEST AWAL
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-2">
+                      Skor Pretest Awal
                     </span>
                     <span className="text-5xl font-light font-mono tracking-tighter">
                       {selectedStudent.pretest !== null
@@ -1472,10 +1798,10 @@ export default function TeoriPage() {
                   </div>
 
                   <div className="p-6 rounded-2xl edufit-surface-subtle">
-                    <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-2">
-                      02 / SKOR POSTTEST AKHIR
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-2">
+                      Skor Posttest Akhir
                     </span>
-                    <span className="text-5xl font-light font-mono tracking-tighter text-emerald-accent">
+                    <span className="text-5xl font-light font-mono tracking-tighter text-gold-accent">
                       {selectedStudent.posttest !== null
                         ? selectedStudent.posttest
                         : "—"}
@@ -1483,8 +1809,8 @@ export default function TeoriPage() {
                   </div>
 
                   <div className="p-6 rounded-2xl telemetry-bar-gold">
-                    <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-75 block mb-2">
-                      03 / PENINGKATAN (GAIN)
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-75 block mb-2">
+                      Peningkatan (Gain)
                     </span>
                     <span className="text-5xl font-semibold font-mono tracking-tighter">
                       {selectedStudent.selisih !== null
@@ -1496,93 +1822,184 @@ export default function TeoriPage() {
                   </div>
                 </div>
 
-                {/* Rincian Capaian Tujuan Pembelajaran (TP) */}
-                <div className="p-6 sm:p-8 rounded-[1.75rem] space-y-4 edufit-card-secondary">
-                  <div className="flex items-center justify-between border-b border-hairline pb-4">
-                    <div>
-                      <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-1">
-                        DIAGNOSTIK KOMPETENSI
-                      </span>
-                      <h3 className="text-2xl font-light tracking-tight">
-                        Rincian Capaian Tujuan Pembelajaran
-                      </h3>
-                      <p className="text-xs opacity-55 mt-0.5">
-                        Kisi-kisi Instrumen Kognitif Kelas{" "}
-                        {selectedClass?.grade_level}
-                      </p>
+                {modalTab === "tp" ? (
+                  <div className="p-6 sm:p-8 rounded-[1.75rem] space-y-4 edufit-card-secondary">
+                    <div className="flex items-center justify-between border-b border-hairline pb-4">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1">
+                          Diagnostik Kompetensi
+                        </span>
+                        <h3 className="text-2xl font-light tracking-tight">
+                          Rincian Capaian Tujuan Pembelajaran
+                        </h3>
+                        <p className="text-xs opacity-55 mt-0.5">
+                          Kisi-Kisi Instrumen Kognitif Kelas{" "}
+                          {selectedClass?.grade_level}
+                        </p>
+                      </div>
+                      <BookOpen size={20} className="opacity-45" />
                     </div>
-                    <BookOpen size={20} className="opacity-45" />
-                  </div>
 
-                  <div className="space-y-3">
-                    {activeTpList.map((tp) => {
-                      const b = selectedStudent.tpBreakdown[tp.code];
-                      const hasAnswerDetail =
-                        b && (b.preTotal > 0 || b.postTotal > 0);
-                      const prePct =
-                        b && b.preTotal > 0
-                          ? Math.round((b.preCorrect / b.preTotal) * 100)
-                          : null;
-                      const postPct =
-                        b && b.postTotal > 0
-                          ? Math.round((b.postCorrect / b.postTotal) * 100)
-                          : null;
+                    <div className="space-y-3">
+                      {activeTpList.map((tp) => {
+                        const b = selectedStudent.tpBreakdown[tp.code];
+                        const hasAnswerDetail =
+                          b && (b.preTotal > 0 || b.postTotal > 0);
+                        const prePct =
+                          b && b.preTotal > 0
+                            ? Math.round((b.preCorrect / b.preTotal) * 100)
+                            : null;
+                        const postPct =
+                          b && b.postTotal > 0
+                            ? Math.round((b.postCorrect / b.postTotal) * 100)
+                            : null;
 
-                      return (
-                        <div
-                          key={tp.code}
-                          className="p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 edufit-card-primary"
-                        >
-                          <div className="space-y-1 max-w-xl">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold font-mono uppercase telemetry-bar-forest text-gold-accent">
-                                {tp.code}
-                              </span>
-                              {tp.mappingDesc && (
-                                <span className="text-[11px] font-semibold opacity-55">
-                                  {tp.mappingDesc}
+                        return (
+                          <div
+                            key={tp.code}
+                            className="p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 edufit-card-primary"
+                          >
+                            <div className="space-y-1 max-w-xl">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                                  {tp.code}
+                                </span>
+                                {tp.mappingDesc && (
+                                  <span className="text-[11px] font-semibold opacity-55">
+                                    {tp.mappingDesc}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium leading-snug">
+                                {tp.text}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-4 shrink-0 font-mono">
+                              {hasAnswerDetail ? (
+                                <>
+                                  <div className="text-right">
+                                    <span className="text-[10px] font-bold uppercase opacity-55 block">
+                                      Pretest
+                                    </span>
+                                    <span className="text-sm font-bold">
+                                      {prePct !== null ? `${prePct}%` : "—"}
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-[10px] font-bold uppercase opacity-55 block">
+                                      Posttest
+                                    </span>
+                                    <span className="text-sm font-bold text-gold-accent">
+                                      {postPct !== null ? `${postPct}%` : "—"}
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-xs font-semibold opacity-60">
+                                  Skor Paket:{" "}
+                                  {selectedStudent.posttest ??
+                                    selectedStudent.pretest ??
+                                    "—"}
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm font-medium leading-snug">
-                              {tp.text}
-                            </p>
                           </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 sm:p-8 rounded-[1.75rem] space-y-4 edufit-card-secondary">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1">
+                          Evaluasi Pilihan Ganda
+                        </span>
+                        <h3 className="text-2xl font-light tracking-tight">
+                          Rincian Jawaban per Butir Soal
+                        </h3>
+                      </div>
 
-                          <div className="flex items-center gap-4 shrink-0 font-mono">
-                            {hasAnswerDetail ? (
-                              <>
-                                <div className="text-right">
-                                  <span className="text-[10px] font-bold uppercase opacity-55 block">
-                                    PRETEST
-                                  </span>
-                                  <span className="text-sm font-bold">
-                                    {prePct !== null ? `${prePct}%` : "—"}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[10px] font-bold uppercase opacity-55 block">
-                                    POSTTEST
-                                  </span>
-                                  <span className="text-sm font-bold text-emerald-accent">
-                                    {postPct !== null ? `${postPct}%` : "—"}
-                                  </span>
-                                </div>
-                              </>
-                            ) : (
-                              <span className="text-xs font-semibold opacity-60">
-                                SKOR PAKET:{" "}
-                                {selectedStudent.posttest ??
-                                  selectedStudent.pretest ??
-                                  "—"}
-                              </span>
-                            )}
+                      <div className="flex gap-1.5 p-1 rounded-xl edufit-card-primary">
+                        {(["posttest", "pretest"] as const).map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setModalAnswerFilter(t)}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer ${
+                              modalAnswerFilter === t
+                                ? "seg-btn-active"
+                                : "seg-btn-idle"
+                            }`}
+                          >
+                            {t === "posttest" ? "Posttest" : "Pretest"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const list = selectedStudent.answerSheet.filter(
+                        (a) => a.evalType === modalAnswerFilter
+                      );
+                      if (list.length === 0) {
+                        return (
+                          <div className="py-12 text-center opacity-55 text-sm">
+                            Belum ada rincian lembar jawaban pada sesi{" "}
+                            {modalAnswerFilter.toUpperCase()}.
                           </div>
+                        );
+                      }
+                      return (
+                        <div className="space-y-3">
+                          {list.map((ans, idx) => (
+                            <div
+                              key={`${ans.questionId}-${idx}`}
+                              className="p-5 rounded-2xl space-y-2.5 edufit-card-primary"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                                  Soal #{idx + 1} · {ans.tpCode}
+                                </span>
+                                <span
+                                  className={`px-3 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase ${
+                                    ans.isCorrect
+                                      ? "badge-tint-emerald"
+                                      : "badge-tint-rose"
+                                  }`}
+                                >
+                                  {ans.isCorrect ? "Benar" : "Salah"}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium leading-relaxed">
+                                {ans.questionText}
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs font-mono">
+                                <div className="p-3 rounded-xl edufit-surface-subtle">
+                                  <span className="font-sans opacity-55 block text-[10px]">
+                                    Jawaban Siswa:
+                                  </span>
+                                  <strong>
+                                    {ans.selectedOption}. {ans.optionText}
+                                  </strong>
+                                </div>
+                                <div className="p-3 rounded-xl edufit-surface-subtle">
+                                  <span className="font-sans opacity-55 block text-[10px]">
+                                    Kunci Jawaban:
+                                  </span>
+                                  <strong className="text-gold-accent">
+                                    {ans.correctAnswer}. {ans.correctOptionText}
+                                  </strong>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
-                </div>
+                )}
               </div>
             </motion.div>
           </div>

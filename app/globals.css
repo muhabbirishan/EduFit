@@ -2,24 +2,24 @@
 
 @theme {
   /* ========================================================================
-     1. PALET UTAMA EDUFIT & INTEGRASI FINORA DEEP FOREST (MOBILE SISWA)
+     1. PALET UTAMA EDUFIT & AKSEN KUNING EMAS ARSITEKTURAL
      ======================================================================== */
-  --color-primary: #032521;
+  --color-primary: #181510;
   --color-on-primary: #ffffff;
-  --color-primary-container: #1b3b36;
-  --color-on-primary-container: #84a59e;
-  --color-secondary: #006d40;
-  --color-on-secondary: #ffffff;
-  --color-secondary-container: #89f9b5;
-  --color-on-secondary-container: #007444;
-  --color-secondary-fixed: #89f9b5;
-  --color-secondary-fixed-dim: #6ddc9b;
-  --color-on-secondary-fixed: #002110;
-  --color-tertiary: #132320;
+  --color-primary-container: #2a2419;
+  --color-on-primary-container: #e6d5b8;
+  --color-secondary: #d99b26;
+  --color-on-secondary: #12100b;
+  --color-secondary-container: #fef08a;
+  --color-on-secondary-container: #713f12;
+  --color-secondary-fixed: #fef08a;
+  --color-secondary-fixed-dim: #facc15;
+  --color-on-secondary-fixed: #1c1917;
+  --color-tertiary: #1c1917;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #283935;
-  --color-on-tertiary-container: #90a29e;
-  --color-tertiary-fixed: #d3e7e1;
+  --color-tertiary-container: #292524;
+  --color-on-tertiary-container: #d6d3d1;
+  --color-tertiary-fixed: #f5f5f4;
   --color-background: #f8faf9;
   --color-on-background: #191c1c;
   --color-surface: #f8faf9;
@@ -33,24 +33,24 @@
   --color-outline: #717976;
   --color-outline-variant: #c1c8c5;
 
-  /* TOKEN MOBILE SISWA (app_colors.dart) */
+  /* TOKEN WARNA INTI */
   --color-finora-sand: #dfd7c8;
   --color-finora-cream: #f7f5f0;
   --color-finora-subtle: #edeae2;
-  --color-forest-ultra: #061b13;
-  --color-forest-deep: #07241a;
-  --color-forest-primary: #0b3124;
-  --color-forest-card: #10382a;
+  --color-forest-ultra: #12100c;
+  --color-forest-deep: #1a1610;
+  --color-forest-primary: #221d14;
+  --color-forest-card: #292216;
   --color-gold-accent: #f2b84b;
   --color-gold-bright: #facc15;
   --color-gold-dark: #d99b26;
   --color-emerald-verde: #2a8c6a;
   --color-orange-terra: #e87a3e;
-  --color-ink-dark: #121c18;
-  --color-ink-muted: #6e7a75;
-  --color-ink-light: #f8fafc;
+  --color-ink-dark: #14120e;
+  --color-ink-muted: #78716c;
+  --color-ink-light: #fafaf9;
 
-  /* FONTS KUSTOM (Plus Jakarta Sans, Poppins, & Space Mono) */
+  /* FONTS KUSTOM */
   --font-bebas: var(--font-jakarta), sans-serif;
   --font-jakarta: var(--font-poppins), sans-serif;
   --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -79,15 +79,14 @@
 
 @layer base {
   :root {
-    /* VARIABEL LAMA (TETAP DIPERTAHANKAN AGAR KOMPONEN LAIN AMAN) */
     --bg-dashboard: #f8faf9;
     --card-surface: #ffffff;
     --text-main: #191c1c;
     --text-muted: #717976;
     --border-color: #eceeed;
-    --sidebar-bg: #032521;
-    --sidebar-icon: #84a59e;
-    --sidebar-icon-active: #89f9b5;
+    --sidebar-bg: #181510;
+    --sidebar-icon: #a8a29e;
+    --sidebar-icon-active: #facc15;
 
     --card-yellow: #fef0c7;
     --card-yellow-text: #93370d;
@@ -105,43 +104,43 @@
     --alert-icon: #a16207;
 
     /* ======================================================================
-       SISTEM TEMA TERPADU LIGHT MODE: FINORA WARM CREAM & ARCHITECTURAL INK
+       LIGHT MODE: WARM CREAM & GOLDEN AMBER ACCENT
        ====================================================================== */
     --ref-canvas-bg: #f7f5f0;
     --ref-canvas-gradient: radial-gradient(
       circle at 90% 8%,
-      rgba(242, 184, 75, 0.26) 0%,
-      rgba(247, 245, 240, 0.95) 45%,
+      rgba(242, 184, 75, 0.3) 0%,
+      rgba(247, 245, 240, 0.96) 45%,
       #edeae2 100%
     );
-    --ref-card-bg: rgba(255, 255, 255, 0.94);
+    --ref-card-bg: rgba(255, 255, 255, 0.95);
     --ref-card-solid: #ffffff;
     --ref-card-secondary: #f7f5f0;
     --ref-card-subtle: #edeae2;
-    --ref-card-border: rgba(18, 28, 24, 0.08);
-    --ref-card-border-strong: rgba(18, 28, 24, 0.16);
-    --ref-card-shadow: 0 12px 32px -12px rgba(18, 28, 24, 0.06);
+    --ref-card-border: rgba(20, 18, 14, 0.08);
+    --ref-card-border-strong: rgba(20, 18, 14, 0.16);
+    --ref-card-shadow: 0 12px 32px -12px rgba(20, 18, 14, 0.06);
 
-    --ref-nav-shell: rgba(255, 255, 255, 0.92);
-    --ref-nav-active-bg: #07241a;
-    --ref-nav-active-text: #ffffff;
-    --ref-nav-idle-text: #6e7a75;
+    --ref-nav-shell: rgba(255, 255, 255, 0.94);
+    --ref-nav-active-bg: #f2b84b;
+    --ref-nav-active-text: #14120e;
+    --ref-nav-idle-text: #6e6a63;
 
-    --ref-text-primary: #121c18;
-    --ref-text-secondary: #414846;
-    --ref-text-muted: #6e7a75;
+    --ref-text-primary: #14120e;
+    --ref-text-secondary: #44403c;
+    --ref-text-muted: #78716c;
 
     --ref-accent-gold: #f2b84b;
     --ref-accent-gold-soft: #fef3c7;
     --ref-accent-gold-text: #78350f;
-    --ref-accent-emerald: #2a8c6a;
+    --ref-accent-emerald: #d99b26;
     --ref-accent-terra: #e87a3e;
 
     /* Aksen Tints (Light Mode) */
-    --ref-tint-emerald-bg: #ecfdf5;
-    --ref-tint-emerald-border: #a7f3d0;
-    --ref-tint-emerald-icon: #2a8c6a;
-    --ref-tint-emerald-text: #065f46;
+    --ref-tint-emerald-bg: #fef9c3;
+    --ref-tint-emerald-border: #fde047;
+    --ref-tint-emerald-icon: #ca8a04;
+    --ref-tint-emerald-text: #713f12;
 
     --ref-tint-sky-bg: #f0f9ff;
     --ref-tint-sky-border: #bae6fd;
@@ -163,145 +162,143 @@
     --ref-tint-amber-icon: #f2b84b;
     --ref-tint-amber-text: #92400e;
 
-    /* Panel Kontras Deep Forest dari Mobile */
-    --ref-dark-panel: #07241a;
-    --ref-dark-panel-ultra: #061b13;
-    --ref-dark-panel-sub: #10382a;
-    --ref-dark-panel-text: #f8fafc;
-    --ref-dark-panel-muted: #94a3b8;
+    --ref-dark-panel: #1a1610;
+    --ref-dark-panel-ultra: #12100c;
+    --ref-dark-panel-sub: #262016;
+    --ref-dark-panel-text: #fafaf9;
+    --ref-dark-panel-muted: #a8a29e;
 
-    /* Track & Chart Tokens */
-    --ref-track-bg: rgba(18, 28, 24, 0.08);
-    --ref-gauge-track: rgba(18, 28, 24, 0.16);
+    --ref-track-bg: rgba(20, 18, 14, 0.08);
+    --ref-gauge-track: rgba(20, 18, 14, 0.14);
 
-    /* Bento Showcase Pastel Cards (Light Mode) */
+    /* Bento Showcase Cards (Light Mode) */
     --bento-0-bg: #fef08a;
-    --bento-0-border: #fde047;
-    --bento-1-bg: #bbf7d0;
-    --bento-1-border: #86efac;
-    --bento-2-bg: #fed7aa;
-    --bento-2-border: #fdba74;
-    --bento-3-bg: #bae6fd;
-    --bento-3-border: #7dd3fc;
+    --bento-0-border: #facc15;
+    --bento-1-bg: #ffedd5;
+    --bento-1-border: #fdba74;
+    --bento-2-bg: #fef3c7;
+    --bento-2-border: #fde68a;
+    --bento-3-bg: #f5f5f4;
+    --bento-3-border: #e7e5e4;
 
     --ref-stripe-pattern: repeating-linear-gradient(
       90deg,
-      rgba(18, 28, 24, 0.08) 0px,
-      rgba(18, 28, 24, 0.08) 2px,
+      rgba(242, 184, 75, 0.16) 0px,
+      rgba(242, 184, 75, 0.16) 2px,
       transparent 2px,
       transparent 7px
     );
   }
 
   .dark {
-    /* VARIABEL LAMA DARK MODE */
-    --bg-dashboard: #021614;
-    --card-surface: #0a241f;
-    --text-main: #f8faf9;
-    --text-muted: #84a59e;
-    --border-color: #1b3b36;
-    --sidebar-bg: #000000;
-    --sidebar-icon: #414846;
-    --sidebar-icon-active: #89f9b5;
+    /* VARIABEL DARK MODE DOMINAN KUNING EMAS & OBSIDIAN CHARCOAL */
+    --bg-dashboard: #0c0b09;
+    --card-surface: #161410;
+    --text-main: #fafaf9;
+    --text-muted: #a8a29e;
+    --border-color: #292524;
+    --sidebar-bg: #090806;
+    --sidebar-icon: #78716c;
+    --sidebar-icon-active: #facc15;
 
-    --card-yellow: #7a4510;
-    --card-yellow-text: #fef0c7;
-    --card-blue: #0c4a6e;
+    --card-yellow: #422006;
+    --card-yellow-text: #fef08a;
+    --card-blue: #1e293b;
     --card-blue-text: #e0f2fe;
-    --card-pink: #831843;
+    --card-pink: #3f1d28;
     --card-pink-text: #fce7f3;
-    --card-green: #14532d;
-    --card-green-text: #dcfce7;
+    --card-green: #2e2612;
+    --card-green-text: #fef08a;
 
-    --alert-bg: #422006;
-    --alert-border: #854d0e;
+    --alert-bg: #2e2208;
+    --alert-border: #ca8a04;
     --alert-text-main: #fef08a;
     --alert-text-sub: #fef9c3;
-    --alert-icon: #fde047;
+    --alert-icon: #facc15;
 
     /* ======================================================================
-       SISTEM TEMA TERPADU DARK MODE: MOBILE DEEP FOREST & GOLD ACCENT
+       SISTEM TEMA TERPADU DARK MODE: OBSIDIAN WARM & DOMINANT SOLAR GOLD
        ====================================================================== */
-    --ref-canvas-bg: #07241a;
+    --ref-canvas-bg: #0c0b09;
     --ref-canvas-gradient: radial-gradient(
-      circle at 88% 8%,
-      rgba(242, 184, 75, 0.14) 0%,
-      rgba(7, 36, 26, 0.98) 48%,
-      #061b13 100%
+      circle at 86% 6%,
+      rgba(250, 204, 21, 0.22) 0%,
+      rgba(242, 184, 75, 0.08) 38%,
+      #0c0b09 100%
     );
-    --ref-card-bg: rgba(11, 49, 36, 0.94);
-    --ref-card-solid: #0b3124;
-    --ref-card-secondary: #10382a;
-    --ref-card-subtle: rgba(255, 255, 255, 0.05);
-    --ref-card-border: rgba(255, 255, 255, 0.09);
-    --ref-card-border-strong: rgba(255, 255, 255, 0.2);
-    --ref-card-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.65);
+    --ref-card-bg: rgba(22, 19, 14, 0.96);
+    --ref-card-solid: #15130f;
+    --ref-card-secondary: #1d1912;
+    --ref-card-subtle: rgba(250, 204, 21, 0.07);
+    --ref-card-border: rgba(250, 204, 21, 0.16);
+    --ref-card-border-strong: rgba(250, 204, 21, 0.34);
+    --ref-card-shadow: 0 20px 44px -12px rgba(0, 0, 0, 0.78);
 
-    --ref-nav-shell: rgba(6, 27, 19, 0.92);
-    --ref-nav-active-bg: #f2b84b;
-    --ref-nav-active-text: #121c18;
-    --ref-nav-idle-text: #94a3b8;
+    --ref-nav-shell: rgba(18, 16, 12, 0.94);
+    --ref-nav-active-bg: #facc15;
+    --ref-nav-active-text: #14120e;
+    --ref-nav-idle-text: #a8a29e;
 
-    --ref-text-primary: #f8fafc;
-    --ref-text-secondary: #cbd5e1;
-    --ref-text-muted: #84a59e;
+    --ref-text-primary: #fafaf9;
+    --ref-text-secondary: #e7e5e4;
+    --ref-text-muted: #a8a29e;
 
-    --ref-accent-gold: #f2b84b;
-    --ref-accent-gold-soft: rgba(242, 184, 75, 0.18);
-    --ref-accent-gold-text: #fde047;
-    --ref-accent-emerald: #34d399;
+    --ref-accent-gold: #facc15;
+    --ref-accent-gold-soft: rgba(250, 204, 21, 0.2);
+    --ref-accent-gold-text: #fef08a;
+    --ref-accent-emerald: #facc15;
     --ref-accent-terra: #fb923c;
 
-    /* Aksen Tints (Dark Mode) */
-    --ref-tint-emerald-bg: rgba(42, 140, 106, 0.2);
-    --ref-tint-emerald-border: rgba(52, 211, 153, 0.3);
-    --ref-tint-emerald-icon: #34d399;
-    --ref-tint-emerald-text: #6ee7b7;
+    /* Aksen Tints (Dark Mode - Dominan Kuning Hangat) */
+    --ref-tint-emerald-bg: rgba(250, 204, 21, 0.18);
+    --ref-tint-emerald-border: rgba(250, 204, 21, 0.4);
+    --ref-tint-emerald-icon: #facc15;
+    --ref-tint-emerald-text: #fef08a;
 
-    --ref-tint-sky-bg: rgba(14, 165, 233, 0.15);
-    --ref-tint-sky-border: rgba(56, 189, 248, 0.3);
-    --ref-tint-sky-icon: #38bdf8;
-    --ref-tint-sky-text: #7dd3fc;
+    --ref-tint-sky-bg: rgba(242, 184, 75, 0.14);
+    --ref-tint-sky-border: rgba(242, 184, 75, 0.3);
+    --ref-tint-sky-icon: #f2b84b;
+    --ref-tint-sky-text: #fde68a;
 
-    --ref-tint-rose-bg: rgba(244, 63, 94, 0.15);
-    --ref-tint-rose-border: rgba(251, 113, 133, 0.3);
+    --ref-tint-rose-bg: rgba(244, 63, 94, 0.16);
+    --ref-tint-rose-border: rgba(251, 113, 133, 0.32);
     --ref-tint-rose-icon: #fb7185;
     --ref-tint-rose-text: #fda4af;
 
-    --ref-tint-violet-bg: rgba(139, 92, 246, 0.15);
-    --ref-tint-violet-border: rgba(167, 139, 250, 0.3);
-    --ref-tint-violet-icon: #a78bfa;
-    --ref-tint-violet-text: #c4b5fd;
+    --ref-tint-violet-bg: rgba(250, 204, 21, 0.12);
+    --ref-tint-violet-border: rgba(250, 204, 21, 0.28);
+    --ref-tint-violet-icon: #facc15;
+    --ref-tint-violet-text: #fef08a;
 
-    --ref-tint-amber-bg: rgba(242, 184, 75, 0.16);
-    --ref-tint-amber-border: rgba(242, 184, 75, 0.35);
-    --ref-tint-amber-icon: #f2b84b;
+    --ref-tint-amber-bg: rgba(245, 158, 11, 0.2);
+    --ref-tint-amber-border: rgba(251, 191, 36, 0.42);
+    --ref-tint-amber-icon: #fbbf24;
     --ref-tint-amber-text: #fde68a;
 
-    --ref-dark-panel: #061b13;
-    --ref-dark-panel-ultra: #04120d;
-    --ref-dark-panel-sub: #10382a;
-    --ref-dark-panel-text: #ffffff;
-    --ref-dark-panel-muted: #84a59e;
+    --ref-dark-panel: #1c1810;
+    --ref-dark-panel-ultra: #110f0a;
+    --ref-dark-panel-sub: #262015;
+    --ref-dark-panel-text: #fafaf9;
+    --ref-dark-panel-muted: #d6d3d1;
 
     /* Track & Chart Tokens */
-    --ref-track-bg: rgba(255, 255, 255, 0.09);
-    --ref-gauge-track: rgba(255, 255, 255, 0.16);
+    --ref-track-bg: rgba(250, 204, 21, 0.12);
+    --ref-gauge-track: rgba(250, 204, 21, 0.18);
 
-    /* Bento Showcase Cards (Dark Mode menyatu ke Deep Forest Card) */
-    --bento-0-bg: #10382a;
-    --bento-0-border: rgba(255, 255, 255, 0.1);
-    --bento-1-bg: #0b3124;
-    --bento-1-border: rgba(255, 255, 255, 0.1);
-    --bento-2-bg: #10382a;
-    --bento-2-border: rgba(255, 255, 255, 0.1);
-    --bento-3-bg: #0b3124;
-    --bento-3-border: rgba(255, 255, 255, 0.1);
+    /* Bento Showcase Cards (Dark Mode - Berpendar Kuning/Amber Hangat) */
+    --bento-0-bg: #231d11;
+    --bento-0-border: rgba(250, 204, 21, 0.28);
+    --bento-1-bg: #1c1810;
+    --bento-1-border: rgba(242, 184, 75, 0.22);
+    --bento-2-bg: #261f12;
+    --bento-2-border: rgba(250, 204, 21, 0.26);
+    --bento-3-bg: #191610;
+    --bento-3-border: rgba(242, 184, 75, 0.2);
 
     --ref-stripe-pattern: repeating-linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.14) 0px,
-      rgba(255, 255, 255, 0.14) 2px,
+      rgba(250, 204, 21, 0.16) 0px,
+      rgba(250, 204, 21, 0.16) 2px,
       transparent 2px,
       transparent 7px
     );
@@ -314,13 +311,20 @@
     transition: background-color 0.35s ease, color 0.35s ease;
     min-height: 100vh;
   }
+
+  /* KUNCI ANTI-TABRAKAN MODAL: Sembunyikan Navbar otomatis saat ada Modal Pop-up terbuka */
+  body:has(.edufit-modal-open) #edufit-top-navbar,
+  body:has(.fixed.inset-0) #edufit-top-navbar {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-16px);
+  }
 }
 
 /* ==========================================================================
-   2. SISTEM KOMPONEN & UTILITAS ARSITEKTURAL (BEBAS INLINE CSS DI TSX)
+   2. SISTEM KOMPONEN & UTILITAS ARSITEKTURAL
    ========================================================================== */
 @layer components {
-  /* Permukaan Kartu Adaptif */
   .edufit-card-primary {
     background-color: var(--ref-card-solid);
     border: 1px solid var(--ref-card-border);
@@ -343,7 +347,7 @@
 
   .edufit-panel-forest {
     background-color: var(--ref-dark-panel);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--ref-card-border-strong);
     color: var(--ref-dark-panel-text);
   }
 
@@ -364,17 +368,17 @@
 
   /* Bar Telemetri */
   .telemetry-bar-forest {
-    background-color: var(--color-forest-deep);
+    background-color: var(--ref-dark-panel);
     color: var(--color-ink-light);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(250, 204, 21, 0.22);
   }
   .telemetry-bar-forest-active {
-    background-color: var(--color-forest-deep);
+    background-color: var(--ref-dark-panel);
     color: var(--color-ink-light);
-    border: 1px solid var(--color-gold-accent);
+    border: 1px solid var(--ref-accent-gold);
   }
   .telemetry-bar-gold {
-    background-color: var(--color-gold-accent);
+    background-color: var(--ref-accent-gold);
     color: var(--color-ink-dark);
   }
   .telemetry-bar-striped {
@@ -391,7 +395,8 @@
     opacity: 0.035;
   }
   .dark .pattern-polkadot {
-    opacity: 0.07;
+    opacity: 0.06;
+    color: #facc15;
   }
 
   .pattern-millimeter-grid {
@@ -402,6 +407,7 @@
   }
   .dark .pattern-millimeter-grid {
     opacity: 0.06;
+    color: #facc15;
   }
 
   .pattern-diagonal-stripes {
@@ -416,9 +422,10 @@
   }
   .dark .pattern-diagonal-stripes {
     opacity: 0.055;
+    color: #facc15;
   }
 
-  /* 4 Kartu Bento Showcase (Pastel di Light Mode, Deep Forest di Dark Mode) */
+  /* 4 Kartu Bento Showcase */
   .bento-showcase-0 {
     background-color: var(--bento-0-bg);
     border: 1px solid var(--bento-0-border);
@@ -440,18 +447,18 @@
     color: var(--ref-text-primary);
   }
   .bento-showcase-selected {
-    border-color: var(--color-gold-accent);
-    box-shadow: 0 0 0 2px var(--color-gold-accent);
+    border-color: var(--ref-accent-gold);
+    box-shadow: 0 0 0 2px var(--ref-accent-gold);
   }
 
-  /* Dynamic Island Alert (Adaptasi langsung dari dynamic_island_alert.dart) */
+  /* Dynamic Island Alert */
   .dynamic-island-shell {
-    background-color: var(--color-forest-ultra);
+    background-color: #14120e;
     color: #ffffff;
-    box-shadow: 0 14px 34px -6px rgba(0, 0, 0, 0.48);
+    box-shadow: 0 14px 34px -6px rgba(0, 0, 0, 0.58);
   }
   .dynamic-island-success {
-    border: 1.2px solid rgba(42, 140, 106, 0.55);
+    border: 1.2px solid rgba(250, 204, 21, 0.65);
   }
   .dynamic-island-error {
     border: 1.2px solid rgba(239, 68, 68, 0.55);
@@ -460,8 +467,8 @@
     border: 1.2px solid rgba(242, 184, 75, 0.55);
   }
   .dynamic-island-icon-success {
-    background-color: rgba(42, 140, 106, 0.2);
-    color: var(--color-emerald-verde);
+    background-color: rgba(250, 204, 21, 0.2);
+    color: #facc15;
   }
   .dynamic-island-icon-error {
     background-color: rgba(239, 68, 68, 0.2);
@@ -474,7 +481,7 @@
 
   /* Elemen Kontrol, Tab, & Grafik */
   .seg-btn-active {
-    background-color: var(--color-gold-accent);
+    background-color: var(--ref-accent-gold);
     color: var(--color-ink-dark);
     opacity: 1;
   }
@@ -484,12 +491,12 @@
     opacity: 0.55;
   }
   .seg-btn-idle:hover {
-    opacity: 0.9;
+    opacity: 0.95;
   }
 
   .grade-card-active {
     background-color: var(--ref-tint-amber-bg);
-    border: 1px solid var(--color-gold-accent);
+    border: 1px solid var(--ref-accent-gold);
   }
 
   .chart-track-pill {
@@ -499,10 +506,10 @@
     background-color: var(--ref-text-primary);
   }
   .chart-fill-gold {
-    background-color: var(--color-gold-accent);
+    background-color: var(--ref-accent-gold);
   }
   .chart-fill-emerald {
-    background-color: var(--color-emerald-verde);
+    background-color: #facc15;
   }
   .chart-fill-terra {
     background-color: var(--color-orange-terra);
@@ -515,10 +522,10 @@
     stroke: var(--ref-gauge-track);
   }
   .gauge-circle-gold {
-    stroke: var(--color-gold-accent);
+    stroke: var(--ref-accent-gold);
   }
   .gauge-circle-emerald {
-    stroke: var(--color-emerald-verde);
+    stroke: #facc15;
   }
 
   /* Badge Nilai & Metrik */
@@ -539,13 +546,13 @@
     color: var(--ref-tint-rose-text);
   }
 
-  /* Tombol Aksi Utama */
+  /* Tombol Aksi Utama (Dominan Kuning Emas di Dark Mode) */
   .btn-forest-emerald {
-    background-color: var(--color-emerald-verde);
-    color: #ffffff;
+    background-color: var(--ref-accent-gold);
+    color: #14120e;
   }
   .btn-forest-gold {
-    background-color: var(--color-gold-accent);
+    background-color: var(--ref-accent-gold);
     color: var(--color-ink-dark);
   }
   .btn-forest-contrast {
@@ -568,10 +575,10 @@
   }
 
   .text-emerald-accent {
-    color: var(--ref-accent-emerald);
+    color: var(--ref-accent-gold);
   }
 
   .text-gold-accent {
-    color: var(--color-gold-accent);
+    color: var(--ref-accent-gold);
   }
 }

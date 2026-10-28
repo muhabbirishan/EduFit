@@ -4,35 +4,38 @@
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    Activity,
-    AlertCircle,
-    AlertTriangle,
-    ArrowLeft,
-    ArrowUpRight,
-    Award,
-    Bell,
-    Check,
-    CheckCircle2,
-    ChevronDown,
-    Download,
-    Flag,
-    Hand,
-    HeartPulse,
-    Lock,
-    Maximize2,
-    Minimize2,
-    Moon,
-    Play,
-    Radio,
-    RefreshCw,
-    RotateCcw,
-    Save,
-    SlidersHorizontal,
-    Square,
-    Sun,
-    Timer,
-    UserCheck,
-    X,
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowUpRight,
+  Award,
+  Bell,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Compass,
+  Download,
+  Flag,
+  Hand,
+  HeartPulse,
+  Lock,
+  MapPin,
+  Maximize2,
+  Minimize2,
+  Moon,
+  Navigation,
+  Play,
+  Radio,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  SlidersHorizontal,
+  Square,
+  Sun,
+  Timer,
+  UserCheck,
+  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -52,6 +55,8 @@ interface StudentRow {
   full_name: string;
   email: string;
   gender: string;
+  birth_date: string;
+  ageYears: number;
   hasCompletedPreTest: boolean;
   metrics?: any;
 }
@@ -80,7 +85,7 @@ const POS_ITEMS: {
 }[] = [
   {
     code: "RUN_60M",
-    step: "POS 01",
+    step: "Pos 1",
     shortLabel: "Sprint 60m",
     title: "Lari Cepat 60 Meter",
     subtitle: "Otomatis GPS Berhenti di 60m",
@@ -88,7 +93,7 @@ const POS_ITEMS: {
   },
   {
     code: "PULL_UP",
-    step: "POS 02",
+    step: "Pos 2",
     shortLabel: "Gantung",
     title: "Gantung Angkat / Siku",
     subtitle: "Sinkron Timer 60 Detik",
@@ -96,7 +101,7 @@ const POS_ITEMS: {
   },
   {
     code: "SIT_UP",
-    step: "POS 03",
+    step: "Pos 3",
     shortLabel: "Sit-Up",
     title: "Baring Duduk (Sit-Up)",
     subtitle: "Sinkron Timer 60 Detik",
@@ -104,23 +109,23 @@ const POS_ITEMS: {
   },
   {
     code: "VERTICAL_JUMP",
-    step: "POS 04",
-    shortLabel: "Loncat",
+    step: "Pos 4",
+    shortLabel: "Loncat Tegak",
     title: "Loncat Tegak",
     subtitle: "Selisih Raihan Loncat (cm)",
     mode: "MANUAL_GURU",
   },
   {
     code: "ENDURANCE",
-    step: "POS 05",
-    shortLabel: "1200m / 1000m",
+    step: "Pos 5",
+    shortLabel: "Lari Jauh",
     title: "Lari 1.200m / 1.000m",
     subtitle: "Otomatis GPS Berhenti di Target",
     mode: "AUTO_HP",
   },
   {
     code: "IMT",
-    step: "POS 06",
+    step: "Pos Akhir",
     shortLabel: "IMT (Akhir)",
     title: "Komposisi Tubuh (IMT)",
     subtitle: "Wajib Selesai 5 Pos TKJI Dahulu",
@@ -128,12 +133,57 @@ const POS_ITEMS: {
   },
 ];
 
+function getPosHumanTitle(pos: PosType): string {
+  return POS_ITEMS.find((p) => p.code === pos)?.shortLabel || "Pos Uji";
+}
+
+function getCommandHumanLabel(cmd: string): string {
+  if (cmd === "START") return "Sedang Berlangsung";
+  if (cmd === "READY") return "Panggilan Siap";
+  if (cmd === "STOP") return "Dihentikan";
+  return "Siaga";
+}
+
+function calculateAgeYears(birthDateStr?: string | null): number {
+  if (!birthDateStr) return 16;
+  const birth = new Date(birthDateStr);
+  if (isNaN(birth.getTime())) return 16;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return Math.max(10, Math.min(22, age));
+}
+
+function haversineMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export default function LiveAssessmentStudio() {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -158,6 +208,7 @@ export default function LiveAssessmentStudio() {
 
   const [guruId, setGuruId] = useState<string | null>(null);
   const [classes, setClasses] = useState<any[]>([]);
+  const [gradeFilter, setGradeFilter] = useState<number | "all">("all");
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
   const classDropdownRef = useRef<HTMLDivElement>(null);
@@ -183,6 +234,8 @@ export default function LiveAssessmentStudio() {
 
   const [remedialModalStudent, setRemedialModalStudent] =
     useState<StudentRow | null>(null);
+  const [routeInspectStudent, setRouteInspectStudent] =
+    useState<StudentRow | null>(null);
 
   const [countdown, setCountdown] = useState<number>(60);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
@@ -196,6 +249,7 @@ export default function LiveAssessmentStudio() {
   const studentsRef = useRef<StudentRow[]>([]);
   const calledIdsRef = useRef<string[]>([]);
   const activePosRef = useRef<PosType>("RUN_60M");
+  const commandRef = useRef<string>("STANDBY");
   const dirtyIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -209,6 +263,10 @@ export default function LiveAssessmentStudio() {
   useEffect(() => {
     activePosRef.current = activePos;
   }, [activePos]);
+
+  useEffect(() => {
+    commandRef.current = command;
+  }, [command]);
 
   useEffect(() => {
     dirtyIdsRef.current = dirtyStudentIds;
@@ -235,6 +293,45 @@ export default function LiveAssessmentStudio() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
+  // HEARTBEAT STUDIO LIVE GURU:
+  // Mengirim detak updated_at setiap 8 detik selama Guru membuka menu Live Assessment.
+  // Jika Guru berpindah menu ketika tidak ada siswa yang sedang berlari (command !== "START"),
+  // otomatis tandai sesi sebagai OFFLINE agar banner di Beranda HP siswa langsung hilang.
+  useEffect(() => {
+    if (!selectedClass?.id) return;
+    const targetClassId = selectedClass.id;
+
+    const sendHeartbeat = async () => {
+      const currentCmd =
+        commandRef.current === "OFFLINE" ? "STANDBY" : commandRef.current;
+      await supabase
+        .from("live_sessions")
+        .update({
+          command: currentCmd,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("class_id", targetClassId);
+    };
+
+    const heartbeatInterval = setInterval(sendHeartbeat, 8000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      // Jika tidak sedang dalam aba-aba START lari aktif, matikan banner di HP siswa saat Guru keluar
+      if (commandRef.current !== "START") {
+        supabase
+          .from("live_sessions")
+          .update({
+            command: "OFFLINE",
+            active_student_ids: [],
+            updated_at: new Date().toISOString(),
+          })
+          .eq("class_id", targetClassId)
+          .then(() => {});
+      }
+    };
+  }, [selectedClass?.id]);
+
   const isDark = mounted && resolvedTheme === "dark";
 
   const toggleFullscreen = async () => {
@@ -247,7 +344,6 @@ export default function LiveAssessmentStudio() {
     } catch (_) {}
   };
 
-  // Cek apakah field_status siswa menyatakan SIAP untuk pos yang sedang aktif
   const isFieldStatusReadyForPos = useCallback(
     (fieldStatus: any, targetPos: PosType) => {
       const st = String(fieldStatus || "")
@@ -273,18 +369,25 @@ export default function LiveAssessmentStudio() {
 
       const { data } = await supabase
         .from("classes")
-        .select("id, name, grade_level, class_code, student_classes(count)")
+        .select("id, name, grade_level, created_at, student_classes(count)")
         .eq("guru_id", session.user.id)
-        .order("grade_level", { ascending: false })
+        .order("grade_level", { ascending: true })
         .order("created_at", { ascending: false });
 
       if (data && data.length > 0) {
-        const grade12Classes = data.filter(
-          (c: any) => Number(c.grade_level) === 12
-        );
-        const listToUse = grade12Classes.length > 0 ? grade12Classes : data;
-        setClasses(listToUse);
-        setSelectedClass(listToUse[0]);
+        setClasses(data);
+
+        let initialClass = data[0];
+        if (typeof window !== "undefined") {
+          const urlClassId = new URLSearchParams(window.location.search).get(
+            "classId"
+          );
+          if (urlClassId) {
+            const matched = data.find((c: any) => c.id === urlClassId);
+            if (matched) initialClass = matched;
+          }
+        }
+        setSelectedClass(initialClass);
       } else {
         setIsLoading(false);
       }
@@ -296,6 +399,11 @@ export default function LiveAssessmentStudio() {
       if (debounceReloadRef.current) clearTimeout(debounceReloadRef.current);
     };
   }, []);
+
+  const filteredClassesList = useMemo(() => {
+    if (gradeFilter === "all") return classes;
+    return classes.filter((c) => Number(c.grade_level) === gradeFilter);
+  }, [classes, gradeFilter]);
 
   const isRunPos = activePos === "RUN_60M" || activePos === "ENDURANCE";
   const isTimedManualPos = activePos === "PULL_UP" || activePos === "SIT_UP";
@@ -436,7 +544,7 @@ export default function LiveAssessmentStudio() {
               setReadyIds([]);
             }
             setActivePos(nextPos);
-            setCommand(rec.command || "STANDBY");
+            setCommand(rec.command === "OFFLINE" ? "STANDBY" : rec.command || "STANDBY");
             setRunStartedAtIso(rec.started_at || null);
             setCalledIds(
               Array.isArray(rec.active_student_ids)
@@ -507,7 +615,7 @@ export default function LiveAssessmentStudio() {
           const msg = `${validStudent.full_name} selesai ${posName} dengan waktu ${info.time_label}${distLabel} (Skor ${info.score}/5)`;
 
           triggerDynamicIsland(
-            `FINIS OTOMATIS GPS: ${validStudent.full_name}`,
+            `Finis Otomatis GPS: ${validStudent.full_name}`,
             `${posName} — Waktu ${info.time_label} (Skor ${info.score}/5)`,
             "success"
           );
@@ -607,6 +715,32 @@ export default function LiveAssessmentStudio() {
     return c;
   }
 
+  function hasGpsRouteData(m: any): boolean {
+    if (!m?.run_route_json) return false;
+    if (Array.isArray(m.run_route_json)) return m.run_route_json.length > 0;
+    if (typeof m.run_route_json === "object") {
+      const s = m.run_route_json.sprint_60m;
+      const e = m.run_route_json.endurance_run;
+      return (Array.isArray(s) && s.length > 0) || (Array.isArray(e) && e.length > 0);
+    }
+    if (typeof m.run_route_json === "string") {
+      try {
+        const parsed = JSON.parse(m.run_route_json);
+        if (Array.isArray(parsed)) return parsed.length > 0;
+        if (parsed && typeof parsed === "object") {
+          return (
+            (Array.isArray(parsed.sprint_60m) && parsed.sprint_60m.length > 0) ||
+            (Array.isArray(parsed.endurance_run) && parsed.endurance_run.length > 0)
+          );
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
   async function loadStudioData(classId: string, showSpinner: boolean) {
     if (showSpinner) setIsLoading(true);
     try {
@@ -617,17 +751,31 @@ export default function LiveAssessmentStudio() {
         .maybeSingle();
 
       let currentDetectedPos: PosType = activePosRef.current;
+      const nowIso = new Date().toISOString();
 
       if (sessionRow) {
         currentDetectedPos = (sessionRow.active_pos as PosType) || "RUN_60M";
+        const restoredCommand =
+          sessionRow.command === "OFFLINE"
+            ? "STANDBY"
+            : sessionRow.command || "STANDBY";
         setActivePos(currentDetectedPos);
-        setCommand(sessionRow.command || "STANDBY");
+        setCommand(restoredCommand);
         setRunStartedAtIso(sessionRow.started_at || null);
         setCalledIds(
           Array.isArray(sessionRow.active_student_ids)
             ? sessionRow.active_student_ids
             : []
         );
+
+        // Segarkan updated_at begitu Guru membuka Studio Live agar banner di HP siswa langsung aktif
+        await supabase
+          .from("live_sessions")
+          .update({
+            command: restoredCommand,
+            updated_at: nowIso,
+          })
+          .eq("class_id", classId);
       } else {
         const {
           data: { session },
@@ -638,6 +786,7 @@ export default function LiveAssessmentStudio() {
           active_pos: "RUN_60M",
           command: "STANDBY",
           active_student_ids: [],
+          updated_at: nowIso,
         });
       }
 
@@ -658,7 +807,7 @@ export default function LiveAssessmentStudio() {
       const [profRes, metRes, evalScoreRes, masterEvalRes] = await Promise.all([
         supabase
           .from("user_profiles")
-          .select("id, full_name, email, gender")
+          .select("id, full_name, email, gender, birth_date")
           .in("id", studentIds),
         supabase
           .from("student_physical_metrics")
@@ -711,9 +860,7 @@ export default function LiveAssessmentStudio() {
       (metRes.data || []).forEach((m: any) => {
         if (!latestMetrics[m.student_id]) {
           latestMetrics[m.student_id] = m;
-          if (
-            isFieldStatusReadyForPos(m.field_status, currentDetectedPos)
-          ) {
+          if (isFieldStatusReadyForPos(m.field_status, currentDetectedPos)) {
             detectedReadyIds.push(m.student_id);
           }
         }
@@ -725,6 +872,8 @@ export default function LiveAssessmentStudio() {
       const mergedStudents: StudentRow[] = (profRes.data || []).map(
         (p: any) => {
           const m = latestMetrics[p.id];
+          const resolvedBirthDate =
+            p.birth_date || m?.birth_date || "2009-05-15";
           mappedInputs[p.id] = {
             weight_kg:
               m?.weight_kg && Number(m.weight_kg) > 0 ? m.weight_kg : "",
@@ -742,6 +891,8 @@ export default function LiveAssessmentStudio() {
             full_name: p.full_name || "Siswa",
             email: p.email || "",
             gender: (p.gender || m?.gender || "L").toString().toUpperCase(),
+            birth_date: resolvedBirthDate,
+            ageYears: calculateAgeYears(resolvedBirthDate),
             hasCompletedPreTest: preTestDoneStudentIds.has(p.id),
             metrics: m,
           };
@@ -837,8 +988,28 @@ export default function LiveAssessmentStudio() {
         "error"
       );
     } else if (notifText) {
-      triggerDynamicIsland(`Komando ${nextCmd} · ${nextPos}`, notifText, "info");
+      triggerDynamicIsland(
+        `${getPosHumanTitle(nextPos)} · ${getCommandHumanLabel(nextCmd)}`,
+        notifText,
+        "info"
+      );
     }
+  }
+
+  async function handleExitLiveStudio() {
+    if (selectedClass?.id && commandRef.current !== "START") {
+      try {
+        await supabase
+          .from("live_sessions")
+          .update({
+            command: "OFFLINE",
+            active_student_ids: [],
+            updated_at: new Date().toISOString(),
+          })
+          .eq("class_id", selectedClass.id);
+      } catch (_) {}
+    }
+    router.push("/guru");
   }
 
   function canStudentEnterPos(
@@ -851,7 +1022,7 @@ export default function LiveAssessmentStudio() {
     if (!st.hasCompletedPreTest) {
       return {
         allowed: false,
-        reason: `${st.full_name} belum menyelesaikan Tahap 01 (Pre-Test).`,
+        reason: `${st.full_name} belum menyelesaikan ujian Pre-Test.`,
       };
     }
     if (targetPos === "IMT" && !isAllFiveTkjiDone(st.metrics)) {
@@ -897,11 +1068,10 @@ export default function LiveAssessmentStudio() {
       activePos,
       command === "START" ? "START" : "READY",
       nextList,
-      `Undangan dikirim ke HP & Dashboard ${st.full_name}! Menunggu siswa Angkat Tangan.`
+      `Undangan dikirim ke HP ${st.full_name}! Menunggu siswa Angkat Tangan.`
     );
   }
 
-  // Konfirmasi Hadir Manual oleh Guru (Digunakan jika siswa tidak membawa HP / baterai habis)
   async function toggleManualHandRaise(st: StudentRow) {
     const isAlreadyReady = readyIds.includes(st.student_id);
     const targetFieldStatus = isAlreadyReady ? "NORMAL" : `SIAP_${activePos}`;
@@ -918,12 +1088,12 @@ export default function LiveAssessmentStudio() {
         await supabase
           .from("student_physical_metrics")
           .update({ field_status: targetFieldStatus })
-          .eq("student_id", st.student_id);
+          .eq("id", st.metrics.id);
       } else {
         await supabase.from("student_physical_metrics").insert({
           student_id: st.student_id,
           gender: isMale ? "L" : "P",
-          birth_date: "2009-01-01",
+          birth_date: st.birth_date || "2009-05-15",
           weight_kg: 0,
           height_cm: 0,
           field_status: targetFieldStatus,
@@ -932,7 +1102,7 @@ export default function LiveAssessmentStudio() {
       if (!isAlreadyReady) {
         triggerDynamicIsland(
           `${st.full_name} Dikonfirmasi Siap`,
-          `Kunci otorisasi pos ${activePos} telah dibuka oleh Guru.`,
+          `Kunci penilaian ${getPosHumanTitle(activePos)} telah dibuka oleh Guru.`,
           "success"
         );
       }
@@ -961,7 +1131,7 @@ export default function LiveAssessmentStudio() {
       activePos,
       "READY",
       nextList,
-      `Mode REMEDIAL dibuka untuk ${st.full_name}! Siswa wajib Angkat Tangan kembali.`
+      `Mode Remedial dibuka untuk ${st.full_name}! Siswa wajib Angkat Tangan kembali.`
     );
     if (selectedClass?.id) loadStudioData(selectedClass.id, false);
   }
@@ -972,7 +1142,7 @@ export default function LiveAssessmentStudio() {
       activePos,
       "READY",
       calledIds,
-      "FALSE START! Stopwatch seluruh siswa di gelombang ini di-reset ke 00.0!",
+      "Stopwatch seluruh siswa di gelombang ini di-reset ke 00.0!",
       true
     );
   }
@@ -996,7 +1166,7 @@ export default function LiveAssessmentStudio() {
       await supabase.from("student_physical_metrics").insert({
         student_id: st.student_id,
         gender: isMale ? "L" : "P",
-        birth_date: "2009-01-01",
+        birth_date: st.birth_date || "2009-05-15",
         weight_kg: 0,
         height_cm: 0,
         field_status: "MEDIS_TUNDA",
@@ -1032,7 +1202,9 @@ export default function LiveAssessmentStudio() {
       const msg =
         activePos === "IMT"
           ? "Belum ada siswa yang menuntaskan seluruh 5 Pos TKJI untuk diukur IMT!"
-          : `Tidak ada siswa di antrean yang memenuhi syarat Pre-Test pada ${activePos}!`;
+          : `Tidak ada siswa di antrean yang memenuhi syarat pada ${getPosHumanTitle(
+              activePos
+            )}!`;
       triggerDynamicIsland("Antrean Pos Kosong", msg, "error");
       return;
     }
@@ -1042,7 +1214,9 @@ export default function LiveAssessmentStudio() {
       activePos,
       "READY",
       nextFiveIds,
-      `Panggilan dikirim ke ${nextFiveIds.length} siswa untuk ${activePos}! Menunggu siswa Angkat Tangan.`
+      `Panggilan dikirim ke ${nextFiveIds.length} siswa untuk ${getPosHumanTitle(
+        activePos
+      )}! Menunggu siswa Angkat Tangan.`
     );
   }
 
@@ -1053,7 +1227,9 @@ export default function LiveAssessmentStudio() {
       const msg =
         activePos === "IMT"
           ? "Belum ada siswa yang menyelesaikan 5 Pos TKJI untuk dipanggil ke Pos IMT!"
-          : `Tidak ada siswa yang memenuhi syarat pada ${activePos}!`;
+          : `Tidak ada siswa yang memenuhi syarat pada ${getPosHumanTitle(
+              activePos
+            )}!`;
       triggerDynamicIsland("Antrean Pos Kosong", msg, "error");
       return;
     }
@@ -1063,7 +1239,9 @@ export default function LiveAssessmentStudio() {
       activePos,
       "READY",
       eligibleIds,
-      `Memanggil ${eligibleIds.length} siswa sekaligus pada ${activePos}! Menunggu siswa Angkat Tangan.`
+      `Memanggil ${eligibleIds.length} siswa sekaligus pada ${getPosHumanTitle(
+        activePos
+      )}! Menunggu siswa Angkat Tangan.`
     );
   }
 
@@ -1119,6 +1297,7 @@ export default function LiveAssessmentStudio() {
 
   function computeTkjiAndBmi(st: StudentRow, rawInput: any) {
     const isMale = st.gender === "L" || st.gender.includes("PUTRA");
+    const isYoungerGroup = st.ageYears <= 15;
     const m = st.metrics || {};
 
     const weight = Math.max(
@@ -1149,27 +1328,45 @@ export default function LiveAssessmentStudio() {
     let s1 = m.run_60m_score || 0;
     if (run60 > 0) {
       if (isMale) {
-        s1 =
-          run60 <= 7.2
+        s1 = isYoungerGroup
+          ? run60 <= 7.7
             ? 5
-            : run60 <= 8.3
+            : run60 <= 8.7
             ? 4
-            : run60 <= 9.6
+            : run60 <= 9.9
             ? 3
-            : run60 <= 11.0
+            : run60 <= 11.1
             ? 2
-            : 1;
+            : 1
+          : run60 <= 7.2
+          ? 5
+          : run60 <= 8.3
+          ? 4
+          : run60 <= 9.6
+          ? 3
+          : run60 <= 11.0
+          ? 2
+          : 1;
       } else {
-        s1 =
-          run60 <= 8.4
+        s1 = isYoungerGroup
+          ? run60 <= 8.6
             ? 5
             : run60 <= 9.8
             ? 4
-            : run60 <= 11.4
+            : run60 <= 11.5
             ? 3
             : run60 <= 13.4
             ? 2
-            : 1;
+            : 1
+          : run60 <= 8.4
+          ? 5
+          : run60 <= 9.8
+          ? 4
+          : run60 <= 11.4
+          ? 3
+          : run60 <= 13.4
+          ? 2
+          : 1;
       }
     }
 
@@ -1181,7 +1378,25 @@ export default function LiveAssessmentStudio() {
     ) {
       const pu = Math.max(0, parseInt(rawInput.pull_up_count, 10));
       if (!isNaN(pu)) {
-        s2 = pu >= 19 ? 5 : pu >= 14 ? 4 : pu >= 9 ? 3 : pu >= 5 ? 2 : 1;
+        s2 = isYoungerGroup
+          ? pu >= 16
+            ? 5
+            : pu >= 11
+            ? 4
+            : pu >= 6
+            ? 3
+            : pu >= 2
+            ? 2
+            : 1
+          : pu >= 19
+          ? 5
+          : pu >= 14
+          ? 4
+          : pu >= 9
+          ? 3
+          : pu >= 5
+          ? 2
+          : 1;
       }
     } else if (
       !isMale &&
@@ -1199,7 +1414,25 @@ export default function LiveAssessmentStudio() {
       const su = Math.max(0, parseInt(rawInput.sit_up_count, 10));
       if (!isNaN(su)) {
         if (isMale) {
-          s3 = su >= 41 ? 5 : su >= 30 ? 4 : su >= 21 ? 3 : su >= 10 ? 2 : 1;
+          s3 = isYoungerGroup
+            ? su >= 38
+              ? 5
+              : su >= 28
+              ? 4
+              : su >= 19
+              ? 3
+              : su >= 8
+              ? 2
+              : 1
+            : su >= 41
+            ? 5
+            : su >= 30
+            ? 4
+            : su >= 21
+            ? 3
+            : su >= 10
+            ? 2
+            : 1;
         } else {
           s3 = su >= 28 ? 5 : su >= 20 ? 4 : su >= 10 ? 3 : su >= 3 ? 2 : 1;
         }
@@ -1214,7 +1447,25 @@ export default function LiveAssessmentStudio() {
       const vj = Math.max(0, parseInt(rawInput.vertical_jump_cm, 10));
       if (!isNaN(vj)) {
         if (isMale) {
-          s4 = vj >= 73 ? 5 : vj >= 60 ? 4 : vj >= 50 ? 3 : vj >= 39 ? 2 : 1;
+          s4 = isYoungerGroup
+            ? vj >= 66
+              ? 5
+              : vj >= 53
+              ? 4
+              : vj >= 42
+              ? 3
+              : vj >= 31
+              ? 2
+              : 1
+            : vj >= 73
+            ? 5
+            : vj >= 60
+            ? 4
+            : vj >= 50
+            ? 3
+            : vj >= 39
+            ? 2
+            : 1;
         } else {
           s4 = vj >= 50 ? 5 : vj >= 39 ? 4 : vj >= 31 ? 3 : vj >= 23 ? 2 : 1;
         }
@@ -1263,9 +1514,11 @@ export default function LiveAssessmentStudio() {
     }
 
     const totalTkji = s1 + s2 + s3 + s4 + s5;
-    const hasAnyTkjiPos = totalTkji > 0;
-    const tkjiCategory = !hasAnyTkjiPos
-      ? null
+    const allFiveTkjiComplete = Boolean(
+      s1 > 0 && s2 > 0 && s3 > 0 && s4 > 0 && s5 > 0
+    );
+    const tkjiCategory = !allFiveTkjiComplete
+      ? m.tkji_category ?? null
       : totalTkji >= 22
       ? "Baik Sekali"
       : totalTkji >= 18
@@ -1276,9 +1529,6 @@ export default function LiveAssessmentStudio() {
       ? "Kurang"
       : "Kurang Sekali";
 
-    const allFiveTkjiComplete = Boolean(
-      s1 > 0 && s2 > 0 && s3 > 0 && s4 > 0 && s5 > 0
-    );
     const allSixComplete = Boolean(allFiveTkjiComplete && bmi != null);
 
     return {
@@ -1292,7 +1542,7 @@ export default function LiveAssessmentStudio() {
       s4,
       s5,
       endStr: normalizedEndStr || null,
-      totalTkji: hasAnyTkjiPos ? totalTkji : null,
+      totalTkji: totalTkji > 0 ? totalTkji : null,
       tkjiCategory,
       allFiveTkjiComplete,
       allSixComplete,
@@ -1300,7 +1550,6 @@ export default function LiveAssessmentStudio() {
   }
 
   async function handleSaveStudent(st: StudentRow, overrideInput?: any) {
-    // GERBANG OTORISASI: Jika siswa ada di gelombang aktif namun belum Angkat Tangan, tolak penyimpanan!
     if (calledIds.includes(st.student_id) && !readyIds.includes(st.student_id)) {
       triggerDynamicIsland(
         "Siswa Belum Angkat Tangan",
@@ -1327,7 +1576,7 @@ export default function LiveAssessmentStudio() {
     const payload: any = {
       student_id: st.student_id,
       gender: isMale ? "L" : "P",
-      birth_date: st.metrics?.birth_date || "2009-01-01",
+      birth_date: st.birth_date || st.metrics?.birth_date || "2009-05-15",
       weight_kg: calc.weight,
       height_cm: calc.height,
       calculated_bmi: calc.bmi,
@@ -1373,7 +1622,7 @@ export default function LiveAssessmentStudio() {
       ? await supabase
           .from("student_physical_metrics")
           .update(payload)
-          .eq("student_id", st.student_id)
+          .eq("id", st.metrics.id)
           .select("*")
           .limit(1)
           .maybeSingle()
@@ -1408,20 +1657,20 @@ export default function LiveAssessmentStudio() {
 
       if (calc.allSixComplete) {
         const statusLabel = st.metrics?.is_remedial
-          ? `REMEDIAL #${st.metrics?.attempt_count || 2} (Skor Awal: ${
+          ? `Remedial #${st.metrics?.attempt_count || 2} (Skor Awal: ${
               st.metrics?.original_tkji_score ?? "-"
             })`
-          : "MURNI · ASLI";
+          : "Tuntas Murni";
         const msg = `Seluruh 6 Pos ${st.full_name} Selesai! Total TKJI: ${calc.totalTkji}/25 [${calc.tkjiCategory} · ${statusLabel}] & IMT: ${calc.bmi} (${calc.bmiCategory}) telah tampil di HP siswa!`;
         setCelebrationBanner(msg);
         triggerDynamicIsland(
-          `TUNTAS 6/6 POS: ${st.full_name}`,
+          `Tuntas 6 Pos: ${st.full_name}`,
           `TKJI ${calc.totalTkji}/25 (${calc.tkjiCategory}) · IMT ${calc.bmi}`,
           "success"
         );
       } else {
         triggerDynamicIsland(
-          `Nilai ${activePos} Tersimpan`,
+          `Nilai ${getPosHumanTitle(activePos)} Tersimpan`,
           `${st.full_name} telah dipindahkan dari gelombang aktif.`,
           "success"
         );
@@ -1438,6 +1687,7 @@ export default function LiveAssessmentStudio() {
     const headers = [
       "Nama Siswa",
       "L/P",
+      "Usia (Thn)",
       "Lari 60m (dtk)",
       "Skor Lari 60m",
       "Gantung (rep/dtk)",
@@ -1454,14 +1704,19 @@ export default function LiveAssessmentStudio() {
       "Tinggi (cm)",
       "IMT",
       "Kategori IMT",
+      "Titik GPS",
       "Status Lapangan",
     ];
     const rows = students.map((st) => {
       const m = st.metrics || {};
       const isMale = st.gender === "L" || st.gender.includes("PUTRA");
+      const gpsPoints = Array.isArray(m.run_route_json)
+        ? m.run_route_json.length
+        : 0;
       return [
         `"${st.full_name.replace(/"/g, '""')}"`,
         isMale ? "L" : "P",
+        st.ageYears,
         m.run_60m_sec ?? "-",
         m.run_60m_score ?? "-",
         isMale ? m.pull_up_count ?? "-" : m.bent_arm_hang_sec ?? "-",
@@ -1478,6 +1733,7 @@ export default function LiveAssessmentStudio() {
         m.height_cm ?? "-",
         m.calculated_bmi ?? "-",
         `"${m.bmi_category || "-"}"`,
+        gpsPoints,
         `"${m.field_status || "NORMAL"}"`,
       ];
     });
@@ -1502,6 +1758,93 @@ export default function LiveAssessmentStudio() {
       "success"
     );
   };
+
+  const inspectedRouteTelemetry = useMemo(() => {
+    if (!routeInspectStudent) return null;
+    let raw = routeInspectStudent.metrics?.run_route_json;
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        raw = [];
+      }
+    }
+
+    let sourceList: any[] = [];
+    if (Array.isArray(raw)) {
+      sourceList = raw;
+    } else if (raw && typeof raw === "object") {
+      if (
+        Array.isArray(raw.endurance_run) &&
+        raw.endurance_run.length > 0
+      ) {
+        sourceList = raw.endurance_run;
+      } else if (
+        Array.isArray(raw.sprint_60m) &&
+        raw.sprint_60m.length > 0
+      ) {
+        sourceList = raw.sprint_60m;
+      }
+    }
+
+    let pts: { lat: number; lng: number; timestamp?: number; speed?: number }[] =
+      sourceList
+        .map((item: any) => {
+          if (Array.isArray(item) && item.length >= 2) {
+            return { lat: Number(item[0]), lng: Number(item[1]) };
+          }
+          return {
+            lat: Number(item?.lat ?? item?.latitude ?? 0),
+            lng: Number(item?.lng ?? item?.lon ?? item?.longitude ?? 0),
+            timestamp: item?.timestamp ? Number(item.timestamp) : undefined,
+            speed: item?.speed ? Number(item.speed) : undefined,
+          };
+        })
+        .filter((p) => !isNaN(p.lat) && !isNaN(p.lng) && p.lat !== 0);
+
+    let totalDistanceM = 0;
+    for (let i = 1; i < pts.length; i++) {
+      totalDistanceM += haversineMeters(
+        pts[i - 1].lat,
+        pts[i - 1].lng,
+        pts[i].lat,
+        pts[i].lng
+      );
+    }
+
+    let svgPath = "";
+    let svgCircles: { x: number; y: number; idx: number }[] = [];
+
+    if (pts.length >= 2) {
+      const lats = pts.map((p) => p.lat);
+      const lngs = pts.map((p) => p.lng);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+
+      const latSpan = Math.max(0.00005, maxLat - minLat);
+      const lngSpan = Math.max(0.00005, maxLng - minLng);
+
+      svgCircles = pts.map((p, idx) => {
+        const x = 28 + ((p.lng - minLng) / lngSpan) * 304;
+        const y = 172 - ((p.lat - minLat) / latSpan) * 144;
+        return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), idx };
+      });
+
+      svgPath = svgCircles
+        .map((c, idx) => `${idx === 0 ? "M" : "L"} ${c.x} ${c.y}`)
+        .join(" ");
+    }
+
+    return {
+      pointCount: pts.length,
+      totalDistanceM: Number(totalDistanceM.toFixed(1)),
+      svgPath,
+      svgCircles,
+      rawPoints: pts,
+    };
+  }, [routeInspectStudent]);
 
   const classAvgTkji = useMemo(() => {
     const scored = students.filter(
@@ -1551,7 +1894,6 @@ export default function LiveAssessmentStudio() {
     const isCalled = zone === "CALLED";
     const isReadyHandRaised = readyIds.includes(st.student_id);
     const isLockedByActiveWave = hasActiveWave && !isCalled;
-    // PENGUNCIAN ANGKAT TANGAN: Jika siswa berada di gelombang aktif tapi belum angkat tangan, kunci inputnya!
     const isLockedByUnraisedHand = isCalled && !isReadyHandRaised;
     const isMale = st.gender === "L" || st.gender.includes("PUTRA");
     const inp = inputs[st.student_id] || {};
@@ -1562,6 +1904,7 @@ export default function LiveAssessmentStudio() {
     const isRemedial = Boolean(m.is_remedial);
     const isMedis = m.field_status === "MEDIS_TUNDA";
     const isImtLockedForStudent = activePos === "IMT" && !allFiveTkji;
+    const hasRoute = hasGpsRouteData(m);
 
     return (
       <div
@@ -1609,7 +1952,7 @@ export default function LiveAssessmentStudio() {
               <div className="text-2xl font-light tracking-tight flex flex-wrap items-center gap-3">
                 <span className="font-semibold">{st.full_name}</span>
                 <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-                  · {isMale ? "PUTRA (L)" : "PUTRI (P)"}
+                  · {isMale ? "Putra (L)" : "Putri (P)"} · {st.ageYears} Thn
                 </span>
 
                 {isCalled && (
@@ -1634,22 +1977,22 @@ export default function LiveAssessmentStudio() {
 
                 {isMedis ? (
                   <span className="text-xs font-bold font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-md badge-tint-rose">
-                    TUNDA MEDIS ({doneCount}/6 POS)
+                    Tunda Medis ({doneCount}/6 Pos)
                   </span>
                 ) : allComplete ? (
                   isRemedial ? (
                     <span className="text-xs font-bold font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-md badge-tint-amber">
-                      REMEDIAL #{m.attempt_count || 2} (AWAL:{" "}
+                      Remedial #{m.attempt_count || 2} (Awal:{" "}
                       {m.original_tkji_score ?? "-"})
                     </span>
                   ) : (
-                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-accent flex items-center gap-1">
+                    <span className="text-xs font-bold uppercase tracking-widest text-gold-accent flex items-center gap-1">
                       · <CheckCircle2 size={14} /> Tuntas Murni
                     </span>
                   )
                 ) : (
                   <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-                    · PROGRES {doneCount}/6 POS
+                    · Progres {doneCount}/6 Pos
                   </span>
                 )}
               </div>
@@ -1669,16 +2012,27 @@ export default function LiveAssessmentStudio() {
                           : "edufit-surface-subtle opacity-60"
                       }`}
                     >
-                      {p.shortLabel}: {done ? "SELESAI" : "—"}
+                      {p.shortLabel}: {done ? "Selesai" : "—"}
                     </span>
                   );
                 })}
                 <span className="text-xs font-semibold opacity-75 ml-1">
                   · Total TKJI:{" "}
-                  <strong className="text-emerald-accent font-mono">
+                  <strong className="text-gold-accent font-mono">
                     {m.total_tkji_score ?? 0}/25 ({m.tkji_category ?? "Belum"})
                   </strong>
                 </span>
+                {(hasRoute || m.run_60m_sec || m.endurance_run_min_sec) && (
+                  <button
+                    type="button"
+                    onClick={() => setRouteInspectStudent(st)}
+                    className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg inline-flex items-center gap-1 cursor-pointer edufit-card-primary hover:scale-105 transition-transform"
+                    title="Lihat Peta Lintasan GPS Lari Siswa"
+                  >
+                    <Navigation size={11} className="text-gold-accent" />
+                    {hasRoute ? "Jejak GPS" : "Catatan Lari"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1966,13 +2320,13 @@ export default function LiveAssessmentStudio() {
         )}
       </AnimatePresence>
 
-      {/* ZONA 1: ARCHITECTURAL HERO HEADER */}
+      {/* ZONA 1: HERO HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-30">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-2.5 mb-6">
             <button
               type="button"
-              onClick={() => router.push("/guru")}
+              onClick={handleExitLiveStudio}
               className="px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer edufit-card-primary"
             >
               <ArrowLeft size={15} /> Ruang Guru
@@ -1985,7 +2339,7 @@ export default function LiveAssessmentStudio() {
             >
               {isFullscreen ? (
                 <>
-                  <Minimize2 size={14} /> Normal
+                  <Minimize2 size={14} /> Layar Normal
                 </>
               ) : (
                 <>
@@ -2036,17 +2390,15 @@ export default function LiveAssessmentStudio() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-3 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / STUDIO TELEMETRI TKJI LIVE
+            <span className="text-gold-accent">
+              Studio Pengukuran Kebugaran Jasmani (TKJI)
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5 font-mono">
-              <Radio size={15} className="text-emerald-accent animate-pulse" />
+              <Radio size={15} className="text-gold-accent animate-pulse" />
               {selectedClass
-                ? `${selectedClass.name} (KELAS ${
-                    selectedClass.grade_level
-                  }) · KODE ${selectedClass.class_code || "-"}`
-                : "PENGUJIAN FISIK REAL-TIME"}
+                ? `${selectedClass.name} (Kelas ${selectedClass.grade_level})`
+                : "Pengujian Fisik Real-Time"}
             </span>
           </div>
 
@@ -2064,15 +2416,15 @@ export default function LiveAssessmentStudio() {
               {calledIds.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Dipanggil
+              Siswa Dipanggil
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-mono font-light tracking-tighter leading-none text-emerald-accent">
+            <div className="text-7xl md:text-8xl font-mono font-light tracking-tighter leading-none text-gold-accent">
               {calledReadyCount}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Angkat Tangan
+              Sudah Angkat Tangan
             </div>
           </div>
           <div>
@@ -2080,7 +2432,7 @@ export default function LiveAssessmentStudio() {
               {completedStudentsList.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Tuntas 6/6 Pos
+              Tuntas 6 Pos
             </div>
           </div>
         </div>
@@ -2091,22 +2443,22 @@ export default function LiveAssessmentStudio() {
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Status Sesi</span>
-            <span className="font-mono">{activePos}</span>
+            <span className="font-mono">{getPosHumanTitle(activePos)}</span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
-            <span className="text-2xl font-mono font-light tracking-tight">
-              {command}
+            <span className="text-xl font-mono font-light tracking-tight">
+              {getCommandHumanLabel(command)}
             </span>
             <span className="text-[11px] font-bold font-mono uppercase tracking-wider text-gold-accent">
-              LIVE SYNC
+              SINKRON HP
             </span>
           </div>
         </div>
 
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Otorisasi Angkat Tangan</span>
-            <span className="font-mono">WAJIB CHECK-IN</span>
+            <span>Konfirmasi Kehadiran</span>
+            <span className="font-mono">ANGKAT TANGAN</span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-gold">
             <span className="text-2xl font-mono font-semibold tracking-tight">
@@ -2120,7 +2472,7 @@ export default function LiveAssessmentStudio() {
 
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Ketuntasan {activePos}</span>
+            <span>Ketuntasan {getPosHumanTitle(activePos)}</span>
             <span className="font-mono">
               {currentPosDoneCount} DARI {students.length} SISWA
             </span>
@@ -2139,11 +2491,11 @@ export default function LiveAssessmentStudio() {
 
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Rata-rata TKJI</span>
+            <span>Rata-Rata TKJI</span>
             <span className="font-mono">SKALA 25</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-mono font-light tracking-tight text-emerald-accent">
+            <span className="text-2xl font-mono font-light tracking-tight text-gold-accent">
               {classAvgTkji}/25
             </span>
           </div>
@@ -2161,9 +2513,8 @@ export default function LiveAssessmentStudio() {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1.5">
-                <div className="text-xs font-bold font-mono uppercase tracking-widest flex items-center gap-2">
-                  <Award size={16} /> TELEMETRY FEED · FINIS OTOMATIS GPS DARI
-                  PERANGKAT SISWA
+                <div className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <Award size={16} /> Laporan Finis Otomatis dari HP Siswa
                 </div>
                 {celebrationBanner && (
                   <p className="text-sm font-bold">{celebrationBanner}</p>
@@ -2194,13 +2545,12 @@ export default function LiveAssessmentStudio() {
 
       {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1 (PATTERN POLKADOT): MANAJEMEN GELOMBANG */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[400px] edufit-card-primary">
+        {/* BENTO 1: MANAJEMEN GELOMBANG */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55 mb-3">
-              <span className="font-mono">01 /</span>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
               <SlidersHorizontal size={14} />
               <span>Kontrol Antrean Lapangan</span>
             </div>
@@ -2208,14 +2558,53 @@ export default function LiveAssessmentStudio() {
             <h2 className="text-3xl font-light tracking-tight mb-2">
               Manajemen Gelombang
             </h2>
-            <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
-              Pilih kelas dan panggil gelombang siswa yang sudah lulus Pre-Test
-              ke lapangan.
+            <p className="text-sm mb-4 leading-relaxed font-medium opacity-55">
+              Pilih kelas dan panggil gelombang siswa yang sudah menyelesaikan
+              Pre-Test ke lapangan.
             </p>
 
-            <div className="relative w-full mb-8" ref={classDropdownRef}>
-              <label className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-1">
-                KELAS YANG SEDANG DIUJI
+            <div className="flex gap-1.5 p-1.5 rounded-2xl mb-4 edufit-surface-subtle">
+              {[
+                { val: "all", label: "Semua" },
+                { val: 10, label: "Kelas 10" },
+                { val: 11, label: "Kelas 11" },
+                { val: 12, label: "Kelas 12" },
+              ].map((g) => {
+                const active = gradeFilter === g.val;
+                return (
+                  <button
+                    key={String(g.val)}
+                    type="button"
+                    onClick={() => {
+                      setGradeFilter(g.val as any);
+                      const list =
+                        g.val === "all"
+                          ? classes
+                          : classes.filter(
+                              (c) => Number(c.grade_level) === g.val
+                            );
+                      if (
+                        list.length > 0 &&
+                        (!selectedClass ||
+                          (g.val !== "all" &&
+                            Number(selectedClass.grade_level) !== g.val))
+                      ) {
+                        setSelectedClass(list[0]);
+                      }
+                    }}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative w-full mb-6" ref={classDropdownRef}>
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1">
+                Kelas yang Sedang Diuji ({filteredClassesList.length} Rombel)
               </label>
               <button
                 type="button"
@@ -2246,12 +2635,12 @@ export default function LiveAssessmentStudio() {
                     transition={{ duration: 0.18 }}
                     className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
-                    {classes.length === 0 ? (
+                    {filteredClassesList.length === 0 ? (
                       <div className="p-5 text-sm opacity-55 text-center">
-                        Belum ada kelas terdaftar pada akun Guru ini.
+                        Belum ada kelas pada jenjang ini.
                       </div>
                     ) : (
-                      classes.map((cls: any) => {
+                      filteredClassesList.map((cls: any) => {
                         const isSelected = selectedClass?.id === cls.id;
                         return (
                           <button
@@ -2270,8 +2659,7 @@ export default function LiveAssessmentStudio() {
                                 {cls.name}
                               </span>
                               <span className="text-xs font-mono opacity-60">
-                                KELAS {cls.grade_level} · KODE:{" "}
-                                {cls.class_code || "-"}
+                                Kelas {cls.grade_level}
                               </span>
                             </div>
                             {isSelected && (
@@ -2322,19 +2710,19 @@ export default function LiveAssessmentStudio() {
           </div>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): PILIH POS PENGUKURAN AKTIF */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-secondary">
+        {/* BENTO 2: PILIH POS PENGUKURAN AKTIF */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10 mb-4">
             <div>
-              <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-                <span className="font-mono">02 /</span>
+              <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
                 <Activity size={15} />
-                <span>Urutan Pos (TKJI 01–05 Lalu IMT 06)</span>
+                <span>Daftar Pos Pengukuran TKJI & IMT</span>
               </div>
               <p className="text-xs opacity-55 mt-1">
-                Siswa wajib menyelesaikan Pos 01 s.d. 05 sebelum Pos 06 (IMT).
+                Siswa menyelesaikan 5 Pos TKJI terlebih dahulu sebelum Pos Akhir
+                (IMT).
               </p>
             </div>
           </div>
@@ -2358,7 +2746,7 @@ export default function LiveAssessmentStudio() {
                       pos.code,
                       "STANDBY",
                       [],
-                      `Berpindah ke ${pos.title}. Gelombang di-reset untuk pos baru.`
+                      `Berpindah ke ${pos.title}. Gelombang disiapkan untuk pos baru.`
                     );
                   }}
                   className={`p-4 rounded-2xl text-left transition-all cursor-pointer flex flex-col justify-between min-h-[96px] ${
@@ -2381,7 +2769,7 @@ export default function LiveAssessmentStudio() {
                       {pos.mode === "AUTO_HP"
                         ? "Otomatis GPS HP"
                         : pos.code === "IMT"
-                        ? "Tahap Akhir (Pos 06)"
+                        ? "Tahap Akhir"
                         : "Input Guru"}
                     </div>
                   </div>
@@ -2391,24 +2779,23 @@ export default function LiveAssessmentStudio() {
           </div>
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR GAUGE): STOPWATCH & TIMER */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-primary">
+        {/* BENTO 3: STOPWATCH & TIMER */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Timer size={15} />
               <span>
                 {isRunPos
-                  ? "Master Telemetry Stopwatch"
+                  ? "Stopwatch Utama Lari"
                   : isTimedManualPos
                   ? "Timer Pos 60 Detik"
-                  : "Status Pos Input"}
+                  : "Progres Pengukuran Pos"}
               </span>
             </div>
-            <span className="text-xs font-mono font-bold text-emerald-accent">
-              {calledReadyCount}/{calledIds.length} SIAP
+            <span className="text-xs font-mono font-bold text-gold-accent">
+              {calledReadyCount}/{calledIds.length} Siap
             </span>
           </div>
 
@@ -2428,21 +2815,23 @@ export default function LiveAssessmentStudio() {
               progressPct = currentPosCompletionPct;
             }
             const dashOffset =
-              circumference - (Math.max(8, progressPct) / 100) * circumference;
+              progressPct <= 0
+                ? circumference
+                : circumference - (progressPct / 100) * circumference;
 
             const bottomLabelText = isRunPos
               ? command === "START"
                 ? "Sedang Berlari (Pelacakan Jarak GPS HP Siswa)"
                 : calledReadyCount === 0
-                ? "START Terkunci · Tunggu Siswa Angkat Tangan"
-                : `${calledReadyCount} Siswa Sudah Kunci GPS & Siap START`
+                ? "Tombol Mulai Terkunci · Tunggu Siswa Angkat Tangan"
+                : `${calledReadyCount} Siswa Sudah Kunci GPS & Siap Mulai`
               : isTimedManualPos
               ? isTimerRunning
                 ? "Hitung Mundur 60 Detik Berjalan"
                 : calledReadyCount === 0
                 ? "Timer Terkunci · Tunggu Siswa Angkat Tangan"
                 : `${calledReadyCount} Siswa Siap Mulai 60 Detik`
-              : `Ketuntasan Pengukuran ${activePos}`;
+              : `Ketuntasan Pengukuran ${getPosHumanTitle(activePos)}`;
 
             return (
               <div className="relative flex flex-col items-center justify-center my-2 z-10">
@@ -2457,21 +2846,19 @@ export default function LiveAssessmentStudio() {
                       strokeDasharray="2 5"
                       className="gauge-circle-track"
                     />
-                    <circle
-                      cx="70"
-                      cy="70"
-                      r={radius}
-                      fill="none"
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={dashOffset}
-                      className={`transition-all duration-300 ${
-                        command === "START" || isTimerRunning
-                          ? "gauge-circle-emerald"
-                          : "gauge-circle-gold"
-                      }`}
-                    />
+                    {progressPct > 0 && (
+                      <circle
+                        cx="70"
+                        cy="70"
+                        r={radius}
+                        fill="none"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={dashOffset}
+                        className="transition-all duration-300 gauge-circle-gold"
+                      />
+                    )}
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="text-4xl font-mono font-light tracking-tighter leading-none">
@@ -2498,25 +2885,24 @@ export default function LiveAssessmentStudio() {
                   onClick={() => {
                     if (calledReadyIds.length === 0) {
                       triggerDynamicIsland(
-                        "START Terkunci",
-                        "Minimal 1 siswa di gelombang aktif wajib Angkat Tangan (kunci GPS) terlebih dahulu.",
+                        "Belum Ada Siswa Siap",
+                        "Minimal 1 siswa di gelombang aktif wajib Angkat Tangan terlebih dahulu.",
                         "error"
                       );
                       return;
                     }
-                    // Hanya siswa yang sudah Angkat Tangan (GPS Ready) yang diikutkan dalam START!
                     broadcastSession(
                       activePos,
                       "START",
                       calledReadyIds,
-                      `START! Pelacakan GPS & Stopwatch aktif untuk ${calledReadyIds.length} siswa yang siap!`,
+                      `Pelacakan GPS & Stopwatch dimulai untuk ${calledReadyIds.length} siswa yang siap!`,
                       true
                     );
                   }}
                   disabled={calledReadyCount === 0}
                   className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest disabled:opacity-30 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm btn-forest-emerald"
                 >
-                  <Play size={14} /> START ({calledReadyCount})
+                  <Play size={14} /> Mulai ({calledReadyCount})
                 </button>
                 <button
                   type="button"
@@ -2524,7 +2910,7 @@ export default function LiveAssessmentStudio() {
                   disabled={calledIds.length === 0}
                   className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest disabled:opacity-30 cursor-pointer flex items-center justify-center gap-1.5 edufit-surface-subtle"
                 >
-                  <RotateCcw size={14} /> ULANG
+                  <RotateCcw size={14} /> Ulang
                 </button>
                 <button
                   type="button"
@@ -2538,7 +2924,7 @@ export default function LiveAssessmentStudio() {
                   }
                   className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer flex items-center justify-center gap-1.5 badge-tint-rose"
                 >
-                  <Square size={14} /> STOP
+                  <Square size={14} /> Stop
                 </button>
               </div>
             ) : isTimedManualPos ? (
@@ -2604,14 +2990,14 @@ export default function LiveAssessmentStudio() {
       {calledStudentsList.length > 0 && (
         <div className="rounded-[2rem] mb-8 overflow-hidden shadow-lg relative z-10 edufit-card-primary bento-showcase-selected">
           <div className="px-8 py-4 flex flex-wrap items-center justify-between gap-2 telemetry-bar-gold">
-            <div className="text-xs font-bold font-mono uppercase tracking-widest flex items-center gap-2">
+            <div className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
               <Radio size={15} className="animate-pulse" />
-              04 / GELOMBANG AKTIF ({calledStudentsList.length} DIPANGGIL ·{" "}
-              {calledReadyCount} SUDAH ANGKAT TANGAN)
+              Gelombang Aktif ({calledStudentsList.length} Dipanggil ·{" "}
+              {calledReadyCount} Sudah Angkat Tangan)
             </div>
             <span className="text-xs font-bold">
-              Siswa wajib Angkat Tangan di HP agar GPS terkunci & input nilai
-              terbuka
+              Siswa wajib menekan Angkat Tangan di HP agar GPS terkunci & kolom
+              input nilai terbuka
             </span>
           </div>
           <div className="divide-y divide-black/5 dark:divide-white/5">
@@ -2623,18 +3009,18 @@ export default function LiveAssessmentStudio() {
       )}
 
       <div className="rounded-[2rem] mb-10 overflow-hidden relative z-10 edufit-card-primary">
-        <div className="px-8 py-6 border-b border-hairline flex items-center justify-between">
+        <div className="px-8 py-6 border-b border-hairline flex flex-wrap items-center justify-between gap-2">
           <div>
-            <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 block mb-1">
-              05 / DAFTAR TUNGGU POS AKTIF
+            <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-1">
+              Daftar Tunggu Pos Pengukuran
             </span>
             <h3 className="text-3xl font-light tracking-tight">
               Antrean Siswa ({queueStudentsList.length})
             </h3>
           </div>
           {hasActiveWave && (
-            <span className="text-xs font-bold font-mono opacity-55 flex items-center gap-1.5">
-              <Lock size={13} /> INPUT DIKUNCI SELAMA GELOMBANG AKTIF BERJALAN
+            <span className="text-xs font-bold opacity-55 flex items-center gap-1.5">
+              <Lock size={13} /> Input dikunci selama gelombang aktif berjalan
             </span>
           )}
         </div>
@@ -2656,20 +3042,20 @@ export default function LiveAssessmentStudio() {
         )}
       </div>
 
-      {/* ZONA 5: GRID KARTU BESAR PASTEL / DEEP FOREST UNTUK SISWA TUNTAS 6/6 POS */}
+      {/* ZONA 5: GRID KARTU SISWA TUNTAS SELURUH 6 POS */}
       {completedStudentsList.length > 0 && (
         <div className="space-y-6 relative z-10">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 block mb-1">
-                06 / REKAPITULASI TUNTAS FISIK
+              <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-1">
+                Rekapitulasi Ketuntasan Fisik
               </span>
               <h3 className="text-3xl font-light tracking-tight">
                 Siswa Tuntas Seluruh 6 Pos ({completedStudentsList.length})
               </h3>
             </div>
-            <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-              KLIK KARTU UNTUK MEMBUKA OPSI REMEDIAL
+            <span className="text-xs font-bold uppercase tracking-widest opacity-55">
+              Klik kartu siswa untuk membuka sesi remedial
             </span>
           </div>
 
@@ -2689,11 +3075,25 @@ export default function LiveAssessmentStudio() {
                   <div className="flex justify-between items-start relative z-10">
                     <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
                       {m.is_remedial
-                        ? `REMEDIAL #${m.attempt_count || 2}`
-                        : "TUNTAS MURNI · 6/6 POS"}
+                        ? `Remedial #${m.attempt_count || 2}`
+                        : "Tuntas Murni · 6/6 Pos"}
                     </span>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-black/5 dark:bg-white/5">
-                      <ArrowUpRight size={18} strokeWidth={1.75} />
+                    <div className="flex items-center gap-2">
+                      {hasGpsRouteData(m) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRouteInspectStudent(st);
+                          }}
+                          className="px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 flex items-center gap-1"
+                        >
+                          <Navigation size={11} /> Rute GPS
+                        </button>
+                      )}
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-black/5 dark:bg-white/5">
+                        <ArrowUpRight size={18} strokeWidth={1.75} />
+                      </div>
                     </div>
                   </div>
 
@@ -2715,7 +3115,7 @@ export default function LiveAssessmentStudio() {
                         <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                           Skor TKJI ({m.tkji_category || "-"})
                         </div>
-                        <div className="text-4xl font-mono font-light leading-none">
+                        <div className="text-4xl font-mono font-light leading-none text-gold-accent">
                           {m.total_tkji_score ?? 0}/25
                         </div>
                       </div>
@@ -2728,15 +3128,156 @@ export default function LiveAssessmentStudio() {
         </div>
       )}
 
-      {/* MODAL KONFIRMASI PROTEKSI SALAH KLIK vs BUKA SESI REMEDIAL */}
+      {/* MODAL INSPEKSI LINTASAN GPS LARI SISWA */}
       <AnimatePresence>
-        {remedialModalStudent && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        {routeInspectStudent && inspectedRouteTelemetry && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
+              onClick={() => setRouteInspectStudent(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="w-full max-w-2xl rounded-[2rem] p-8 md:p-10 relative z-10 shadow-2xl space-y-6 edufit-card-primary"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-hairline pb-5">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-widest text-gold-accent block mb-1">
+                    Verifikasi Lintasan GPS Lapangan
+                  </span>
+                  <h3 className="text-3xl font-light tracking-tight">
+                    Jejak Lari:{" "}
+                    <span className="font-semibold">
+                      {routeInspectStudent.full_name}
+                    </span>
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRouteInspectStudent(null)}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer badge-tint-rose"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-4 rounded-2xl edufit-surface-subtle">
+                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                    Sprint 60m
+                  </span>
+                  <span className="text-2xl font-mono font-semibold">
+                    {routeInspectStudent.metrics?.run_60m_sec
+                      ? `${routeInspectStudent.metrics.run_60m_sec}s`
+                      : "—"}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl edufit-surface-subtle">
+                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                    Lari Jauh
+                  </span>
+                  <span className="text-2xl font-mono font-semibold">
+                    {routeInspectStudent.metrics?.endurance_run_min_sec || "—"}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl edufit-surface-subtle">
+                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                    Titik Satelit
+                  </span>
+                  <span className="text-2xl font-mono font-semibold text-gold-accent">
+                    {inspectedRouteTelemetry.pointCount} Titik
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl edufit-surface-subtle">
+                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                    Jarak Tempuh
+                  </span>
+                  <span className="text-2xl font-mono font-semibold">
+                    {inspectedRouteTelemetry.totalDistanceM}m
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-3xl p-6 relative overflow-hidden edufit-card-secondary">
+                <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
+                <div className="relative z-10 flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider opacity-65 flex items-center gap-1.5">
+                    <Compass size={14} className="text-gold-accent" />
+                    Proyeksi Lintasan Lari Siswa
+                  </span>
+                  <span className="text-[11px] font-mono opacity-60">
+                    Usia {routeInspectStudent.ageYears} Thn ·{" "}
+                    {routeInspectStudent.gender === "L" ? "Putra" : "Putri"}
+                  </span>
+                </div>
+
+                {inspectedRouteTelemetry.pointCount >= 2 ? (
+                  <div className="w-full h-52 flex items-center justify-center relative z-10">
+                    <svg
+                      viewBox="0 0 360 200"
+                      className="w-full h-full overflow-visible"
+                    >
+                      <path
+                        d={inspectedRouteTelemetry.svgPath}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gold-accent"
+                      />
+                      {inspectedRouteTelemetry.svgCircles.map((c, idx) => {
+                        const isStart = idx === 0;
+                        const isEnd =
+                          idx ===
+                          inspectedRouteTelemetry.svgCircles.length - 1;
+                        return (
+                          <circle
+                            key={c.idx}
+                            cx={c.x}
+                            cy={c.y}
+                            r={isStart || isEnd ? 6 : 2.5}
+                            className={
+                              isStart
+                                ? "fill-amber-400"
+                                : isEnd
+                                ? "fill-emerald-500"
+                                : "fill-current opacity-55"
+                            }
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center relative z-10 space-y-2">
+                    <MapPin size={24} className="mx-auto opacity-40" />
+                    <p className="text-sm font-medium opacity-70">
+                      Belum ada rekaman jejak koordinat GPS (nilai diinput
+                      melalui stopwatch manual Guru).
+                    </p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL KONFIRMASI PROTEKSI SALAH KLIK vs BUKA SESI REMEDIAL */}
+      <AnimatePresence>
+        {remedialModalStudent && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 edufit-modal-open">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
               onClick={() => setRemedialModalStudent(null)}
             />
             <motion.div
@@ -2759,8 +3300,8 @@ export default function LiveAssessmentStudio() {
               </div>
 
               <div>
-                <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
-                  KONFIRMASI RE-ASESMEN LAPANGAN
+                <span className="text-xs font-bold uppercase tracking-widest text-gold-accent block mb-1">
+                  Konfirmasi Pengujian Ulang
                 </span>
                 <h3 className="text-3xl font-light tracking-tight">
                   Proteksi Nilai:{" "}

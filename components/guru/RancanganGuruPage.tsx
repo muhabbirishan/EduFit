@@ -11,16 +11,24 @@ import {
   BrainCircuit,
   CheckCircle2,
   ChevronDown,
+  Cpu,
   Download,
   FileCheck2,
   Save,
   Search,
   SlidersHorizontal,
   Users,
-  X
+  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
+function formatHumanLabel(raw?: string | null): string {
+  if (!raw) return "-";
+  return String(raw)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 interface ProgramRecord {
   id: string;
@@ -44,9 +52,26 @@ interface ProgramRecord {
   updated_at?: string;
 }
 
+interface AlgorithmPrescription {
+  id: string;
+  gender: string;
+  component: string;
+  tkji_category: string;
+  bmi_category: string;
+  phase: string;
+  week: number;
+  meeting: number;
+  program_name: string;
+  instruction_id: string;
+  intensity: string;
+  duration_min: number;
+  rest_time_sec: number;
+}
+
 interface StudentRow {
   id: string;
   name: string;
+  gender: string;
   status: "graded" | "submitted" | "belum_mengumpulkan";
   hasAwal: boolean;
   hasAkhir: boolean;
@@ -57,6 +82,7 @@ interface StudentRow {
   convertedScore: number;
   tkjiScore: number | null;
   tkjiCategory: string | null;
+  bmiScore: number | null;
   bmiCategory: string | null;
 }
 
@@ -75,15 +101,15 @@ const BENTO_SHOWCASE_CLASSES = [
 ];
 
 const FITT_COMPONENTS: { key: keyof ProgramRecord; label: string }[] = [
-  { key: "prioritas", label: "01 / PRIORITAS & DATA PENDUKUNG" },
-  { key: "tujuan", label: "02 / TUJUAN LATIHAN" },
-  { key: "frekuensi", label: "03 / FREKUENSI & JADWAL MINGGUAN" },
-  { key: "intensitas", label: "04 / INTENSITAS & PEMANTAUAN" },
-  { key: "durasi", label: "05 / DURASI SESI" },
-  { key: "jenis", label: "06 / JENIS & BENTUK LATIHAN" },
-  { key: "jeda", label: "07 / JEDA & PEMULIHAN" },
-  { key: "progresi", label: "08 / RENCANA PROGRESI" },
-  { key: "alasan", label: "09 / ALASAN & EVALUASI KEPUTUSAN" },
+  { key: "prioritas", label: "Prioritas & Data Pendukung" },
+  { key: "tujuan", label: "Tujuan Latihan" },
+  { key: "frekuensi", label: "Frekuensi & Jadwal Mingguan" },
+  { key: "intensitas", label: "Intensitas & Pemantauan" },
+  { key: "durasi", label: "Durasi Sesi" },
+  { key: "jenis", label: "Jenis & Bentuk Latihan" },
+  { key: "jeda", label: "Jeda & Pemulihan" },
+  { key: "progresi", label: "Rencana Progresi" },
+  { key: "alasan", label: "Alasan & Evaluasi Keputusan" },
 ];
 
 const RUBRIC_CRITERIA = [
@@ -187,8 +213,9 @@ export default function RancanganGuruPage() {
     setMounted(true);
   }, []);
 
-  // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -240,6 +267,13 @@ export default function RancanganGuruPage() {
   const [studentProgram, setStudentProgram] = useState<ProgramRecord | null>(
     null
   );
+  const [leftModalTab, setLeftModalTab] = useState<"fitt" | "algorithm">(
+    "fitt"
+  );
+  const [matchedAlgorithms, setMatchedAlgorithms] = useState<
+    AlgorithmPrescription[]
+  >([]);
+  const [loadingAlgorithms, setLoadingAlgorithms] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const [evalForm, setEvalForm] = useState({
@@ -276,19 +310,22 @@ export default function RancanganGuruPage() {
           .from("classes")
           .select("id, name, grade_level, class_code")
           .eq("guru_id", session.user.id)
-          .eq("grade_level", 12)
+          .order("grade_level", { ascending: false })
           .order("created_at", { ascending: false });
 
         if (error) throw error;
 
         if (data && data.length > 0) {
           setClasses(data);
-          setSelectedClass(data[0]);
+          const firstGrade12 = data.find(
+            (c: any) => Number(c.grade_level) === 12
+          );
+          setSelectedClass(firstGrade12 || data[0]);
         } else {
           setClasses([]);
         }
-      } catch (err: any) {
-        toast.error("Gagal memuat daftar kelas XII");
+      } catch {
+        toast.error("Gagal memuat daftar kelas");
       } finally {
         setIsLoading(false);
       }
@@ -302,7 +339,7 @@ export default function RancanganGuruPage() {
     try {
       const { data: stdClass, error: stdErr } = await supabase
         .from("student_classes")
-        .select("student_id, user_profiles(full_name)")
+        .select("student_id, user_profiles(full_name, gender)")
         .eq("class_id", targetClassId);
 
       if (stdErr) throw stdErr;
@@ -326,7 +363,7 @@ export default function RancanganGuruPage() {
         supabase
           .from("student_physical_metrics")
           .select(
-            "student_id, total_tkji_score, tkji_category, bmi_category, created_at"
+            "student_id, gender, calculated_bmi, total_tkji_score, tkji_category, bmi_category, created_at"
           )
           .in("student_id", studentIds)
           .order("created_at", { ascending: false }),
@@ -406,9 +443,16 @@ export default function RancanganGuruPage() {
             ? "submitted"
             : "belum_mengumpulkan";
 
+        const resolvedGender = String(
+          sc.user_profiles?.gender || metric?.gender || "L"
+        )
+          .trim()
+          .toUpperCase();
+
         return {
           id: sc.student_id,
           name: sc.user_profiles?.full_name || "Siswa Tidak Diketahui",
+          gender: resolvedGender.startsWith("P") ? "P" : "L",
           status: normalizedStatus,
           hasAwal: !!progAwal,
           hasAkhir: !!progAkhir,
@@ -423,6 +467,11 @@ export default function RancanganGuruPage() {
               ? Number(metric.total_tkji_score)
               : null,
           tkjiCategory: metric?.tkji_category || null,
+          bmiScore:
+            metric?.calculated_bmi !== undefined &&
+            metric?.calculated_bmi !== null
+              ? Number(metric.calculated_bmi)
+              : null,
           bmiCategory: metric?.bmi_category || null,
         };
       })
@@ -524,6 +573,43 @@ export default function RancanganGuruPage() {
     };
   }, [studentsData]);
 
+  const fetchMatchingAlgorithmsForStudent = async (student: StudentRow) => {
+    setLoadingAlgorithms(true);
+    try {
+      let query = supabase
+        .from("fitness_algorithms")
+        .select("*")
+        .eq("gender", student.gender)
+        .order("week", { ascending: true })
+        .order("meeting", { ascending: true })
+        .limit(12);
+
+      if (student.tkjiCategory) {
+        query = query.eq("tkji_category", student.tkjiCategory);
+      }
+      if (student.bmiCategory) {
+        query = query.eq("bmi_category", student.bmiCategory);
+      }
+
+      const { data } = await query;
+      if (data && data.length > 0) {
+        setMatchedAlgorithms(data);
+      } else {
+        const { data: fallbackData } = await supabase
+          .from("fitness_algorithms")
+          .select("*")
+          .eq("gender", student.gender)
+          .order("week", { ascending: true })
+          .limit(8);
+        setMatchedAlgorithms(fallbackData || []);
+      }
+    } catch {
+      setMatchedAlgorithms([]);
+    } finally {
+      setLoadingAlgorithms(false);
+    }
+  };
+
   const loadProgramForModal = async (
     studentId: string,
     targetType: "awal" | "akhir"
@@ -558,14 +644,18 @@ export default function RancanganGuruPage() {
           feedback: "",
         });
       }
-    } catch (err: any) {
+    } catch {
       toast.error("Gagal memuat detail rancangan siswa");
     }
   };
 
   const openEvaluation = async (student: StudentRow) => {
     setSelectedStudent(student);
-    await loadProgramForModal(student.id, planType);
+    setLeftModalTab("fitt");
+    await Promise.all([
+      loadProgramForModal(student.id, planType),
+      fetchMatchingAlgorithmsForStudent(student),
+    ]);
   };
 
   const handleSaveEvaluation = async (e: React.FormEvent) => {
@@ -595,7 +685,7 @@ export default function RancanganGuruPage() {
         score_evaluasi: evalForm.score_evaluasi,
         feedback: evalForm.feedback,
         status: "Dinilai",
-        updated_at: new Date().toIsoString(),
+        updated_at: new Date().toISOString(), // TELAH DIPERBAIKI (toISOString)
       };
 
       const { error } = await supabase
@@ -631,6 +721,7 @@ export default function RancanganGuruPage() {
     }
     const headers = [
       "Nama Siswa",
+      "L/P",
       "Kelas",
       "Fase",
       "Status",
@@ -640,10 +731,12 @@ export default function RancanganGuruPage() {
       "Skor Evaluasi (1-4)",
       "Total Skor (0-100)",
       "Skor TKJI",
+      "Kategori TKJI",
       "Kategori IMT",
     ];
     const rows = studentsData.map((s) => [
       `"${s.name.replace(/"/g, '""')}"`,
+      s.gender,
       `"${selectedClass?.name || "XII"}"`,
       planType.toUpperCase(),
       s.status === "graded"
@@ -657,6 +750,7 @@ export default function RancanganGuruPage() {
       s.activeProg?.score_evaluasi || 0,
       s.convertedScore,
       s.tkjiScore ?? "-",
+      `"${s.tkjiCategory || "-"}"`,
       `"${s.bmiCategory || "-"}"`,
     ]);
 
@@ -708,7 +802,9 @@ export default function RancanganGuruPage() {
     (Number(evalForm.score_evaluasi) || 0);
 
   const liveModalConverted =
-    liveModalTotalRubric > 0 ? Math.round((liveModalTotalRubric / 16) * 100) : 0;
+    liveModalTotalRubric > 0
+      ? Math.round((liveModalTotalRubric / 16) * 100)
+      : 0;
 
   const radius = 58;
   const circumference = 2 * Math.PI * radius;
@@ -719,13 +815,12 @@ export default function RancanganGuruPage() {
       ? stats.avgScorePct
       : stats.physicalReadyPct;
   const dashOffset =
-    circumference - (Math.max(10, activeGaugePct) / 100) * circumference;
+    activeGaugePct <= 0
+      ? circumference
+      : circumference - (activeGaugePct / 100) * circumference;
 
   return (
     <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
-         ==================================================================== */}
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -780,22 +875,19 @@ export default function RancanganGuruPage() {
         )}
       </AnimatePresence>
 
-      {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
-         ==================================================================== */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / FORMULASI FITT KELAS XII
+            <span className="text-gold-accent">
+              Formulasi FITT & Rekomendasi Program Latihan
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <FileCheck2 size={15} />
               {selectedClass
-                ? `Tingkat Akhir · ${selectedClass.name} · Sinkron ${
-                    lastSyncTime || "Aktif"
-                  }`
+                ? `${selectedClass.name} (Kelas ${
+                    selectedClass.grade_level
+                  }) · Sinkron ${lastSyncTime || "Aktif"}`
                 : "Evaluasi Kurikulum FITT Kelas XII"}
             </span>
           </div>
@@ -811,15 +903,15 @@ export default function RancanganGuruPage() {
               {isLoading ? "—" : stats.totalSiswa}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Siswa Kelas XII
+              Siswa Rombel
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent">
               {isLoading ? "—" : stats.submittedCount}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Rancangan Masuk
+              Rancangan Masuk
             </div>
           </div>
           <div>
@@ -827,22 +919,19 @@ export default function RancanganGuruPage() {
               {isLoading ? "—" : `${stats.avgScorePct}%`}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Skor Mutu Rata-Rata
+              Skor Mutu Rata-Rata
             </div>
           </div>
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 2: TELEMETRI 4 BAR MURNI
-         ==================================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         <button
           type="button"
           onClick={() => {
             setPlanType("awal");
             triggerDynamicIsland(
-              "Fase Rancangan Awal (Tahap 03)",
+              "Fase Rancangan Awal",
               `${stats.awalSubmitted} dari ${stats.totalSiswa} siswa telah mengumpulkan.`,
               "info"
             );
@@ -851,7 +940,7 @@ export default function RancanganGuruPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rancangan Awal</span>
-            <span className="font-mono">TAHAP 03</span>
+            <span className="font-mono">FASE AWAL</span>
           </div>
           <div
             className={`h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] ${
@@ -872,7 +961,7 @@ export default function RancanganGuruPage() {
           onClick={() => {
             setPlanType("akhir");
             triggerDynamicIsland(
-              "Fase Rancangan Akhir (Tahap 06)",
+              "Fase Rancangan Akhir",
               `${stats.akhirSubmitted} dari ${stats.totalSiswa} siswa telah mengumpulkan.`,
               "info"
             );
@@ -881,7 +970,7 @@ export default function RancanganGuruPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rancangan Akhir</span>
-            <span className="font-mono">TAHAP 06</span>
+            <span className="font-mono">FASE AKHIR</span>
           </div>
           <div
             className={`h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] ${
@@ -924,26 +1013,21 @@ export default function RancanganGuruPage() {
             <span className="font-mono">FISIK</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
               {isLoading ? "—" : `${stats.physicalReadyPct}%`}
             </span>
           </div>
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 3: TRIO BENTO UTAMA (POLKADOT + GRID MILIMETER + DIAGONAL)
-         ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1 (PATTERN POLKADOT): KENDALI ROMBEL */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55 mb-3">
-              <span className="font-mono">01 /</span>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
               <SlidersHorizontal size={14} />
-              <span>Filter Rombel XII</span>
+              <span>Filter Rombel & Fase</span>
             </div>
 
             <h2 className="text-3xl font-light tracking-tight mb-2">
@@ -984,8 +1068,8 @@ export default function RancanganGuruPage() {
               >
                 <span className="truncate pr-3">
                   {selectedClass
-                    ? `${selectedClass.name} (Tingkat XII)`
-                    : "Pilih Rombel XII..."}
+                    ? `${selectedClass.name} (Kelas ${selectedClass.grade_level})`
+                    : "Pilih Rombel..."}
                 </span>
                 <ChevronDown
                   size={22}
@@ -1015,7 +1099,7 @@ export default function RancanganGuruPage() {
                           selectedClass?.id === cls.id ? "text-gold-accent" : ""
                         }`}
                       >
-                        {cls.name}
+                        {cls.name} (Kelas {cls.grade_level})
                       </div>
                     ))}
                   </motion.div>
@@ -1034,17 +1118,15 @@ export default function RancanganGuruPage() {
           </button>
         </div>
 
-        {/* Bento 2 (PATTERN GRID MILIMETER): Capaian 4 Dimensi Rubrik */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BrainCircuit size={15} />
               <span>Capaian Aspek Rubrik</span>
             </div>
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-accent">
+            <span className="text-xs font-bold font-mono uppercase tracking-wider text-gold-accent">
               FASE {planType.toUpperCase()}
             </span>
           </div>
@@ -1071,13 +1153,13 @@ export default function RancanganGuruPage() {
           <div className="grid grid-cols-4 gap-4 items-end pt-4 h-44 relative z-10">
             {stats.rubricBars.map((bar) => {
               const val = bar.pct;
+              const heightPct = val <= 0 ? 4 : Math.max(12, val);
               const isHighest = bar.code === highestRubric.code && val > 0;
               const isSelected = selectedRubricBar === bar.code;
-              const fillClass = isSelected
-                ? "chart-fill-emerald"
-                : isHighest
-                ? "chart-fill-gold"
-                : "chart-fill-primary";
+              const fillClass =
+                isSelected || isHighest
+                  ? "chart-fill-gold"
+                  : "chart-fill-primary";
 
               return (
                 <button
@@ -1095,7 +1177,7 @@ export default function RancanganGuruPage() {
                   <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                     <div
                       className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{ height: `${Math.max(15, val)}%` }}
+                      style={{ height: `${heightPct}%` }}
                     />
                   </div>
                   <span className={`w-2 h-2 rounded-full ${fillClass}`} />
@@ -1108,13 +1190,11 @@ export default function RancanganGuruPage() {
           </div>
         </div>
 
-        {/* Bento 3 (PATTERN DIAGONAL STRIPES): Circular Telemetry Gauge */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
               <span>Telemetri Kinerja</span>
             </div>
@@ -1143,7 +1223,7 @@ export default function RancanganGuruPage() {
 
           <div className="relative flex flex-col items-center justify-center my-2 z-10">
             <div className="relative flex items-center justify-center">
-              <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
                 <circle
                   cx="70"
                   cy="70"
@@ -1153,21 +1233,19 @@ export default function RancanganGuruPage() {
                   strokeDasharray="2 5"
                   className="gauge-circle-track"
                 />
-                <circle
-                  cx="70"
-                  cy="70"
-                  r={radius}
-                  fill="none"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={dashOffset}
-                  className={`transition-all duration-700 ${
-                    gaugeMode === "kualitas"
-                      ? "gauge-circle-emerald"
-                      : "gauge-circle-gold"
-                  }`}
-                />
+                {activeGaugePct > 0 && (
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="none"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={dashOffset}
+                    className="transition-all duration-700 gauge-circle-gold"
+                  />
+                )}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-4xl font-light font-mono tracking-tighter leading-none">
@@ -1175,7 +1253,7 @@ export default function RancanganGuruPage() {
                 </span>
               </div>
             </div>
-            <span className="text-xs font-semibold opacity-60 mt-3 text-center">
+            <span className="text-xs font-semibold opacity-65 mt-3 text-center">
               {gaugeMode === "koreksi"
                 ? `Rancangan ${planType.toUpperCase()} Telah Dinilai`
                 : gaugeMode === "kualitas"
@@ -1196,13 +1274,10 @@ export default function RancanganGuruPage() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 4: TAB FILTER, SEARCH, & BENTO GRID SISWA
-         ==================================================================== */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-            04 / PORTOFOLIO RANCANGAN MANDIRI
+          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+            Portofolio Rancangan Mandiri
           </div>
           <h3 className="text-3xl font-light tracking-tight">
             Daftar Rancangan Siswa ({filteredData.length})
@@ -1259,7 +1334,7 @@ export default function RancanganGuruPage() {
           <div className="xl:col-span-3 flex flex-col items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
             <Users className="w-10 h-10 mb-3" />
             <div className="text-xl font-light tracking-tight">
-              Belum ada rombel kelas XII yang ditugaskan kepada Anda.
+              Belum ada rombel kelas yang ditugaskan kepada Anda.
             </div>
           </div>
         ) : isLoading ? (
@@ -1293,7 +1368,7 @@ export default function RancanganGuruPage() {
 
                 <div className="flex justify-between items-start relative z-10">
                   <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
-                    FASE {planType.toUpperCase()} ·{" "}
+                    {row.gender === "L" ? "PUTRA" : "PUTRI"} ·{" "}
                     {row.tkjiScore !== null
                       ? `TKJI ${row.tkjiScore} (${
                           row.tkjiCategory || "TERCATAT"
@@ -1337,7 +1412,7 @@ export default function RancanganGuruPage() {
                       Status Evaluasi
                     </div>
                     {isGraded ? (
-                      <div className="text-sm font-bold text-emerald-accent">
+                      <div className="text-sm font-bold text-gold-accent">
                         Dinilai ({row.totalRubricScore}/16)
                       </div>
                     ) : isSubmitted ? (
@@ -1357,17 +1432,14 @@ export default function RancanganGuruPage() {
         )}
       </div>
 
-      {/* ====================================================================
-          MODAL EVALUASI & PENILAIAN RUBRIK (BEBAS <select> BAWAAN BROWSER)
-         ==================================================================== */}
       <AnimatePresence>
         {selectedStudent && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/65 backdrop-blur-md"
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
               onClick={() => setSelectedStudent(null)}
             />
 
@@ -1380,18 +1452,24 @@ export default function RancanganGuruPage() {
               <div className="p-6 sm:p-8 border-b border-hairline flex flex-wrap justify-between items-center gap-4 shrink-0">
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="text-[11px] font-bold font-mono uppercase tracking-widest text-gold-accent">
-                      EVALUASI FITT · {selectedClass?.name}
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-gold-accent">
+                      Evaluasi FITT · {selectedClass?.name}
+                    </span>
+                    <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider edufit-surface-subtle">
+                      {selectedStudent.gender === "L"
+                        ? "Putra (L)"
+                        : "Putri (P)"}
                     </span>
                     {selectedStudent.tkjiScore !== null && (
                       <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-emerald">
-                        TKJI: {selectedStudent.tkjiScore} (
+                        TKJI: {selectedStudent.tkjiScore}/25 (
                         {selectedStudent.tkjiCategory})
                       </span>
                     )}
                     {selectedStudent.bmiCategory && (
-                      <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-sky">
-                        IMT: {selectedStudent.bmiCategory}
+                      <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-amber">
+                        IMT: {selectedStudent.bmiScore ?? "-"} (
+                        {selectedStudent.bmiCategory})
                       </span>
                     )}
                   </div>
@@ -1436,52 +1514,144 @@ export default function RancanganGuruPage() {
               </div>
 
               <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* KOLOM KIRI: 9 KOMPONEN RANCANGAN SISWA */}
                 <div className="lg:col-span-6 space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-hairline">
-                    <h3 className="text-2xl font-light tracking-tight">
-                      Tugas Rancangan{" "}
-                      <span className="font-semibold uppercase">
-                        {planType}
-                      </span>
-                    </h3>
-                    <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-                      09 KOMPONEN FITT
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-hairline">
+                    <div className="flex gap-1.5 p-1 rounded-xl edufit-surface-subtle">
+                      <button
+                        type="button"
+                        onClick={() => setLeftModalTab("fitt")}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                          leftModalTab === "fitt"
+                            ? "seg-btn-active"
+                            : "seg-btn-idle"
+                        }`}
+                      >
+                        Isian Rancangan Siswa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeftModalTab("algorithm")}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+                          leftModalTab === "algorithm"
+                            ? "seg-btn-active"
+                            : "seg-btn-idle"
+                        }`}
+                      >
+                        <Cpu size={13} /> Acuan Resep Sistem (
+                        {matchedAlgorithms.length})
+                      </button>
+                    </div>
                   </div>
 
-                  {!studentProgram ? (
-                    <div className="p-12 text-center rounded-[2rem] border border-dashed border-hairline edufit-surface-subtle">
-                      <FileCheck2 className="w-10 h-10 mx-auto mb-3 opacity-35" />
-                      <p className="text-xl font-light">
-                        Siswa belum mengumpulkan rancangan{" "}
-                        {planType.toUpperCase()}.
-                      </p>
-                    </div>
+                  {leftModalTab === "fitt" ? (
+                    !studentProgram ? (
+                      <div className="p-12 text-center rounded-[2rem] border border-dashed border-hairline edufit-surface-subtle">
+                        <FileCheck2 className="w-10 h-10 mx-auto mb-3 opacity-35" />
+                        <p className="text-xl font-light">
+                          Siswa belum mengumpulkan rancangan{" "}
+                          {planType.toUpperCase()}.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3.5">
+                        {FITT_COMPONENTS.map((item) => (
+                          <div
+                            key={item.key}
+                            className="p-5 rounded-2xl edufit-surface-subtle"
+                          >
+                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1.5">
+                              {item.label}
+                            </p>
+                            <p className="text-sm font-medium leading-relaxed">
+                              {studentProgram[item.key] || (
+                                <span className="italic opacity-40">
+                                  Tidak diisi oleh siswa
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )
                   ) : (
-                    <div className="grid grid-cols-1 gap-3.5">
-                      {FITT_COMPONENTS.map((item) => (
-                        <div
-                          key={item.key}
-                          className="p-5 rounded-2xl edufit-surface-subtle"
-                        >
-                          <p className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 mb-1.5">
-                            {item.label}
-                          </p>
-                          <p className="text-sm font-medium leading-relaxed">
-                            {studentProgram[item.key] || (
-                              <span className="italic opacity-40">
-                                Tidak diisi oleh siswa
-                              </span>
-                            )}
-                          </p>
+                    <div className="space-y-3.5">
+                      <div className="p-4 rounded-2xl badge-tint-emerald text-xs space-y-1">
+                        <div className="font-bold uppercase tracking-wider">
+                          Acuan Rekomendasi Program Latihan Sistem
                         </div>
-                      ))}
+                        <p className="opacity-85">
+                          Menampilkan dosis latihan otomatis untuk profil{" "}
+                          <strong>
+                            {selectedStudent.gender === "L" ? "Putra" : "Putri"}{" "}
+                            · TKJI {selectedStudent.tkjiCategory || "Umum"} ·
+                            IMT {selectedStudent.bmiCategory || "Umum"}
+                          </strong>{" "}
+                          sebagai pembanding saat Anda menilai FITT siswa.
+                        </p>
+                      </div>
+
+                      {loadingAlgorithms ? (
+                        <div className="p-10 text-center text-xs opacity-55">
+                          Mencocokkan rekomendasi program latihan...
+                        </div>
+                      ) : matchedAlgorithms.length === 0 ? (
+                        <div className="p-10 text-center text-xs opacity-55 rounded-2xl edufit-surface-subtle">
+                          Belum ada rekomendasi program latihan untuk kombinasi
+                          profil ini.
+                        </div>
+                      ) : (
+                        matchedAlgorithms.map((alg) => (
+                          <div
+                            key={alg.id}
+                            className="p-5 rounded-2xl space-y-2.5 edufit-surface-subtle"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                                Minggu {alg.week} · Pertemuan {alg.meeting} ·{" "}
+                                {formatHumanLabel(alg.phase || "Fase Inti")}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase opacity-65">
+                                Fokus: {formatHumanLabel(alg.component)}
+                              </span>
+                            </div>
+                            <h4 className="text-base font-bold">
+                              {alg.program_name}
+                            </h4>
+                            <div className="grid grid-cols-3 gap-2 pt-1 text-xs font-mono">
+                              <div className="p-2.5 rounded-xl edufit-card-primary">
+                                <span className="text-[9px] font-sans opacity-55 block">
+                                  Intensitas
+                                </span>
+                                <strong>{alg.intensity || "-"}</strong>
+                              </div>
+                              <div className="p-2.5 rounded-xl edufit-card-primary">
+                                <span className="text-[9px] font-sans opacity-55 block">
+                                  Durasi Sesi
+                                </span>
+                                <strong>
+                                  {alg.duration_min
+                                    ? `${alg.duration_min} Menit`
+                                    : "-"}
+                                </strong>
+                              </div>
+                              <div className="p-2.5 rounded-xl edufit-card-primary">
+                                <span className="text-[9px] font-sans opacity-55 block">
+                                  Jeda Pulih
+                                </span>
+                                <strong>
+                                  {alg.rest_time_sec
+                                    ? `${alg.rest_time_sec} Detik`
+                                    : "-"}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
 
-                {/* KOLOM KANAN: RUBRIK PENILAIAN ARSITEKTURAL (SKALA 1-4) */}
                 <form
                   onSubmit={handleSaveEvaluation}
                   className="lg:col-span-6 space-y-5"
@@ -1492,8 +1662,8 @@ export default function RancanganGuruPage() {
                       <span className="font-semibold">(Skala 1–4)</span>
                     </h3>
                     <div className="px-4 py-1.5 rounded-xl text-xs font-bold font-mono uppercase tracking-widest telemetry-bar-forest text-gold-accent">
-                      SKOR: {liveModalTotalRubric}/16 ({liveModalConverted}{" "}
-                      POIN)
+                      Skor: {liveModalTotalRubric}/16 ({liveModalConverted}{" "}
+                      Poin)
                     </div>
                   </div>
 
@@ -1545,7 +1715,6 @@ export default function RancanganGuruPage() {
                             </div>
                           </div>
 
-                          {/* 4 Kartu Kriteria Interaktif (Pengganti <select> bawaan browser) */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                             {criterion.options.map((opt) => {
                               const isChosen = currentValue === opt.val;
@@ -1567,7 +1736,7 @@ export default function RancanganGuruPage() {
                                   }`}
                                 >
                                   <span className="font-mono font-bold shrink-0">
-                                    0{opt.val}/
+                                    Skor {opt.val}:
                                   </span>
                                   <span>{opt.text}</span>
                                 </button>

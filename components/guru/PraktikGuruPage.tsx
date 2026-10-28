@@ -14,7 +14,10 @@ import {
   ChevronDown,
   ClipboardCheck,
   Download,
+  Eye,
+  Film,
   MessageSquare,
+  Play,
   Save,
   Search,
   SlidersHorizontal,
@@ -38,12 +41,33 @@ const BENTO_SHOWCASE_CLASSES = [
   "bento-showcase-3",
 ];
 
+function formatHumanLabel(raw?: string | null): string {
+  if (!raw) return "-";
+  return String(raw)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 interface MaterialUnit {
   id: string;
   grade_level: number;
   unit_name: string;
   trigger_question: string;
+  content_text?: string;
+  media_url?: string;
+  image_url?: string;
+  content_blocks?: any[];
   order_index: number;
+}
+
+interface PracticeVideoItem {
+  id: string;
+  category: string;
+  title: string;
+  video_url: string;
+  duration_label: string;
+  technique_steps: string;
+  common_mistakes: string;
 }
 
 interface UnitEvaluationState {
@@ -54,6 +78,8 @@ interface UnitEvaluationState {
   practiceNote: string;
   grade: string;
   score: number | null;
+  progressStatus: string;
+  completedAt: string | null;
   hasStudentAnswer: boolean;
   isGraded: boolean;
 }
@@ -64,6 +90,7 @@ interface StudentPracticeRow {
   answeredCount: number;
   gradedCount: number;
   practiceCount: number;
+  completedModuleCount: number;
   avgScore: number;
   dominantGrade: string;
   status: "graded" | "submitted" | "empty";
@@ -83,8 +110,9 @@ export default function PraktikGuruPage() {
     setMounted(true);
   }, []);
 
-  // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -122,6 +150,7 @@ export default function PraktikGuruPage() {
   const [selectedUnitBar, setSelectedUnitBar] = useState<string | null>(null);
 
   const [materials, setMaterials] = useState<MaterialUnit[]>([]);
+  const [practiceVideos, setPracticeVideos] = useState<PracticeVideoItem[]>([]);
   const [rawStudents, setRawStudents] = useState<any[]>([]);
   const [rawReflections, setRawReflections] = useState<any[]>([]);
   const [rawProgress, setRawProgress] = useState<any[]>([]);
@@ -136,6 +165,10 @@ export default function PraktikGuruPage() {
   const [evalData, setEvalData] = useState<
     Record<string, UnitEvaluationState>
   >({});
+  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(
+    null
+  );
+  const [isVideoGuideModalOpen, setIsVideoGuideModalOpen] = useState(false);
   const [savingUnit, setSavingUnit] = useState<string | null>(null);
   const [isSavingAll, setIsSavingAll] = useState(false);
 
@@ -153,7 +186,7 @@ export default function PraktikGuruPage() {
   }, []);
 
   useEffect(() => {
-    async function fetchClasses() {
+    async function fetchClassesAndVideos() {
       setIsLoading(true);
       try {
         const {
@@ -161,28 +194,37 @@ export default function PraktikGuruPage() {
         } = await supabase.auth.getSession();
         if (!session) return;
 
-        const { data, error } = await supabase
-          .from("classes")
-          .select("id, name, grade_level, class_code")
-          .eq("guru_id", session.user.id)
-          .order("grade_level", { ascending: true })
-          .order("created_at", { ascending: false });
+        const [clsRes, vidRes] = await Promise.all([
+          supabase
+            .from("classes")
+            .select("id, name, grade_level, class_code")
+            .eq("guru_id", session.user.id)
+            .order("grade_level", { ascending: true })
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("master_practice_videos")
+            .select("*")
+            .order("category", { ascending: true })
+            .order("created_at", { ascending: true }),
+        ]);
 
-        if (error) throw error;
+        if (clsRes.error) throw clsRes.error;
 
-        if (data && data.length > 0) {
-          setClasses(data);
-          setSelectedClass(data[0]);
+        setPracticeVideos(vidRes.data || []);
+
+        if (clsRes.data && clsRes.data.length > 0) {
+          setClasses(clsRes.data);
+          setSelectedClass(clsRes.data[0]);
         } else {
           setClasses([]);
         }
-      } catch (err: any) {
+      } catch {
         toast.error("Gagal memuat daftar kelas");
       } finally {
         setIsLoading(false);
       }
     }
-    fetchClasses();
+    fetchClassesAndVideos();
   }, []);
 
   const filteredClassesList = useMemo(() => {
@@ -216,7 +258,9 @@ export default function PraktikGuruPage() {
           .eq("class_id", cls.id),
         supabase
           .from("master_materials")
-          .select("id, grade_level, unit_name, trigger_question, order_index")
+          .select(
+            "id, grade_level, unit_name, trigger_question, content_text, media_url, image_url, content_blocks, order_index"
+          )
           .eq("grade_level", cls.grade_level)
           .order("order_index", { ascending: true })
           .order("created_at", { ascending: true }),
@@ -299,6 +343,7 @@ export default function PraktikGuruPage() {
         let answeredCount = 0;
         let gradedCount = 0;
         let practiceCount = 0;
+        let completedModuleCount = 0;
         let scoreSum = 0;
 
         materials.forEach((mat) => {
@@ -339,6 +384,13 @@ export default function PraktikGuruPage() {
             else grade = "D";
           }
 
+          const progressStatus = String(
+            progMatch?.status || "Belum Dimulai"
+          ).trim();
+          if (progressStatus.toLowerCase() === "selesai") {
+            completedModuleCount++;
+          }
+
           const hasStudentAnswer =
             Boolean(rawAnswer && rawAnswer.trim() !== "") && !isAutoPlaceholder;
           const isGraded = Boolean(grade || rawScore !== null);
@@ -367,6 +419,8 @@ export default function PraktikGuruPage() {
             practiceNote,
             grade,
             score: rawScore,
+            progressStatus,
+            completedAt: progMatch?.completed_at || null,
             hasStudentAnswer,
             isGraded,
           };
@@ -398,6 +452,7 @@ export default function PraktikGuruPage() {
           answeredCount,
           gradedCount,
           practiceCount,
+          completedModuleCount,
           avgScore,
           dominantGrade,
           status,
@@ -553,6 +608,7 @@ export default function PraktikGuruPage() {
 
   const openEvaluation = (student: StudentPracticeRow) => {
     setSelectedStudent(student);
+    setExpandedMaterialId(null);
     const clonedStates: Record<string, UnitEvaluationState> = {};
     materials.forEach((mat) => {
       const existing = student.unitStates[mat.unit_name];
@@ -566,6 +622,8 @@ export default function PraktikGuruPage() {
             practiceNote: "",
             grade: "",
             score: null,
+            progressStatus: "Belum Dimulai",
+            completedAt: null,
             hasStudentAnswer: false,
             isGraded: false,
           };
@@ -662,8 +720,18 @@ export default function PraktikGuruPage() {
         .update({
           teacher_feedback: data.feedback,
           status: "Selesai",
+          completed_at: data.completedAt || nowIso,
         })
         .eq("id", existingProg.id);
+    } else if (data.grade || data.score !== null || data.feedback.trim()) {
+      await supabase.from("student_material_progress").insert({
+        student_id: studentId,
+        material_id: mat.id,
+        status: "Selesai",
+        student_reflection: data.answer || "Dinilai langsung oleh Guru",
+        teacher_feedback: data.feedback,
+        completed_at: nowIso,
+      });
     }
 
     const { data: existingPrac } = await supabase
@@ -760,6 +828,7 @@ export default function PraktikGuruPage() {
       "Kelas",
       "Unit Dijawab",
       "Unit Dinilai",
+      "Progres Modul Selesai",
       "Rata-rata Skor",
       "Predikat Dominan",
       ...unitHeaders,
@@ -779,6 +848,7 @@ export default function PraktikGuruPage() {
         `"${selectedClass?.name || "-"}"`,
         `${s.answeredCount}/${materials.length}`,
         `${s.gradedCount}/${materials.length}`,
+        `${s.completedModuleCount}/${materials.length}`,
         s.avgScore,
         s.dominantGrade,
         ...unitCols.map((c) => `"${c}"`),
@@ -845,13 +915,13 @@ export default function PraktikGuruPage() {
       ? stats.avgClassScore
       : stats.practiceCoveragePct;
   const dashOffset =
-    circumference - (Math.max(10, activeGaugePct) / 100) * circumference;
+    activeGaugePct <= 0
+      ? circumference
+      : circumference - (activeGaugePct / 100) * circumference;
 
   return (
     <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
-         ==================================================================== */}
+      {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -906,22 +976,20 @@ export default function PraktikGuruPage() {
         )}
       </AnimatePresence>
 
-      {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
-         ==================================================================== */}
+      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA (BEBAS 01/ 02/) */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / KOREKSI PEMANTIK & JURNAL PRAKTIK
+            <span className="text-gold-accent">
+              Koreksi Pemantik & Jurnal Praktik
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <Activity size={15} />
               {selectedClass
-                ? `${selectedClass.name} (Kelas ${selectedClass.grade_level}) · Sinkron ${
-                    lastSyncTime || "Aktif"
-                  }`
+                ? `${selectedClass.name} (Kelas ${
+                    selectedClass.grade_level
+                  }) · Sinkron ${lastSyncTime || "Aktif"}`
                 : "Evaluasi Pemantik Materi & Praktik Lapangan"}
             </span>
           </div>
@@ -937,15 +1005,15 @@ export default function PraktikGuruPage() {
               {isLoading ? "—" : stats.totalSiswa}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Siswa Terdaftar
+              Siswa Terdaftar
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent">
               {isLoading ? "—" : stats.answeredStudentsCount}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Siswa Aktif
+              Siswa Mengumpulkan
             </div>
           </div>
           <div>
@@ -953,15 +1021,13 @@ export default function PraktikGuruPage() {
               {isLoading ? "—" : `${stats.avgClassScore}%`}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Rata-Rata Nilai
+              Rata-Rata Nilai
             </div>
           </div>
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 2: TELEMETRI 4 BAR
-         ==================================================================== */}
+      {/* ZONA 2: TELEMETRI 4 BAR */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
@@ -1014,32 +1080,32 @@ export default function PraktikGuruPage() {
           </div>
         </div>
 
-        <div className="sm:col-span-2 lg:col-span-2 space-y-2">
+        <button
+          type="button"
+          onClick={() => setIsVideoGuideModalOpen(true)}
+          className="sm:col-span-2 lg:col-span-2 space-y-2 text-left cursor-pointer group"
+        >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Kurikulum Unit</span>
-            <span className="font-mono">
-              KLS {selectedClass?.grade_level || "—"}
-            </span>
+            <span>Video Praktik</span>
+            <span className="font-mono">ACUAN</span>
           </div>
-          <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
-              {isLoading ? "—" : `${materials.length} Unit`}
+          <div className="h-14 rounded-2xl px-5 flex items-center justify-between transition-transform group-hover:scale-[1.02] edufit-card-primary">
+            <span className="text-xl font-light font-mono tracking-tight text-gold-accent">
+              {practiceVideos.length} Video
             </span>
+            <Film size={16} className="opacity-60" />
           </div>
-        </div>
+        </button>
       </div>
 
-      {/* ====================================================================
-          ZONA 3: TRIO BENTO UTAMA (POLKADOT + GRID MILIMETER + DIAGONAL)
-         ==================================================================== */}
+      {/* ZONA 3: TRIO BENTO UTAMA */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* Bento 1 (PATTERN POLKADOT): Kendali Rombel & Filter Angkatan */}
+        {/* Bento 1: Kendali Rombel & Filter Angkatan */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55 mb-3">
-              <span className="font-mono">01 /</span>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
               <SlidersHorizontal size={14} />
               <span>Filter Kelas</span>
             </div>
@@ -1141,17 +1207,16 @@ export default function PraktikGuruPage() {
           </button>
         </div>
 
-        {/* Bento 2 (PATTERN GRID MILIMETER): Capaian Unit Materi */}
+        {/* Bento 2: Capaian Unit Materi */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BrainCircuit size={15} />
               <span>Capaian Unit Materi</span>
             </div>
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-emerald-accent">
+            <span className="text-xs font-bold font-mono uppercase tracking-wider text-gold-accent">
               KELAS {selectedClass?.grade_level || "—"}
             </span>
           </div>
@@ -1189,13 +1254,13 @@ export default function PraktikGuruPage() {
             ) : (
               stats.unitBars.map((bar) => {
                 const val = bar.displayPct;
+                const heightPct = val <= 0 ? 4 : Math.max(12, val);
                 const isHighest = bar.code === highestUnitBar.code && val > 0;
                 const isSelected = selectedUnitBar === bar.code;
-                const fillClass = isSelected
-                  ? "chart-fill-emerald"
-                  : isHighest
-                  ? "chart-fill-gold"
-                  : "chart-fill-primary";
+                const fillClass =
+                  isSelected || isHighest
+                    ? "chart-fill-gold"
+                    : "chart-fill-primary";
 
                 return (
                   <button
@@ -1213,7 +1278,7 @@ export default function PraktikGuruPage() {
                     <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
                       <div
                         className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                        style={{ height: `${Math.max(15, val)}%` }}
+                        style={{ height: `${heightPct}%` }}
                       />
                     </div>
                     <span className={`w-2 h-2 rounded-full ${fillClass}`} />
@@ -1227,13 +1292,12 @@ export default function PraktikGuruPage() {
           </div>
         </div>
 
-        {/* Bento 3 (PATTERN DIAGONAL STRIPES): Telemetri Distribusi Predikat */}
+        {/* Bento 3: Distribusi Capaian (0% Murni & Teks di Bawah Lingkaran) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BookOpen size={15} />
               <span>Distribusi Capaian</span>
             </div>
@@ -1262,7 +1326,7 @@ export default function PraktikGuruPage() {
 
           <div className="relative flex flex-col items-center justify-center my-2 z-10">
             <div className="relative flex items-center justify-center">
-              <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
                 <circle
                   cx="70"
                   cy="70"
@@ -1272,21 +1336,19 @@ export default function PraktikGuruPage() {
                   strokeDasharray="2 5"
                   className="gauge-circle-track"
                 />
-                <circle
-                  cx="70"
-                  cy="70"
-                  r={radius}
-                  fill="none"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={dashOffset}
-                  className={`transition-all duration-700 ${
-                    gaugeMode === "nilai"
-                      ? "gauge-circle-emerald"
-                      : "gauge-circle-gold"
-                  }`}
-                />
+                {activeGaugePct > 0 && (
+                  <circle
+                    cx="70"
+                    cy="70"
+                    r={radius}
+                    fill="none"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={dashOffset}
+                    className="transition-all duration-700 gauge-circle-gold"
+                  />
+                )}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-4xl font-light font-mono tracking-tighter leading-none">
@@ -1294,7 +1356,7 @@ export default function PraktikGuruPage() {
                 </span>
               </div>
             </div>
-            <span className="text-xs font-semibold opacity-60 mt-3 text-center">
+            <span className="text-xs font-semibold opacity-65 mt-3 text-center">
               {gaugeMode === "koreksi"
                 ? "Jawaban Pemantik Selesai Dinilai"
                 : gaugeMode === "nilai"
@@ -1317,13 +1379,11 @@ export default function PraktikGuruPage() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 4: TAB FILTER, SEARCH, & BENTO GRID SISWA
-         ==================================================================== */}
+      {/* ZONA 4: TAB FILTER, SEARCH, & BENTO GRID SISWA */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-            04 / LEMBAR EVALUASI RESPON SISWA
+          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+            Lembar Evaluasi Respon Siswa
           </div>
           <h3 className="text-3xl font-light tracking-tight">
             Daftar Evaluasi Siswa ({filteredData.length})
@@ -1471,7 +1531,7 @@ export default function PraktikGuruPage() {
                       Status Koreksi
                     </div>
                     {isGraded ? (
-                      <div className="text-sm font-bold text-emerald-accent">
+                      <div className="text-sm font-bold text-gold-accent">
                         Tuntas ({row.gradedCount}/{materials.length} Unit)
                       </div>
                     ) : isSubmitted ? (
@@ -1491,17 +1551,15 @@ export default function PraktikGuruPage() {
         )}
       </div>
 
-      {/* ====================================================================
-          MODAL EVALUASI & PENILAIAN PER UNIT
-         ==================================================================== */}
+      {/* MODAL EVALUASI & PENILAIAN PER UNIT */}
       <AnimatePresence>
         {selectedStudent && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/65 backdrop-blur-md"
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
               onClick={() => setSelectedStudent(null)}
             />
 
@@ -1511,17 +1569,23 @@ export default function PraktikGuruPage() {
               exit={{ scale: 0.96, y: 16, opacity: 0 }}
               className="w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col rounded-[2rem] relative z-10 shadow-2xl edufit-card-primary"
             >
-              {/* Header Modal */}
               <div className="p-6 sm:p-8 border-b border-hairline flex flex-wrap justify-between items-center gap-4 shrink-0">
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="text-[11px] font-bold font-mono uppercase tracking-widest text-gold-accent">
-                      {selectedClass?.name} · KELAS{" "}
-                      {selectedClass?.grade_level}
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-gold-accent">
+                      {selectedClass?.name} · Kelas {selectedClass?.grade_level}
                     </span>
                     <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider edufit-surface-subtle">
-                      {materials.length} UNIT MATERI
+                      {materials.length} Unit Materi
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsVideoGuideModalOpen(true)}
+                      className="px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer badge-tint-emerald"
+                    >
+                      <Film size={12} /> Panduan Video Teknik (
+                      {practiceVideos.length})
+                    </button>
                   </div>
                   <h2 className="text-3xl sm:text-4xl font-light tracking-tight">
                     Evaluasi:{" "}
@@ -1552,7 +1616,6 @@ export default function PraktikGuruPage() {
                 </div>
               </div>
 
-              {/* Daftar Unit Materi dalam Modal */}
               <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 space-y-6">
                 {materials.length === 0 ? (
                   <div className="p-16 text-center opacity-55">
@@ -1566,6 +1629,7 @@ export default function PraktikGuruPage() {
                   materials.map((mat, idx) => {
                     const unitState = evalData[mat.unit_name] || {};
                     const currentGrade = unitState.grade || "";
+                    const isContentOpen = expandedMaterialId === mat.id;
 
                     return (
                       <div
@@ -1576,17 +1640,37 @@ export default function PraktikGuruPage() {
                       >
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-5 border-b border-hairline">
                           <div>
-                            <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block mb-1">
-                              UNIT 0{idx + 1} · KELAS {mat.grade_level}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55">
+                                Unit {idx + 1} · Kelas {mat.grade_level}
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase edufit-card-primary">
+                                Status Modul:{" "}
+                                {unitState.progressStatus || "Belum Dimulai"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedMaterialId(
+                                    isContentOpen ? null : mat.id
+                                  )
+                                }
+                                className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1 cursor-pointer badge-tint-amber"
+                              >
+                                <Eye size={11} />
+                                {isContentOpen
+                                  ? "Tutup Bacaan Materi"
+                                  : "Lihat Bacaan Materi"}
+                              </button>
+                            </div>
                             <h3 className="text-2xl font-light tracking-tight">
                               {mat.unit_name}
                             </h3>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55 mr-1">
-                              PREDIKAT:
+                            <span className="text-xs font-bold uppercase tracking-widest opacity-55 mr-1">
+                              Predikat:
                             </span>
                             {GRADE_OPTIONS.map((opt) => {
                               const active = currentGrade === opt.grade;
@@ -1614,17 +1698,74 @@ export default function PraktikGuruPage() {
                           </div>
                         </div>
 
+                        <AnimatePresence>
+                          {isContentOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mb-6 overflow-hidden"
+                            >
+                              <div className="p-5 rounded-2xl space-y-3 edufit-card-primary border border-hairline">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold uppercase tracking-widest text-gold-accent">
+                                    Pratinjau Materi Bacaan Siswa
+                                  </span>
+                                  {mat.media_url && (
+                                    <a
+                                      href={mat.media_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[11px] font-bold underline text-gold-accent"
+                                    >
+                                      Buka Tautan Media
+                                    </a>
+                                  )}
+                                </div>
+                                {mat.content_text && (
+                                  <p className="text-xs leading-relaxed opacity-85 whitespace-pre-line">
+                                    {mat.content_text}
+                                  </p>
+                                )}
+                                {Array.isArray(mat.content_blocks) &&
+                                  mat.content_blocks.length > 0 && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                                      {mat.content_blocks.map(
+                                        (blk: any, bIdx: number) => (
+                                          <div
+                                            key={bIdx}
+                                            className="p-3 rounded-xl text-xs edufit-surface-subtle"
+                                          >
+                                            <span className="font-bold text-[10px] uppercase opacity-60 block mb-1">
+                                              Bagian {bIdx + 1} ·{" "}
+                                              {blk.title ||
+                                                blk.type ||
+                                                "Materi"}
+                                            </span>
+                                            <p className="leading-relaxed">
+                                              {blk.content ||
+                                                blk.text ||
+                                                JSON.stringify(blk)}
+                                            </p>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <div className="space-y-3">
-                            <div className="flex items-center justify-between text-xs font-bold font-mono uppercase tracking-widest opacity-65">
+                            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest opacity-65">
                               <span className="flex items-center gap-2">
-                                <MessageSquare size={15} /> 01 / PERTANYAAN &
-                                JAWABAN PEMANTIK
+                                <MessageSquare size={15} /> Pertanyaan & Jawaban
+                                Pemantik
                               </span>
                               {unitState.hasStudentAnswer && (
-                                <span className="text-emerald-accent">
-                                  TERISI
-                                </span>
+                                <span className="text-gold-accent">Terisi</span>
                               )}
                             </div>
 
@@ -1655,9 +1796,9 @@ export default function PraktikGuruPage() {
 
                           <div className="space-y-4">
                             <div>
-                              <div className="flex items-center gap-2 font-bold font-mono text-xs uppercase tracking-widest text-emerald-accent mb-2">
-                                <CheckCircle2 size={15} /> 02 / UMPAN BALIK
-                                REFLEKSI PEMANTIK
+                              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest text-gold-accent mb-2">
+                                <CheckCircle2 size={15} /> Umpan Balik Refleksi
+                                Pemantik
                               </div>
                               <textarea
                                 value={unitState.feedback || ""}
@@ -1673,9 +1814,9 @@ export default function PraktikGuruPage() {
                             </div>
 
                             <div>
-                              <div className="flex items-center gap-2 font-bold font-mono text-xs uppercase tracking-widest opacity-65 mb-2">
-                                <ClipboardCheck size={15} /> 03 / CATATAN
-                                OBSERVASI PRAKTIK LAPANGAN
+                              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest opacity-65 mb-2">
+                                <ClipboardCheck size={15} /> Catatan Observasi
+                                Praktik Lapangan
                               </div>
                               <input
                                 type="text"
@@ -1686,7 +1827,7 @@ export default function PraktikGuruPage() {
                                     e.target.value
                                   )
                                 }
-                                placeholder="Catatan keterampilan gerak lapangan (tersimpan ke optional_practices)..."
+                                placeholder="Catatan pengamatan keterampilan gerak siswa di lapangan..."
                                 className="w-full px-4 py-3.5 rounded-2xl text-sm focus:outline-none edufit-card-primary"
                               />
                             </div>
@@ -1709,6 +1850,103 @@ export default function PraktikGuruPage() {
                       </div>
                     );
                   })
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL PANDUAN VIDEO TEKNIK PRAKTIK */}
+      <AnimatePresence>
+        {isVideoGuideModalOpen && (
+          <div className="fixed inset-0 z-[115] flex items-center justify-center p-4 edufit-modal-open">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
+              onClick={() => setIsVideoGuideModalOpen(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.96, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: 20, opacity: 0 }}
+              className="w-full max-w-4xl max-h-[88vh] overflow-hidden flex flex-col rounded-[2rem] relative z-10 shadow-2xl edufit-card-primary"
+            >
+              <div className="p-6 sm:p-8 border-b border-hairline flex items-center justify-between gap-4 shrink-0">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-widest text-gold-accent block mb-1">
+                    Standar Observasi Keterampilan Gerak
+                  </span>
+                  <h3 className="text-3xl font-light tracking-tight">
+                    Panduan Teknik & Kesalahan Umum ({practiceVideos.length})
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsVideoGuideModalOpen(false)}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer badge-tint-rose"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 grid grid-cols-1 md:grid-cols-2 gap-5">
+                {practiceVideos.length === 0 ? (
+                  <div className="col-span-full py-12 text-center opacity-55">
+                    Belum ada video panduan praktik yang ditambahkan.
+                  </div>
+                ) : (
+                  practiceVideos.map((vid) => (
+                    <div
+                      key={vid.id}
+                      className="p-6 rounded-3xl flex flex-col justify-between gap-4 edufit-surface-subtle"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-3 py-1 rounded-lg text-[10px] font-bold uppercase telemetry-bar-forest text-gold-accent">
+                            {formatHumanLabel(vid.category)}
+                          </span>
+                          <span className="text-xs font-mono opacity-65">
+                            {vid.duration_label}
+                          </span>
+                        </div>
+                        <h4 className="text-xl font-semibold tracking-tight">
+                          {vid.title}
+                        </h4>
+
+                        <div className="p-3.5 rounded-2xl text-xs space-y-1 edufit-card-primary">
+                          <span className="font-bold text-[10px] uppercase text-gold-accent block">
+                            Tahapan Teknik Benar:
+                          </span>
+                          <p className="leading-relaxed whitespace-pre-line">
+                            {vid.technique_steps}
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl text-xs space-y-1 edufit-card-primary">
+                          <span className="font-bold text-[10px] uppercase opacity-70 block">
+                            Kesalahan Umum Siswa:
+                          </span>
+                          <p className="leading-relaxed whitespace-pre-line">
+                            {vid.common_mistakes}
+                          </p>
+                        </div>
+                      </div>
+
+                      {vid.video_url && (
+                        <a
+                          href={vid.video_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 btn-forest-emerald"
+                        >
+                          <Play size={13} /> Tonton Video Demonstrasi
+                        </a>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
             </motion.div>

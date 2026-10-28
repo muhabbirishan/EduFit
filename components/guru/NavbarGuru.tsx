@@ -7,6 +7,7 @@ import {
   Activity,
   Bell,
   BookOpen,
+  Database,
   Home,
   LogOut,
   Menu,
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   Sun,
   Target,
+  UsersRound,
   X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -31,7 +33,6 @@ export default function NavbarGuru() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
-  // State Popover Aktivitas Kelas Real-Time (Kembar dengan Sidebar Admin)
   const [notifOpen, setNotifOpen] = useState(false);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -55,7 +56,6 @@ export default function NavbarGuru() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Sembunyikan navbar ketika guru sedang berada di dalam ruang Live Asesmen layar penuh
   if (pathname?.startsWith("/guru/live-asesmen")) {
     return null;
   }
@@ -63,56 +63,125 @@ export default function NavbarGuru() {
   const fetchTeacherActivity = async () => {
     setLoadingLogs(true);
     try {
-      const [refRes, progRes, metRes] = await Promise.all([
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setRecentLogs([]);
+        return;
+      }
+
+      const { data: teacherClasses } = await supabase
+        .from("classes")
+        .select("id, name, student_classes(student_id)")
+        .eq("guru_id", session.user.id);
+
+      const myStudentIds = Array.from(
+        new Set(
+          (teacherClasses || []).flatMap((c: any) =>
+            (c.student_classes || []).map((sc: any) => sc.student_id)
+          )
+        )
+      ).filter(Boolean);
+
+      if (myStudentIds.length === 0) {
+        setRecentLogs([]);
+        return;
+      }
+
+      const [refRes, progRes, metRes, evalRes] = await Promise.all([
         supabase
           .from("student_reflections")
-          .select("id, unit_name, created_at, grade")
+          .select(
+            "id, student_id, unit_name, created_at, grade, user_profiles(full_name)"
+          )
+          .in("student_id", myStudentIds)
           .order("created_at", { ascending: false })
-          .limit(2),
+          .limit(3),
         supabase
           .from("student_programs")
-          .select("id, type, status, updated_at")
+          .select(
+            "id, student_id, type, status, updated_at, user_profiles(full_name)"
+          )
+          .in("student_id", myStudentIds)
           .order("updated_at", { ascending: false })
-          .limit(2),
+          .limit(3),
         supabase
           .from("student_physical_metrics")
-          .select("id, tkji_category, total_tkji_score, created_at")
+          .select(
+            "id, student_id, tkji_category, total_tkji_score, created_at, user_profiles(full_name)"
+          )
+          .in("student_id", myStudentIds)
           .order("created_at", { ascending: false })
-          .limit(2),
+          .limit(3),
+        supabase
+          .from("student_evaluation_scores")
+          .select(
+            "id, student_id, score, submitted_at, master_evaluations(type), user_profiles(full_name)"
+          )
+          .in("student_id", myStudentIds)
+          .order("submitted_at", { ascending: false })
+          .limit(3),
       ]);
 
       const combined: any[] = [];
+
       (refRes.data || []).forEach((r: any) => {
+        const sName = r.user_profiles?.full_name || "Siswa";
         combined.push({
           id: `ref-${r.id}`,
-          code: "PRAKTIK",
-          title: `Refleksi: ${r.unit_name}`,
+          ts: new Date(r.created_at || 0).getTime(),
+          code: "Materi",
+          title: `${sName} · ${r.unit_name}`,
           subtitle: r.grade
-            ? `Sudah dinilai (${r.grade})`
-            : "Menunggu koreksi Guru",
+            ? `Sudah dinilai (Predikat ${r.grade})`
+            : "Menunggu koreksi pemantik Guru",
           href: "/guru/praktik",
         });
       });
+
       (progRes.data || []).forEach((p: any) => {
+        const sName = p.user_profiles?.full_name || "Siswa";
         combined.push({
           id: `prog-${p.id}`,
-          code: "FITT",
-          title: `Rancangan ${String(p.type || "Awal").toUpperCase()}`,
+          ts: new Date(p.updated_at || 0).getTime(),
+          code: "Program",
+          title: `${sName} · Rancangan ${String(p.type || "Awal").toUpperCase()}`,
           subtitle: `Status: ${p.status || "Terkumpul"}`,
           href: "/guru/rancangan",
         });
       });
+
       (metRes.data || []).forEach((m: any) => {
+        if (!m.total_tkji_score) return;
+        const sName = m.user_profiles?.full_name || "Siswa";
         combined.push({
           id: `met-${m.id}`,
-          code: "TKJI",
-          title: `Pengukuran TKJI (Skor ${m.total_tkji_score || "-"})`,
+          ts: new Date(m.created_at || 0).getTime(),
+          code: "Fisik",
+          title: `${sName} · Skor TKJI ${m.total_tkji_score}/25`,
           subtitle: `Kategori: ${m.tkji_category || "Tercatat"}`,
           href: "/guru/live-asesmen",
         });
       });
 
-      setRecentLogs(combined.slice(0, 5));
+      (evalRes.data || []).forEach((ev: any) => {
+        if (ev.score === null || ev.score === undefined) return;
+        const sName = ev.user_profiles?.full_name || "Siswa";
+        const evType =
+          ev.master_evaluations?.type === "posttest" ? "Posttest" : "Pretest";
+        combined.push({
+          id: `eval-${ev.id}`,
+          ts: new Date(ev.submitted_at || 0).getTime(),
+          code: evType,
+          title: `${sName} · Nilai ${ev.score}%`,
+          subtitle: `Menyelesaikan ujian ${evType}`,
+          href: "/guru/teori",
+        });
+      });
+
+      combined.sort((a, b) => b.ts - a.ts);
+      setRecentLogs(combined.slice(0, 6));
     } catch {
       setRecentLogs([]);
     } finally {
@@ -127,17 +196,26 @@ export default function NavbarGuru() {
   };
 
   const menuItems = [
-    { icon: Home, label: "Dashboard", href: "/guru", idx: "01" },
+    { icon: Home, label: "Dashboard", href: "/guru" },
     {
       icon: Radio,
       label: "Live Asesmen",
       href: "/guru/live-asesmen",
       isLive: true,
-      idx: "02",
     },
-    { icon: BookOpen, label: "Teori", href: "/guru/teori", idx: "03" },
-    { icon: Activity, label: "Praktik", href: "/guru/praktik", idx: "04" },
-    { icon: Target, label: "Rancangan", href: "/guru/rancangan", idx: "05" },
+    {
+      icon: UsersRound,
+      label: "Data Siswa",
+      href: "/guru/siswa",
+    },
+    { icon: BookOpen, label: "Teori", href: "/guru/teori" },
+    { icon: Activity, label: "Praktik", href: "/guru/praktik" },
+    { icon: Target, label: "Rancangan", href: "/guru/rancangan" },
+    {
+      icon: Database,
+      label: "Kurikulum",
+      href: "/guru/kurikulum",
+    },
   ];
 
   const isLinkActive = (href: string) => {
@@ -166,10 +244,10 @@ export default function NavbarGuru() {
   return (
     <header
       id="edufit-top-navbar"
-      className="sticky top-0 z-[70] w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 pt-4 pb-2 transition-all duration-300"
+      className="sticky top-0 z-40 w-full max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-4 pb-2 transition-all duration-300"
     >
       <div className="flex items-center justify-between gap-4">
-        {/* 1. KIRI: IDENTITAS BRAND & PERAN ARSITEKTURAL (IDENTIK DENGAN ADMIN) */}
+        {/* KIRI: IDENTITAS BRAND */}
         <Link
           href="/guru"
           className="flex items-center gap-3 shrink-0 py-1 transition-transform hover:scale-[1.02] focus:outline-none"
@@ -187,13 +265,13 @@ export default function NavbarGuru() {
                 EduFit<span className="text-gold-accent">.</span>
               </span>
               <span className="hidden sm:inline-block text-[10px] font-mono font-bold uppercase tracking-widest opacity-55">
-                GURU / STUDIO
+                RUANG GURU
               </span>
             </div>
           )}
         </Link>
 
-        {/* 2. TENGAH: DEK NAVIGASI UTAMA ARSITEKTURAL (IDENTIK DENGAN ADMIN) */}
+        {/* TENGAH: DEK NAVIGASI UTAMA (TANPA NOMOR INDEKS 01/ 02/) */}
         <nav className="hidden xl:flex items-center p-1.5 rounded-2xl backdrop-blur-xl overflow-x-auto no-scrollbar edufit-card-primary">
           {menuItems.map((item) => {
             const isActive = isLinkActive(item.href);
@@ -203,11 +281,10 @@ export default function NavbarGuru() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-colors whitespace-nowrap flex items-center gap-2 group ${
-                  isActive
-                    ? "text-ink-dark font-bold"
+                className={`relative px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-colors whitespace-nowrap flex items-center gap-2 group ${isActive
+                    ? "text-[#14120e] font-bold"
                     : "opacity-65 hover:opacity-100"
-                }`}
+                  }`}
               >
                 {isActive && (
                   <motion.div
@@ -223,20 +300,18 @@ export default function NavbarGuru() {
                 <IconComp
                   size={15}
                   strokeWidth={isActive ? 2.4 : 1.9}
-                  className={`relative z-10 transition-transform duration-200 group-hover:scale-110 ${
-                    item.isLive && !isActive ? "text-emerald-accent" : ""
-                  }`}
+                  className={`relative z-10 transition-transform duration-200 group-hover:scale-110 ${item.isLive && !isActive ? "text-gold-accent" : ""
+                    }`}
                 />
                 <span className="relative z-10 tracking-tight">
                   {item.label}
                 </span>
                 {item.isLive && (
                   <span
-                    className={`relative z-10 text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-md ${
-                      isActive
+                    className={`relative z-10 text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-md ${isActive
                         ? "telemetry-bar-forest text-gold-accent"
-                        : "badge-tint-emerald"
-                    }`}
+                        : "badge-tint-amber"
+                      }`}
                   >
                     LIVE
                   </span>
@@ -246,7 +321,7 @@ export default function NavbarGuru() {
           })}
         </nav>
 
-        {/* 3. KANAN: TOMBOL TEMA, LONCENG TELEMETRI KELAS, & LOGOUT (IDENTIK DENGAN ADMIN) */}
+        {/* KANAN: TOMBOL TEMA, NOTIFIKASI AKTIVITAS, & LOGOUT */}
         <div className="flex items-center gap-2.5 shrink-0" ref={notifRef}>
           {mounted && (
             <button
@@ -273,7 +348,6 @@ export default function NavbarGuru() {
             </button>
           )}
 
-          {/* Tombol Aktivitas Kelas Real-time */}
           <div className="relative">
             <button
               type="button"
@@ -292,11 +366,11 @@ export default function NavbarGuru() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.96 }}
                   transition={{ duration: 0.18 }}
-                  className="absolute right-0 mt-2 w-80 rounded-2xl p-4 z-50 shadow-2xl edufit-dropdown-menu"
+                  className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl p-4 z-50 shadow-2xl edufit-dropdown-menu"
                 >
                   <div className="flex items-center justify-between pb-3 mb-3 border-b border-hairline">
-                    <span className="text-xs font-bold font-mono uppercase tracking-wider">
-                      00 / AKTIVITAS KELAS TERBARU
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Aktivitas Siswa Terbaru
                     </span>
                     <button
                       type="button"
@@ -313,14 +387,14 @@ export default function NavbarGuru() {
 
                   {loadingLogs ? (
                     <p className="text-xs py-6 text-center opacity-60">
-                      Memuat aktivitas siswa...
+                      Memindai aktivitas kelas yang Anda ampu...
                     </p>
                   ) : recentLogs.length === 0 ? (
                     <p className="text-xs py-6 text-center opacity-60">
-                      Belum ada aktivitas siswa terbaru.
+                      Belum ada aktivitas terbaru dari siswa di kelas Anda.
                     </p>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-80 overflow-y-auto no-scrollbar">
                       {recentLogs.map((log) => (
                         <Link
                           key={log.id}
@@ -348,17 +422,15 @@ export default function NavbarGuru() {
             </AnimatePresence>
           </div>
 
-          {/* Tombol Logout */}
           <button
             type="button"
             onClick={handleLogout}
             className="w-11 h-11 rounded-xl flex items-center justify-center transition-all hover:scale-105 cursor-pointer badge-tint-rose"
-            title="Keluar dari Ruang Guru (Logout)"
+            title="Keluar dari Ruang Guru"
           >
             <LogOut size={16} />
           </button>
 
-          {/* Tombol Menu Hamburger Mobile & Tablet */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -369,7 +441,7 @@ export default function NavbarGuru() {
         </div>
       </div>
 
-      {/* DRAWER MENU MOBILE & TABLET (IDENTIK DENGAN ADMIN) */}
+      {/* DRAWER MENU MOBILE & TABLET */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -388,13 +460,9 @@ export default function NavbarGuru() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-                      isActive ? "seg-btn-active" : "edufit-surface-subtle"
-                    }`}
+                    className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${isActive ? "seg-btn-active" : "edufit-surface-subtle"
+                      }`}
                   >
-                    <span className="font-mono text-[10px] opacity-60">
-                      {item.idx}/
-                    </span>
                     <IconComp size={15} />
                     <span className="truncate">{item.label}</span>
                   </Link>
@@ -404,7 +472,7 @@ export default function NavbarGuru() {
 
             <div className="mt-4 pt-3 border-t border-hairline flex items-center justify-between">
               <span className="text-xs font-mono uppercase tracking-wider opacity-60">
-                PORTAL PENDIDIK PJOK EDUFIT
+                Portal Pendidik PJOK EduFit
               </span>
               <button
                 type="button"

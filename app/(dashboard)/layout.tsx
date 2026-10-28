@@ -44,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!isAllowed) {
         return (
             <div
-                className="fixed inset-0"
+                className="fixed top-0 left-0 w-full h-full"
                 style={{ backgroundColor: "var(--ref-canvas-bg, #f4f1ea)" }}
             />
         );
@@ -61,8 +61,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 color: "var(--ref-text-primary)"
             }}
         >
-            {/* AMBIENT GLOW HANGAT LIGHT & STRONG DARK */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transition-opacity duration-700">
+            {/* AMBIENT GLOW HANGAT LIGHT & STRONG DARK 
+                PERBAIKAN: Mengganti 'inset-0' menjadi 'top-0 left-0 w-full h-full' 
+                untuk menghindari konflik penyembunyian Navbar dengan globals.css 
+            */}
+            <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none overflow-hidden transition-opacity duration-700">
                 <div
                     className="absolute -top-[10%] right-[5%] w-[460px] h-[460px] rounded-full blur-[140px]"
                     style={{
