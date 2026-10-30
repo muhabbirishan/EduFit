@@ -208,7 +208,6 @@ export default function LiveAssessmentStudio() {
 
   const [guruId, setGuruId] = useState<string | null>(null);
   const [classes, setClasses] = useState<any[]>([]);
-  const [gradeFilter, setGradeFilter] = useState<number | "all">("all");
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
   const classDropdownRef = useRef<HTMLDivElement>(null);
@@ -293,10 +292,6 @@ export default function LiveAssessmentStudio() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // HEARTBEAT STUDIO LIVE GURU:
-  // Mengirim detak updated_at setiap 8 detik selama Guru membuka menu Live Assessment.
-  // Jika Guru berpindah menu ketika tidak ada siswa yang sedang berlari (command !== "START"),
-  // otomatis tandai sesi sebagai OFFLINE agar banner di Beranda HP siswa langsung hilang.
   useEffect(() => {
     if (!selectedClass?.id) return;
     const targetClassId = selectedClass.id;
@@ -317,7 +312,6 @@ export default function LiveAssessmentStudio() {
 
     return () => {
       clearInterval(heartbeatInterval);
-      // Jika tidak sedang dalam aba-aba START lari aktif, matikan banner di HP siswa saat Guru keluar
       if (commandRef.current !== "START") {
         supabase
           .from("live_sessions")
@@ -367,11 +361,12 @@ export default function LiveAssessmentStudio() {
 
       setGuruId(session.user.id);
 
+      // Hanya mengambil kelas 12 untuk fitur Live Assessment
       const { data } = await supabase
         .from("classes")
         .select("id, name, grade_level, created_at, student_classes(count)")
         .eq("guru_id", session.user.id)
-        .order("grade_level", { ascending: true })
+        .eq("grade_level", "12")
         .order("created_at", { ascending: false });
 
       if (data && data.length > 0) {
@@ -399,11 +394,6 @@ export default function LiveAssessmentStudio() {
       if (debounceReloadRef.current) clearTimeout(debounceReloadRef.current);
     };
   }, []);
-
-  const filteredClassesList = useMemo(() => {
-    if (gradeFilter === "all") return classes;
-    return classes.filter((c) => Number(c.grade_level) === gradeFilter);
-  }, [classes, gradeFilter]);
 
   const isRunPos = activePos === "RUN_60M" || activePos === "ENDURANCE";
   const isTimedManualPos = activePos === "PULL_UP" || activePos === "SIT_UP";
@@ -544,7 +534,9 @@ export default function LiveAssessmentStudio() {
               setReadyIds([]);
             }
             setActivePos(nextPos);
-            setCommand(rec.command === "OFFLINE" ? "STANDBY" : rec.command || "STANDBY");
+            setCommand(
+              rec.command === "OFFLINE" ? "STANDBY" : rec.command || "STANDBY"
+            );
             setRunStartedAtIso(rec.started_at || null);
             setCalledIds(
               Array.isArray(rec.active_student_ids)
@@ -721,7 +713,9 @@ export default function LiveAssessmentStudio() {
     if (typeof m.run_route_json === "object") {
       const s = m.run_route_json.sprint_60m;
       const e = m.run_route_json.endurance_run;
-      return (Array.isArray(s) && s.length > 0) || (Array.isArray(e) && e.length > 0);
+      return (
+        (Array.isArray(s) && s.length > 0) || (Array.isArray(e) && e.length > 0)
+      );
     }
     if (typeof m.run_route_json === "string") {
       try {
@@ -729,8 +723,10 @@ export default function LiveAssessmentStudio() {
         if (Array.isArray(parsed)) return parsed.length > 0;
         if (parsed && typeof parsed === "object") {
           return (
-            (Array.isArray(parsed.sprint_60m) && parsed.sprint_60m.length > 0) ||
-            (Array.isArray(parsed.endurance_run) && parsed.endurance_run.length > 0)
+            (Array.isArray(parsed.sprint_60m) &&
+              parsed.sprint_60m.length > 0) ||
+            (Array.isArray(parsed.endurance_run) &&
+              parsed.endurance_run.length > 0)
           );
         }
         return false;
@@ -768,7 +764,6 @@ export default function LiveAssessmentStudio() {
             : []
         );
 
-        // Segarkan updated_at begitu Guru membuka Studio Live agar banner di HP siswa langsung aktif
         await supabase
           .from("live_sessions")
           .update({
@@ -1906,12 +1901,26 @@ export default function LiveAssessmentStudio() {
     const isImtLockedForStudent = activePos === "IMT" && !allFiveTkji;
     const hasRoute = hasGpsRouteData(m);
 
+    const isCurrentPosDone = isPosDone(m, activePos) || allComplete;
+    const statusClass = isCalled
+      ? "edufit-status-active animate-border-pulse"
+      : isCurrentPosDone
+      ? "edufit-status-completed"
+      : doneCount > 0
+      ? "edufit-status-partial"
+      : "edufit-status-queue";
+
     return (
-      <div
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         key={st.student_id}
-        className={`p-6 md:p-8 transition-all ${
-          isLockedByActiveWave ? "opacity-45" : ""
-        } ${isCalled ? "edufit-surface-subtle" : ""}`}
+        className={`p-6 md:p-8 transition-colors duration-300 ${
+          isLockedByActiveWave ? "opacity-45 grayscale-[25%]" : ""
+        } ${statusClass}`}
       >
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -1923,8 +1932,8 @@ export default function LiveAssessmentStudio() {
                   ? "edufit-surface-subtle opacity-50"
                   : isCalled
                   ? "badge-tint-rose hover:opacity-85"
-                  : allComplete
-                  ? "edufit-surface-subtle hover:scale-[1.02]"
+                  : isCurrentPosDone
+                  ? "badge-tint-emerald hover:scale-[1.02]"
                   : "telemetry-bar-forest hover:scale-[1.02]"
               }`}
             >
@@ -1941,19 +1950,36 @@ export default function LiveAssessmentStudio() {
                   <UserCheck size={15} />
                   {isCalled
                     ? "Keluarkan"
-                    : allComplete
+                    : isCurrentPosDone
                     ? "Uji Remedial?"
                     : `Panggil #${idx + 1}`}
                 </>
               )}
             </button>
 
-            <div className="space-y-2">
-              <div className="text-2xl font-light tracking-tight flex flex-wrap items-center gap-3">
+            <div className="space-y-2.5">
+              <div className="text-2xl font-light tracking-tight flex flex-wrap items-center gap-2.5">
                 <span className="font-semibold">{st.full_name}</span>
-                <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-                  · {isMale ? "Putra (L)" : "Putri (P)"} · {st.ageYears} Thn
+                <span
+                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wider ${
+                    isMale ? "badge-tint-sky" : "badge-tint-rose"
+                  }`}
+                >
+                  {isMale ? "Putra (L)" : "Putri (P)"} · {st.ageYears} Thn
                 </span>
+
+                {isCalled && (
+                  <span className="px-3 py-1 rounded-lg text-[10px] font-mono font-bold uppercase tracking-widest badge-tint-amber">
+                    Sedang Ujian
+                  </span>
+                )}
+
+                {!isCalled && isCurrentPosDone && (
+                  <span className="px-3 py-1 rounded-lg text-[10px] font-mono font-bold uppercase tracking-widest badge-tint-emerald flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Selesai{" "}
+                    {getPosHumanTitle(activePos)}
+                  </span>
+                )}
 
                 {isCalled && (
                   <button
@@ -1986,13 +2012,19 @@ export default function LiveAssessmentStudio() {
                       {m.original_tkji_score ?? "-"})
                     </span>
                   ) : (
-                    <span className="text-xs font-bold uppercase tracking-widest text-gold-accent flex items-center gap-1">
-                      · <CheckCircle2 size={14} /> Tuntas Murni
+                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-accent flex items-center gap-1">
+                      · <CheckCircle2 size={14} /> Tuntas 6 Pos
                     </span>
                   )
                 ) : (
-                  <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-                    · Progres {doneCount}/6 Pos
+                  <span
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold font-mono uppercase tracking-widest ${
+                      doneCount > 0
+                        ? "badge-tint-violet"
+                        : "edufit-surface-subtle opacity-65"
+                    }`}
+                  >
+                    Progres {doneCount}/6 Pos
                   </span>
                 )}
               </div>
@@ -2004,7 +2036,7 @@ export default function LiveAssessmentStudio() {
                   return (
                     <span
                       key={p.code}
-                      className={`text-[10px] font-mono px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider ${
+                      className={`text-[10px] font-mono px-2.5 py-1 rounded-lg font-bold uppercase tracking-wider transition-colors ${
                         done
                           ? "badge-tint-emerald"
                           : isCurrentActivePos
@@ -2012,11 +2044,16 @@ export default function LiveAssessmentStudio() {
                           : "edufit-surface-subtle opacity-60"
                       }`}
                     >
-                      {p.shortLabel}: {done ? "Selesai" : "—"}
+                      {p.shortLabel}:{" "}
+                      {done
+                        ? "Selesai"
+                        : isCurrentActivePos
+                        ? "Pos Aktif"
+                        : "—"}
                     </span>
                   );
                 })}
-                <span className="text-xs font-semibold opacity-75 ml-1">
+                <span className="text-xs font-semibold opacity-80 ml-1">
                   · Total TKJI:{" "}
                   <strong className="text-gold-accent font-mono">
                     {m.total_tkji_score ?? 0}/25 ({m.tkji_category ?? "Belum"})
@@ -2026,10 +2063,10 @@ export default function LiveAssessmentStudio() {
                   <button
                     type="button"
                     onClick={() => setRouteInspectStudent(st)}
-                    className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg inline-flex items-center gap-1 cursor-pointer edufit-card-primary hover:scale-105 transition-transform"
+                    className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg inline-flex items-center gap-1 cursor-pointer badge-tint-sky hover:scale-105 transition-transform"
                     title="Lihat Peta Lintasan GPS Lari Siswa"
                   >
-                    <Navigation size={11} className="text-gold-accent" />
+                    <Navigation size={11} />
                     {hasRoute ? "Jejak GPS" : "Catatan Lari"}
                   </button>
                 )}
@@ -2240,7 +2277,7 @@ export default function LiveAssessmentStudio() {
                 type="button"
                 onClick={() => handleSaveStudent(st)}
                 disabled={savingId === st.student_id}
-                className="px-6 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-[1.02] cursor-pointer shadow-sm btn-forest-emerald"
+                className="px-6 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-[1.02] cursor-pointer shadow-sm btn-forest-gold"
               >
                 <Save size={14} />
                 {savingId === st.student_id ? "Menyimpan..." : "Simpan Nilai"}
@@ -2259,13 +2296,43 @@ export default function LiveAssessmentStudio() {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   };
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* DYNAMIC ISLAND OVERLAY */}
+    <div className="edufit-guru-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {/* INJEKSI CSS STATUS LANGSUNG AGAR WARNA POS & BARIS SISWA PASTI MUNCUL */}
+      <style jsx global>{`
+        .edufit-status-active {
+          background-color: rgba(245, 158, 11, 0.14) !important;
+          border-left: 5px solid #f59e0b !important;
+        }
+        .dark .edufit-status-active {
+          background-color: rgba(250, 204, 21, 0.14) !important;
+          border-left: 5px solid #facc15 !important;
+        }
+        .edufit-status-completed {
+          background-color: rgba(16, 185, 129, 0.14) !important;
+          border-left: 5px solid #10b981 !important;
+        }
+        .dark .edufit-status-completed {
+          background-color: rgba(16, 185, 129, 0.18) !important;
+          border-left: 5px solid #34d399 !important;
+        }
+        .edufit-status-partial {
+          background-color: rgba(14, 165, 233, 0.1) !important;
+          border-left: 5px solid #0ea5e9 !important;
+        }
+        .dark .edufit-status-partial {
+          background-color: rgba(14, 165, 233, 0.14) !important;
+          border-left: 5px solid #38bdf8 !important;
+        }
+        .edufit-status-queue {
+          border-left: 5px solid transparent !important;
+        }
+      `}</style>
+
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -2320,7 +2387,6 @@ export default function LiveAssessmentStudio() {
         )}
       </AnimatePresence>
 
-      {/* ZONA 1: HERO HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-30">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-2.5 mb-6">
@@ -2389,13 +2455,13 @@ export default function LiveAssessmentStudio() {
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-3 opacity-60">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-3 opacity-65">
             <span className="text-gold-accent">
               Studio Pengukuran Kebugaran Jasmani (TKJI)
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5 font-mono">
-              <Radio size={15} className="text-gold-accent animate-pulse" />
+              <Radio size={15} className="text-emerald-accent animate-pulse" />
               {selectedClass
                 ? `${selectedClass.name} (Kelas ${selectedClass.grade_level})`
                 : "Pengujian Fisik Real-Time"}
@@ -2412,7 +2478,7 @@ export default function LiveAssessmentStudio() {
 
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-mono font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-mono font-light tracking-tighter leading-none text-sky-accent">
               {calledIds.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
@@ -2428,7 +2494,7 @@ export default function LiveAssessmentStudio() {
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-mono font-light tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-mono font-light tracking-tighter leading-none text-emerald-accent">
               {completedStudentsList.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
@@ -2438,12 +2504,13 @@ export default function LiveAssessmentStudio() {
         </div>
       </div>
 
-      {/* ZONA 2: 4 BAR TELEMETRI LAPANGAN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-20">
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Status Sesi</span>
-            <span className="font-mono">{getPosHumanTitle(activePos)}</span>
+            <span className="font-mono text-gold-accent">
+              {getPosHumanTitle(activePos)}
+            </span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
             <span className="text-xl font-mono font-light tracking-tight">
@@ -2473,7 +2540,7 @@ export default function LiveAssessmentStudio() {
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Ketuntasan {getPosHumanTitle(activePos)}</span>
-            <span className="font-mono">
+            <span className="font-mono text-emerald-accent">
               {currentPosDoneCount} DARI {students.length} SISWA
             </span>
           </div>
@@ -2481,7 +2548,7 @@ export default function LiveAssessmentStudio() {
             <span className="text-2xl font-mono font-light tracking-tight relative z-10">
               {currentPosCompletionPct}%
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
+            <span className="px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase tracking-widest relative z-10 badge-tint-emerald">
               {eligibleUnfinishedCount > 0
                 ? `${eligibleUnfinishedCount} Siap Dipanggil`
                 : "Antrean Kosong"}
@@ -2495,14 +2562,13 @@ export default function LiveAssessmentStudio() {
             <span className="font-mono">SKALA 25</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-mono font-light tracking-tight text-gold-accent">
+            <span className="text-2xl font-mono font-light tracking-tight text-emerald-accent">
               {classAvgTkji}/25
             </span>
           </div>
         </div>
       </div>
 
-      {/* BANNER NOTIFIKASI FINIS OTOMATIS DARI HP SISWA */}
       <AnimatePresence>
         {(liveFinishFeed.length > 0 || celebrationBanner) && (
           <motion.div
@@ -2543,7 +2609,6 @@ export default function LiveAssessmentStudio() {
         )}
       </AnimatePresence>
 
-      {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
         {/* BENTO 1: MANAJEMEN GELOMBANG */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
@@ -2551,7 +2616,7 @@ export default function LiveAssessmentStudio() {
 
           <div className="relative z-30">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={14} className="text-gold-accent" />
               <span>Kontrol Antrean Lapangan</span>
             </div>
 
@@ -2559,52 +2624,13 @@ export default function LiveAssessmentStudio() {
               Manajemen Gelombang
             </h2>
             <p className="text-sm mb-4 leading-relaxed font-medium opacity-55">
-              Pilih kelas dan panggil gelombang siswa yang sudah menyelesaikan
+              Pilih kelas 12 dan panggil gelombang siswa yang sudah menyelesaikan
               Pre-Test ke lapangan.
             </p>
 
-            <div className="flex gap-1.5 p-1.5 rounded-2xl mb-4 edufit-surface-subtle">
-              {[
-                { val: "all", label: "Semua" },
-                { val: 10, label: "Kelas 10" },
-                { val: 11, label: "Kelas 11" },
-                { val: 12, label: "Kelas 12" },
-              ].map((g) => {
-                const active = gradeFilter === g.val;
-                return (
-                  <button
-                    key={String(g.val)}
-                    type="button"
-                    onClick={() => {
-                      setGradeFilter(g.val as any);
-                      const list =
-                        g.val === "all"
-                          ? classes
-                          : classes.filter(
-                              (c) => Number(c.grade_level) === g.val
-                            );
-                      if (
-                        list.length > 0 &&
-                        (!selectedClass ||
-                          (g.val !== "all" &&
-                            Number(selectedClass.grade_level) !== g.val))
-                      ) {
-                        setSelectedClass(list[0]);
-                      }
-                    }}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "seg-btn-idle"
-                    }`}
-                  >
-                    {g.label}
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="relative w-full mb-6" ref={classDropdownRef}>
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1">
-                Kelas yang Sedang Diuji ({filteredClassesList.length} Rombel)
+                Kelas yang Sedang Diuji ({classes.length} Rombel Kelas 12)
               </label>
               <button
                 type="button"
@@ -2635,12 +2661,12 @@ export default function LiveAssessmentStudio() {
                     transition={{ duration: 0.18 }}
                     className="absolute top-full left-0 right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto no-scrollbar edufit-dropdown-menu"
                   >
-                    {filteredClassesList.length === 0 ? (
+                    {classes.length === 0 ? (
                       <div className="p-5 text-sm opacity-55 text-center">
                         Belum ada kelas pada jenjang ini.
                       </div>
                     ) : (
-                      filteredClassesList.map((cls: any) => {
+                      classes.map((cls: any) => {
                         const isSelected = selectedClass?.id === cls.id;
                         return (
                           <button
@@ -2679,7 +2705,7 @@ export default function LiveAssessmentStudio() {
             <button
               type="button"
               onClick={callNextWaveOfFive}
-              className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-md btn-forest-emerald"
+              className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-md btn-forest-gold"
             >
               <UserCheck size={16} /> Panggil 5 Siswa Berikutnya
             </button>
@@ -2688,7 +2714,7 @@ export default function LiveAssessmentStudio() {
               <button
                 type="button"
                 onClick={callAllUnfinishedOnCurrentPos}
-                className="py-3.5 px-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-center transition-colors cursor-pointer edufit-surface-subtle hover:opacity-85"
+                className="py-3.5 px-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-center transition-colors cursor-pointer badge-tint-sky hover:opacity-85"
               >
                 Panggil Siap ({eligibleUnfinishedCount})
               </button>
@@ -2702,7 +2728,7 @@ export default function LiveAssessmentStudio() {
                     "Gelombang dikosongkan."
                   )
                 }
-                className="py-3.5 px-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-center cursor-pointer edufit-surface-subtle opacity-75 hover:opacity-100"
+                className="py-3.5 px-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-center cursor-pointer badge-tint-rose opacity-85 hover:opacity-100"
               >
                 Kosongkan ({calledIds.length})
               </button>
@@ -2710,19 +2736,18 @@ export default function LiveAssessmentStudio() {
           </div>
         </div>
 
-        {/* BENTO 2: PILIH POS PENGUKURAN AKTIF */}
+        {/* BENTO 2: POS PENGUKURAN DENGAN WARNA STATUS (AKTIF = KUNING, SELESAI = HIJAU, PROGRES = BIRU) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10 mb-4">
             <div>
               <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-                <Activity size={15} />
+                <Activity size={15} className="text-emerald-accent" />
                 <span>Daftar Pos Pengukuran TKJI & IMT</span>
               </div>
               <p className="text-xs opacity-55 mt-1">
-                Siswa menyelesaikan 5 Pos TKJI terlebih dahulu sebelum Pos Akhir
-                (IMT).
+                Kuning = Sedang Diuji · Hijau = Tuntas · Biru = Berjalan
               </p>
             </div>
           </div>
@@ -2733,6 +2758,18 @@ export default function LiveAssessmentStudio() {
               const doneInThisPos = students.filter((s) =>
                 isPosDone(s.metrics, pos.code)
               ).length;
+              const isAllPosDone =
+                students.length > 0 && doneInThisPos === students.length;
+              const isPartialPosDone =
+                doneInThisPos > 0 && doneInThisPos < students.length;
+
+              const posColorClass = active
+                ? "seg-btn-active shadow-md ring-2 ring-amber-400/50"
+                : isAllPosDone
+                ? "badge-tint-emerald"
+                : isPartialPosDone
+                ? "badge-tint-sky"
+                : "edufit-card-primary";
 
               return (
                 <button
@@ -2749,15 +2786,13 @@ export default function LiveAssessmentStudio() {
                       `Berpindah ke ${pos.title}. Gelombang disiapkan untuk pos baru.`
                     );
                   }}
-                  className={`p-4 rounded-2xl text-left transition-all cursor-pointer flex flex-col justify-between min-h-[96px] ${
-                    active ? "seg-btn-active shadow-md" : "edufit-card-primary"
-                  }`}
+                  className={`p-4 rounded-2xl text-left transition-all duration-200 hover:scale-[1.02] cursor-pointer flex flex-col justify-between min-h-[96px] ${posColorClass}`}
                 >
                   <div className="flex items-center justify-between w-full font-mono">
-                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">
                       {pos.step}
                     </span>
-                    <span className="text-[10px] font-bold opacity-80">
+                    <span className="text-[10px] font-bold">
                       {doneInThisPos}/{students.length}
                     </span>
                   </div>
@@ -2765,8 +2800,12 @@ export default function LiveAssessmentStudio() {
                     <div className="text-base font-bold leading-tight">
                       {pos.shortLabel}
                     </div>
-                    <div className="text-[10px] opacity-70 mt-0.5 truncate">
-                      {pos.mode === "AUTO_HP"
+                    <div className="text-[10px] opacity-75 mt-0.5 truncate font-semibold">
+                      {active
+                        ? "Sedang Diuji"
+                        : isAllPosDone
+                        ? "Selesai 100%"
+                        : pos.mode === "AUTO_HP"
                         ? "Otomatis GPS HP"
                         : pos.code === "IMT"
                         ? "Tahap Akhir"
@@ -2785,7 +2824,7 @@ export default function LiveAssessmentStudio() {
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <Timer size={15} />
+              <Timer size={15} className="text-gold-accent" />
               <span>
                 {isRunPos
                   ? "Stopwatch Utama Lari"
@@ -2794,7 +2833,7 @@ export default function LiveAssessmentStudio() {
                   : "Progres Pengukuran Pos"}
               </span>
             </div>
-            <span className="text-xs font-mono font-bold text-gold-accent">
+            <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold badge-tint-amber">
               {calledReadyCount}/{calledIds.length} Siap
             </span>
           </div>
@@ -2900,7 +2939,7 @@ export default function LiveAssessmentStudio() {
                     );
                   }}
                   disabled={calledReadyCount === 0}
-                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest disabled:opacity-30 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm btn-forest-emerald"
+                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest disabled:opacity-30 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm btn-forest-gold"
                 >
                   <Play size={14} /> Mulai ({calledReadyCount})
                 </button>
@@ -2908,7 +2947,7 @@ export default function LiveAssessmentStudio() {
                   type="button"
                   onClick={handleFalseStartReset}
                   disabled={calledIds.length === 0}
-                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest disabled:opacity-30 cursor-pointer flex items-center justify-center gap-1.5 edufit-surface-subtle"
+                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest disabled:opacity-30 cursor-pointer flex items-center justify-center gap-1.5 badge-tint-sky"
                 >
                   <RotateCcw size={14} /> Ulang
                 </button>
@@ -2949,7 +2988,7 @@ export default function LiveAssessmentStudio() {
                     );
                   }}
                   className={`py-4 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer disabled:opacity-30 ${
-                    isTimerRunning ? "badge-tint-rose" : "btn-forest-emerald"
+                    isTimerRunning ? "badge-tint-rose" : "btn-forest-gold"
                   }`}
                 >
                   {isTimerRunning
@@ -2968,18 +3007,24 @@ export default function LiveAssessmentStudio() {
                       "Timer 60 detik di-reset."
                     );
                   }}
-                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer edufit-surface-subtle"
+                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer badge-tint-sky"
                 >
                   Reset 60s
                 </button>
               </div>
             ) : (
-              <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-3 border-t border-hairline">
-                <span>{currentPosDoneCount} Selesai</span>
+              <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase pt-3 border-t border-hairline">
+                <span className="text-emerald-accent">
+                  {currentPosDoneCount} Selesai
+                </span>
                 <span>—</span>
-                <span>{eligibleUnfinishedCount} Siap Uji</span>
+                <span className="text-gold-accent">
+                  {eligibleUnfinishedCount} Siap Uji
+                </span>
                 <span>—</span>
-                <span>{completedStudentsList.length} Tuntas</span>
+                <span className="text-sky-accent">
+                  {completedStudentsList.length} Tuntas
+                </span>
               </div>
             )}
           </div>
@@ -2992,37 +3037,51 @@ export default function LiveAssessmentStudio() {
           <div className="px-8 py-4 flex flex-wrap items-center justify-between gap-2 telemetry-bar-gold">
             <div className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
               <Radio size={15} className="animate-pulse" />
-              Gelombang Aktif ({calledStudentsList.length} Dipanggil ·{" "}
-              {calledReadyCount} Sudah Angkat Tangan)
+              Gelombang Aktif — Sedang Diuji ({calledStudentsList.length}{" "}
+              Dipanggil · {calledReadyCount} Sudah Angkat Tangan)
             </div>
             <span className="text-xs font-bold">
               Siswa wajib menekan Angkat Tangan di HP agar GPS terkunci & kolom
               input nilai terbuka
             </span>
           </div>
-          <div className="divide-y divide-black/5 dark:divide-white/5">
-            {calledStudentsList.map((st, idx) =>
-              renderStudentRow(st, idx, "CALLED")
-            )}
+          <div className="divide-y divide-black/5 dark:divide-white/5 overflow-hidden">
+            <AnimatePresence mode="popLayout">
+              {calledStudentsList.map((st, idx) =>
+                renderStudentRow(st, idx, "CALLED")
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}
 
       <div className="rounded-[2rem] mb-10 overflow-hidden relative z-10 edufit-card-primary">
-        <div className="px-8 py-6 border-b border-hairline flex flex-wrap items-center justify-between gap-2">
+        <div className="px-8 py-6 border-b border-hairline flex flex-wrap items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-1">
+            <span className="text-xs font-bold uppercase tracking-widest text-gold-accent block mb-1">
               Daftar Tunggu Pos Pengukuran
             </span>
             <h3 className="text-3xl font-light tracking-tight">
               Antrean Siswa ({queueStudentsList.length})
             </h3>
           </div>
-          {hasActiveWave && (
-            <span className="text-xs font-bold opacity-55 flex items-center gap-1.5">
-              <Lock size={13} /> Input dikunci selama gelombang aktif berjalan
+
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider">
+            <span className="px-3 py-1 rounded-lg badge-tint-amber">
+              Kuning: Sedang Ujian
             </span>
-          )}
+            <span className="px-3 py-1 rounded-lg badge-tint-emerald">
+              Hijau: Selesai Pos Ini
+            </span>
+            <span className="px-3 py-1 rounded-lg badge-tint-sky">
+              Biru: Progres Pos Lain
+            </span>
+            {hasActiveWave && (
+              <span className="px-3 py-1 rounded-lg badge-tint-rose flex items-center gap-1">
+                <Lock size={11} /> Antrean Dikunci Selama Gelombang Berjalan
+              </span>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -3034,10 +3093,12 @@ export default function LiveAssessmentStudio() {
             Tidak ada siswa di antrean tunggu.
           </div>
         ) : (
-          <div className="divide-y divide-black/5 dark:divide-white/5">
-            {queueStudentsList.map((st, idx) =>
-              renderStudentRow(st, idx, "QUEUE")
-            )}
+          <div className="divide-y divide-black/5 dark:divide-white/5 overflow-hidden">
+            <AnimatePresence mode="popLayout">
+              {queueStudentsList.map((st, idx) =>
+                renderStudentRow(st, idx, "QUEUE")
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
@@ -3047,7 +3108,7 @@ export default function LiveAssessmentStudio() {
         <div className="space-y-6 relative z-10">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-bold uppercase tracking-widest opacity-50 block mb-1">
+              <span className="text-xs font-bold uppercase tracking-widest text-emerald-accent block mb-1">
                 Rekapitulasi Ketuntasan Fisik
               </span>
               <h3 className="text-3xl font-light tracking-tight">
@@ -3073,7 +3134,7 @@ export default function LiveAssessmentStudio() {
                   <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                   <div className="flex justify-between items-start relative z-10">
-                    <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                    <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono tracking-widest uppercase bg-black/10 dark:bg-white/10">
                       {m.is_remedial
                         ? `Remedial #${m.attempt_count || 2}`
                         : "Tuntas Murni · 6/6 Pos"}
@@ -3167,8 +3228,8 @@ export default function LiveAssessmentStudio() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-4 rounded-2xl edufit-surface-subtle">
-                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                <div className="p-4 rounded-2xl badge-tint-emerald">
+                  <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                     Sprint 60m
                   </span>
                   <span className="text-2xl font-mono font-semibold">
@@ -3177,24 +3238,24 @@ export default function LiveAssessmentStudio() {
                       : "—"}
                   </span>
                 </div>
-                <div className="p-4 rounded-2xl edufit-surface-subtle">
-                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                <div className="p-4 rounded-2xl badge-tint-sky">
+                  <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                     Lari Jauh
                   </span>
                   <span className="text-2xl font-mono font-semibold">
                     {routeInspectStudent.metrics?.endurance_run_min_sec || "—"}
                   </span>
                 </div>
-                <div className="p-4 rounded-2xl edufit-surface-subtle">
-                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                <div className="p-4 rounded-2xl badge-tint-amber">
+                  <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                     Titik Satelit
                   </span>
-                  <span className="text-2xl font-mono font-semibold text-gold-accent">
+                  <span className="text-2xl font-mono font-semibold">
                     {inspectedRouteTelemetry.pointCount} Titik
                   </span>
                 </div>
-                <div className="p-4 rounded-2xl edufit-surface-subtle">
-                  <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                <div className="p-4 rounded-2xl badge-tint-violet">
+                  <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                     Jarak Tempuh
                   </span>
                   <span className="text-2xl font-mono font-semibold">
@@ -3330,7 +3391,7 @@ export default function LiveAssessmentStudio() {
                 <button
                   type="button"
                   onClick={() => confirmActivateRemedial(remedialModalStudent)}
-                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer btn-forest-emerald"
+                  className="py-4 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer btn-forest-gold"
                 >
                   Ya, Buka Remedial
                 </button>

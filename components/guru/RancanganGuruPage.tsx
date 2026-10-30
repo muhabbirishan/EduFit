@@ -30,6 +30,14 @@ function formatHumanLabel(raw?: string | null): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getRubricScoreBadge(scoreVal: number): string {
+  if (scoreVal === 4) return "badge-tint-emerald shadow-sm";
+  if (scoreVal === 3) return "badge-tint-sky shadow-sm";
+  if (scoreVal === 2) return "badge-tint-amber shadow-sm";
+  if (scoreVal === 1) return "badge-tint-rose shadow-sm";
+  return "seg-btn-active";
+}
+
 interface ProgramRecord {
   id: string;
   student_id: string;
@@ -100,22 +108,63 @@ const BENTO_SHOWCASE_CLASSES = [
   "bento-showcase-3",
 ];
 
-const FITT_COMPONENTS: { key: keyof ProgramRecord; label: string }[] = [
-  { key: "prioritas", label: "Prioritas & Data Pendukung" },
-  { key: "tujuan", label: "Tujuan Latihan" },
-  { key: "frekuensi", label: "Frekuensi & Jadwal Mingguan" },
-  { key: "intensitas", label: "Intensitas & Pemantauan" },
-  { key: "durasi", label: "Durasi Sesi" },
-  { key: "jenis", label: "Jenis & Bentuk Latihan" },
-  { key: "jeda", label: "Jeda & Pemulihan" },
-  { key: "progresi", label: "Rencana Progresi" },
-  { key: "alasan", label: "Alasan & Evaluasi Keputusan" },
+const FITT_COMPONENTS: {
+  key: keyof ProgramRecord;
+  label: string;
+  badgeClass: string;
+}[] = [
+  {
+    key: "prioritas",
+    label: "Prioritas & Data Pendukung",
+    badgeClass: "badge-tint-amber",
+  },
+  {
+    key: "tujuan",
+    label: "Tujuan Latihan",
+    badgeClass: "badge-tint-emerald",
+  },
+  {
+    key: "frekuensi",
+    label: "Frekuensi & Jadwal Mingguan",
+    badgeClass: "badge-tint-sky",
+  },
+  {
+    key: "intensitas",
+    label: "Intensitas & Pemantauan",
+    badgeClass: "badge-tint-violet",
+  },
+  {
+    key: "durasi",
+    label: "Durasi Sesi",
+    badgeClass: "badge-tint-amber",
+  },
+  {
+    key: "jenis",
+    label: "Jenis & Bentuk Latihan",
+    badgeClass: "badge-tint-emerald",
+  },
+  {
+    key: "jeda",
+    label: "Jeda & Pemulihan",
+    badgeClass: "badge-tint-sky",
+  },
+  {
+    key: "progresi",
+    label: "Rencana Progresi",
+    badgeClass: "badge-tint-violet",
+  },
+  {
+    key: "alasan",
+    label: "Alasan & Evaluasi Keputusan",
+    badgeClass: "badge-tint-amber",
+  },
 ];
 
 const RUBRIC_CRITERIA = [
   {
     key: "score_analisis" as const,
     code: "XII-1",
+    badgeClass: "badge-tint-amber",
     label: "Analisis Hasil & Prioritas",
     options: [
       {
@@ -139,6 +188,7 @@ const RUBRIC_CRITERIA = [
   {
     key: "score_fitt" as const,
     code: "XII-2",
+    badgeClass: "badge-tint-emerald",
     label: "Kesesuaian Prinsip FITT",
     options: [
       {
@@ -162,6 +212,7 @@ const RUBRIC_CRITERIA = [
   {
     key: "score_pemulihan" as const,
     code: "XII-3",
+    badgeClass: "badge-tint-sky",
     label: "Pemulihan & Progresi",
     options: [
       {
@@ -185,6 +236,7 @@ const RUBRIC_CRITERIA = [
   {
     key: "score_evaluasi" as const,
     code: "XII-4",
+    badgeClass: "badge-tint-violet",
     label: "Alasan & Evaluasi Keputusan",
     options: [
       {
@@ -529,24 +581,32 @@ export default function RancanganGuruPage() {
         title: "Analisis Hasil & Prioritas",
         avg4: gCount > 0 ? Number((sumAnalisis / gCount).toFixed(1)) : 0,
         pct: gCount > 0 ? Math.round((sumAnalisis / (gCount * 4)) * 100) : 0,
+        fillClass: "chart-fill-gold",
+        textClass: "text-gold-accent",
       },
       {
         code: "XII-2",
         title: "Kesesuaian Prinsip FITT",
         avg4: gCount > 0 ? Number((sumFitt / gCount).toFixed(1)) : 0,
         pct: gCount > 0 ? Math.round((sumFitt / (gCount * 4)) * 100) : 0,
+        fillClass: "chart-fill-emerald",
+        textClass: "text-emerald-accent",
       },
       {
         code: "XII-3",
         title: "Pemulihan & Progresi",
         avg4: gCount > 0 ? Number((sumPemulihan / gCount).toFixed(1)) : 0,
         pct: gCount > 0 ? Math.round((sumPemulihan / (gCount * 4)) * 100) : 0,
+        fillClass: "chart-fill-sky",
+        textClass: "text-sky-accent",
       },
       {
         code: "XII-4",
         title: "Alasan & Evaluasi Data",
         avg4: gCount > 0 ? Number((sumEvaluasi / gCount).toFixed(1)) : 0,
         pct: gCount > 0 ? Math.round((sumEvaluasi / (gCount * 4)) * 100) : 0,
+        fillClass: "chart-fill-terra",
+        textClass: "text-terra-accent",
       },
     ];
 
@@ -685,7 +745,7 @@ export default function RancanganGuruPage() {
         score_evaluasi: evalForm.score_evaluasi,
         feedback: evalForm.feedback,
         status: "Dinilai",
-        updated_at: new Date().toISOString(), // TELAH DIPERBAIKI (toISOString)
+        updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase
@@ -819,8 +879,15 @@ export default function RancanganGuruPage() {
       ? circumference
       : circumference - (activeGaugePct / 100) * circumference;
 
+  const gaugeStrokeClass =
+    gaugeMode === "koreksi"
+      ? "gauge-circle-gold"
+      : gaugeMode === "kualitas"
+      ? "gauge-circle-emerald"
+      : "gauge-circle-sky";
+
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-guru-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -875,15 +942,16 @@ export default function RancanganGuruPage() {
         )}
       </AnimatePresence>
 
+      {/* ZONA 1: HERO HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
             <span className="text-gold-accent">
               Formulasi FITT & Rekomendasi Program Latihan
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
-              <FileCheck2 size={15} />
+              <FileCheck2 size={15} className="text-emerald-accent" />
               {selectedClass
                 ? `${selectedClass.name} (Kelas ${
                     selectedClass.grade_level
@@ -899,7 +967,7 @@ export default function RancanganGuruPage() {
 
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-sky-accent">
               {isLoading ? "—" : stats.totalSiswa}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
@@ -915,7 +983,7 @@ export default function RancanganGuruPage() {
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading ? "—" : `${stats.avgScorePct}%`}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
@@ -925,6 +993,7 @@ export default function RancanganGuruPage() {
         </div>
       </div>
 
+      {/* ZONA 2: 4 BAR TELEMETRI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         <button
           type="button"
@@ -940,7 +1009,7 @@ export default function RancanganGuruPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rancangan Awal</span>
-            <span className="font-mono">FASE AWAL</span>
+            <span className="font-mono text-sky-accent">FASE AWAL</span>
           </div>
           <div
             className={`h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] ${
@@ -970,7 +1039,7 @@ export default function RancanganGuruPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rancangan Akhir</span>
-            <span className="font-mono">FASE AKHIR</span>
+            <span className="font-mono text-emerald-accent">FASE AKHIR</span>
           </div>
           <div
             className={`h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] ${
@@ -991,7 +1060,7 @@ export default function RancanganGuruPage() {
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Progres Penilaian</span>
-            <span className="font-mono">
+            <span className="font-mono text-gold-accent">
               {stats.gradedCount} DARI {stats.submittedCount} DIPERIKSA
             </span>
           </div>
@@ -999,7 +1068,13 @@ export default function RancanganGuruPage() {
             <span className="text-2xl font-light font-mono tracking-tight relative z-10">
               {isLoading ? "—" : `${stats.gradedRatePct}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
+            <span
+              className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase tracking-widest relative z-10 ${
+                stats.pendingCount > 0
+                  ? "badge-tint-amber"
+                  : "badge-tint-emerald"
+              }`}
+            >
               {stats.pendingCount > 0
                 ? `${stats.pendingCount} Menunggu`
                 : "Tuntas"}
@@ -1010,23 +1085,25 @@ export default function RancanganGuruPage() {
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Basis TKJI/IMT</span>
-            <span className="font-mono">FISIK</span>
+            <span className="font-mono text-violet-accent">FISIK</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {isLoading ? "—" : `${stats.physicalReadyPct}%`}
             </span>
           </div>
         </div>
       </div>
 
+      {/* ZONA 3: TRIO BENTO UTAMA */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* Bento 1: Kendali Rombel */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={14} className="text-gold-accent" />
               <span>Filter Rombel & Fase</span>
             </div>
 
@@ -1047,7 +1124,7 @@ export default function RancanganGuruPage() {
                     type="button"
                     onClick={() => setPlanType(t)}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "seg-btn-idle"
+                      active ? "seg-btn-active shadow-sm" : "seg-btn-idle"
                     }`}
                   >
                     Rancangan {t}
@@ -1096,7 +1173,9 @@ export default function RancanganGuruPage() {
                           setIsClassDropdownOpen(false);
                         }}
                         className={`px-6 py-4 text-lg font-medium cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
-                          selectedClass?.id === cls.id ? "text-gold-accent" : ""
+                          selectedClass?.id === cls.id
+                            ? "text-gold-accent font-bold"
+                            : ""
                         }`}
                       >
                         {cls.name} (Kelas {cls.grade_level})
@@ -1112,21 +1191,22 @@ export default function RancanganGuruPage() {
             type="button"
             onClick={handleExportCSV}
             disabled={studentsData.length === 0}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-emerald"
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-gold"
           >
             <Download size={16} strokeWidth={2.5} /> Ekspor Rekap Nilai CSV
           </button>
         </div>
 
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+        {/* Bento 2: Capaian Aspek Rubrik (4 Warna Berbeda) */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit size={15} />
+              <BrainCircuit size={15} className="text-sky-accent" />
               <span>Capaian Aspek Rubrik</span>
             </div>
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-gold-accent">
+            <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-amber">
               FASE {planType.toUpperCase()}
             </span>
           </div>
@@ -1150,55 +1230,62 @@ export default function RancanganGuruPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 items-end pt-4 h-44 relative z-10">
-            {stats.rubricBars.map((bar) => {
-              const val = bar.pct;
-              const heightPct = val <= 0 ? 4 : Math.max(12, val);
-              const isHighest = bar.code === highestRubric.code && val > 0;
-              const isSelected = selectedRubricBar === bar.code;
-              const fillClass =
-                isSelected || isHighest
-                  ? "chart-fill-gold"
-                  : "chart-fill-primary";
+          <div className="pt-4 pb-1 relative z-10">
+            <div className="grid grid-cols-4 gap-3 items-end h-44 px-4 py-3.5 rounded-2xl edufit-card-primary">
+              {stats.rubricBars.map((bar) => {
+                const val = bar.pct;
+                const heightPct = val <= 0 ? 6 : Math.max(14, val);
+                const isSelected = selectedRubricBar === bar.code;
 
-              return (
-                <button
-                  key={bar.code}
-                  type="button"
-                  onClick={() =>
-                    setSelectedRubricBar(isSelected ? null : bar.code)
-                  }
-                  className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
-                  title={`${bar.code} (${bar.title}): Rata-rata ${bar.avg4}/4 (${bar.pct}%)`}
-                >
-                  <span className="text-xs font-bold font-mono opacity-80">
-                    {bar.pct}%
-                  </span>
-                  <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                    <div
-                      className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </div>
-                  <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                  <span className="text-[11px] font-bold font-mono opacity-65">
-                    {bar.code}
-                  </span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={bar.code}
+                    type="button"
+                    onClick={() =>
+                      setSelectedRubricBar(isSelected ? null : bar.code)
+                    }
+                    className="flex flex-col items-center justify-end h-full gap-1.5 group cursor-pointer focus:outline-none"
+                    title={`${bar.code} (${bar.title}): Rata-rata ${bar.avg4}/4 (${bar.pct}%)`}
+                  >
+                    <span
+                      className={`text-[11px] font-bold font-mono ${bar.textClass}`}
+                    >
+                      {bar.pct}%
+                    </span>
+                    <div className="w-6 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${heightPct}%` }}
+                        transition={{ duration: 0.55, ease: "easeOut" }}
+                        className={`w-full rounded-lg ${bar.fillClass} ${
+                          isSelected ? "ring-2 ring-amber-400" : ""
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold font-mono ${
+                        isSelected ? "text-gold-accent" : "opacity-70"
+                      }`}
+                    >
+                      {bar.code}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* Bento 3: Telemetri Kinerja */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <Activity size={15} />
+              <Activity size={15} className="text-emerald-accent" />
               <span>Telemetri Kinerja</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "koreksi", label: "Periksa" },
                 { key: "kualitas", label: "Mutu" },
@@ -1210,8 +1297,8 @@ export default function RancanganGuruPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1243,7 +1330,7 @@ export default function RancanganGuruPage() {
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700 gauge-circle-gold"
+                    className={`transition-all duration-700 ${gaugeStrokeClass}`}
                   />
                 )}
               </svg>
@@ -1263,20 +1350,25 @@ export default function RancanganGuruPage() {
           </div>
 
           <div className="relative z-10">
-            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-3 border-t border-hairline">
-              <span>{stats.pendingCount} Masuk</span>
-              <span>—</span>
-              <span>{stats.gradedCount} Dinilai</span>
-              <span>—</span>
-              <span>{stats.emptyCount} Kosong</span>
+            <div className="grid grid-cols-3 gap-2 text-[10px] font-bold font-mono tracking-wider uppercase pt-3 border-t border-hairline text-center">
+              <span className="py-1 rounded-lg badge-tint-amber">
+                {stats.pendingCount} Masuk
+              </span>
+              <span className="py-1 rounded-lg badge-tint-emerald">
+                {stats.gradedCount} Dinilai
+              </span>
+              <span className="py-1 rounded-lg badge-tint-sky">
+                {stats.emptyCount} Kosong
+              </span>
             </div>
           </div>
         </div>
       </div>
 
+      {/* ZONA 4: DAFTAR RANCANGAN SISWA */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+          <div className="text-xs font-bold uppercase tracking-widest text-gold-accent mb-1">
             Portofolio Rancangan Mandiri
           </div>
           <h3 className="text-3xl font-light tracking-tight">
@@ -1357,25 +1449,41 @@ export default function RancanganGuruPage() {
               BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
 
             return (
-              <div
+              <motion.div
                 key={row.id}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.32,
+                  delay: Math.min(index * 0.04, 0.25),
+                }}
                 onClick={() => openEvaluation(row)}
-                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform duration-300 hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
                   isSubmitted ? "bento-showcase-selected" : ""
                 }`}
               >
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
-                <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
-                    {row.gender === "L" ? "PUTRA" : "PUTRI"} ·{" "}
-                    {row.tkjiScore !== null
-                      ? `TKJI ${row.tkjiScore} (${
-                          row.tkjiCategory || "TERCATAT"
-                        })`
-                      : "TKJI BELUM ADA"}
-                  </span>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-black/5 dark:bg-white/5">
+                <div className="flex justify-between items-start relative z-10 gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold font-mono uppercase ${
+                        row.gender === "L"
+                          ? "badge-tint-sky"
+                          : "badge-tint-rose"
+                      }`}
+                    >
+                      {row.gender === "L" ? "PUTRA" : "PUTRI"}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold font-mono uppercase bg-black/10 dark:bg-white/10">
+                      {row.tkjiScore !== null
+                        ? `TKJI ${row.tkjiScore} (${
+                            row.tkjiCategory || "TERCATAT"
+                          })`
+                        : "TKJI BELUM ADA"}
+                    </span>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 bg-black/5 dark:bg-white/5 shrink-0">
                     <ArrowUpRight size={18} strokeWidth={1.75} />
                   </div>
                 </div>
@@ -1384,13 +1492,27 @@ export default function RancanganGuruPage() {
                   <div className="text-4xl font-light tracking-tighter leading-tight mb-3 line-clamp-2">
                     {row.name}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                    <span className="px-3 py-1 rounded-xl font-bold inline-flex items-center gap-1.5 bg-black/10 dark:bg-white/10">
-                      AWAL: {row.hasAwal ? "ISI" : "—"} · AKHIR:{" "}
-                      {row.hasAkhir ? "ISI" : "—"}
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                    <span
+                      className={`px-3 py-1 rounded-xl font-bold ${
+                        row.hasAwal
+                          ? "badge-tint-emerald"
+                          : "bg-black/10 dark:bg-white/10 opacity-70"
+                      }`}
+                    >
+                      AWAL: {row.hasAwal ? "TERKUMPUL" : "—"}
+                    </span>
+                    <span
+                      className={`px-3 py-1 rounded-xl font-bold ${
+                        row.hasAkhir
+                          ? "badge-tint-sky"
+                          : "bg-black/10 dark:bg-white/10 opacity-70"
+                      }`}
+                    >
+                      AKHIR: {row.hasAkhir ? "TERKUMPUL" : "—"}
                     </span>
                     {row.bmiCategory && (
-                      <span className="px-3 py-1 rounded-xl font-bold bg-black/10 dark:bg-white/10">
+                      <span className="px-3 py-1 rounded-xl font-bold badge-tint-violet">
                         IMT: {row.bmiCategory}
                       </span>
                     )}
@@ -1402,7 +1524,7 @@ export default function RancanganGuruPage() {
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Nilai Rancangan
                     </div>
-                    <div className="text-3xl font-light font-mono leading-none">
+                    <div className="text-3xl font-light font-mono leading-none text-gold-accent">
                       {isGraded ? `${row.convertedScore} Poin` : "—"}
                     </div>
                   </div>
@@ -1412,11 +1534,12 @@ export default function RancanganGuruPage() {
                       Status Evaluasi
                     </div>
                     {isGraded ? (
-                      <div className="text-sm font-bold text-gold-accent">
-                        Dinilai ({row.totalRubricScore}/16)
+                      <div className="text-xs font-bold px-3 py-1 rounded-xl badge-tint-emerald inline-flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Dinilai (
+                        {row.totalRubricScore}/16)
                       </div>
                     ) : isSubmitted ? (
-                      <div className="text-sm font-bold px-2.5 py-0.5 rounded-md badge-tint-amber">
+                      <div className="text-xs font-bold px-3 py-1 rounded-xl badge-tint-amber">
                         Menunggu Koreksi
                       </div>
                     ) : (
@@ -1426,12 +1549,13 @@ export default function RancanganGuruPage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         )}
       </div>
 
+      {/* MODAL EVALUASI RANCANGAN FITT */}
       <AnimatePresence>
         {selectedStudent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 edufit-modal-open">
@@ -1455,7 +1579,13 @@ export default function RancanganGuruPage() {
                     <span className="text-[11px] font-bold uppercase tracking-widest text-gold-accent">
                       Evaluasi FITT · {selectedClass?.name}
                     </span>
-                    <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider edufit-surface-subtle">
+                    <span
+                      className={`px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider ${
+                        selectedStudent.gender === "L"
+                          ? "badge-tint-sky"
+                          : "badge-tint-rose"
+                      }`}
+                    >
                       {selectedStudent.gender === "L"
                         ? "Putra (L)"
                         : "Putri (P)"}
@@ -1467,7 +1597,7 @@ export default function RancanganGuruPage() {
                       </span>
                     )}
                     {selectedStudent.bmiCategory && (
-                      <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-amber">
+                      <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-violet">
                         IMT: {selectedStudent.bmiScore ?? "-"} (
                         {selectedStudent.bmiCategory})
                       </span>
@@ -1520,7 +1650,7 @@ export default function RancanganGuruPage() {
                       <button
                         type="button"
                         onClick={() => setLeftModalTab("fitt")}
-                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
                           leftModalTab === "fitt"
                             ? "seg-btn-active"
                             : "seg-btn-idle"
@@ -1531,7 +1661,7 @@ export default function RancanganGuruPage() {
                       <button
                         type="button"
                         onClick={() => setLeftModalTab("algorithm")}
-                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
                           leftModalTab === "algorithm"
                             ? "seg-btn-active"
                             : "seg-btn-idle"
@@ -1554,14 +1684,16 @@ export default function RancanganGuruPage() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-3.5">
-                        {FITT_COMPONENTS.map((item) => (
+                        {FITT_COMPONENTS.map((item, idx) => (
                           <div
                             key={item.key}
                             className="p-5 rounded-2xl edufit-surface-subtle"
                           >
-                            <p className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1.5">
-                              {item.label}
-                            </p>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold font-mono uppercase tracking-wider inline-block mb-2 ${item.badgeClass}`}
+                            >
+                              0{idx + 1} · {item.label}
+                            </span>
                             <p className="text-sm font-medium leading-relaxed">
                               {studentProgram[item.key] || (
                                 <span className="italic opacity-40">
@@ -1610,7 +1742,7 @@ export default function RancanganGuruPage() {
                                 Minggu {alg.week} · Pertemuan {alg.meeting} ·{" "}
                                 {formatHumanLabel(alg.phase || "Fase Inti")}
                               </span>
-                              <span className="text-[10px] font-bold uppercase opacity-65">
+                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase badge-tint-sky">
                                 Fokus: {formatHumanLabel(alg.component)}
                               </span>
                             </div>
@@ -1622,13 +1754,15 @@ export default function RancanganGuruPage() {
                                 <span className="text-[9px] font-sans opacity-55 block">
                                   Intensitas
                                 </span>
-                                <strong>{alg.intensity || "-"}</strong>
+                                <strong className="text-gold-accent">
+                                  {alg.intensity || "-"}
+                                </strong>
                               </div>
                               <div className="p-2.5 rounded-xl edufit-card-primary">
                                 <span className="text-[9px] font-sans opacity-55 block">
                                   Durasi Sesi
                                 </span>
-                                <strong>
+                                <strong className="text-emerald-accent">
                                   {alg.duration_min
                                     ? `${alg.duration_min} Menit`
                                     : "-"}
@@ -1638,7 +1772,7 @@ export default function RancanganGuruPage() {
                                 <span className="text-[9px] font-sans opacity-55 block">
                                   Jeda Pulih
                                 </span>
-                                <strong>
+                                <strong className="text-sky-accent">
                                   {alg.rest_time_sec
                                     ? `${alg.rest_time_sec} Detik`
                                     : "-"}
@@ -1661,7 +1795,7 @@ export default function RancanganGuruPage() {
                       Rubrik Penilaian{" "}
                       <span className="font-semibold">(Skala 1–4)</span>
                     </h3>
-                    <div className="px-4 py-1.5 rounded-xl text-xs font-bold font-mono uppercase tracking-widest telemetry-bar-forest text-gold-accent">
+                    <div className="px-4 py-1.5 rounded-xl text-xs font-bold font-mono uppercase tracking-widest telemetry-bar-gold">
                       Skor: {liveModalTotalRubric}/16 ({liveModalConverted}{" "}
                       Poin)
                     </div>
@@ -1680,7 +1814,9 @@ export default function RancanganGuruPage() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase telemetry-bar-forest text-gold-accent">
+                              <span
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase ${criterion.badgeClass}`}
+                              >
                                 {criterion.code}
                               </span>
                               <span className="text-sm font-bold">
@@ -1704,8 +1840,8 @@ export default function RancanganGuruPage() {
                                     }
                                     className={`w-8 h-8 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer disabled:opacity-40 ${
                                       active
-                                        ? "seg-btn-active"
-                                        : "edufit-card-primary"
+                                        ? getRubricScoreBadge(num)
+                                        : "edufit-card-primary opacity-75 hover:opacity-100"
                                     }`}
                                   >
                                     {num}
@@ -1731,7 +1867,7 @@ export default function RancanganGuruPage() {
                                   }
                                   className={`p-3 rounded-xl text-left text-xs leading-relaxed transition-all cursor-pointer disabled:opacity-40 flex items-start gap-2 ${
                                     isChosen
-                                      ? "badge-tint-emerald font-semibold"
+                                      ? getRubricScoreBadge(opt.val)
                                       : "edufit-card-primary opacity-75 hover:opacity-100"
                                   }`}
                                 >
@@ -1748,7 +1884,7 @@ export default function RancanganGuruPage() {
                     })}
 
                     <div className="pt-2">
-                      <label className="text-xs font-bold uppercase tracking-widest opacity-55 mb-2.5 block">
+                      <label className="text-xs font-bold uppercase tracking-widest text-gold-accent mb-2.5 block">
                         Umpan Balik Guru
                       </label>
                       <textarea
@@ -1766,7 +1902,7 @@ export default function RancanganGuruPage() {
                   <button
                     type="submit"
                     disabled={isSaving || !studentProgram}
-                    className="w-full py-4 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40 hover:opacity-90 cursor-pointer btn-forest-emerald"
+                    className="w-full py-4 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40 hover:opacity-90 cursor-pointer btn-forest-gold"
                   >
                     <Save size={17} />
                     {isSaving

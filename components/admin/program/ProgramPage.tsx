@@ -562,9 +562,9 @@ export default function ProgramPage() {
     uniqueGenders.length > 0 ? uniqueGenders : ["L", "P"];
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
+          DYNAMIC ISLAND OVERLAY
          ==================================================================== */}
       <AnimatePresence>
         {islandAlert && (
@@ -621,13 +621,13 @@ export default function ProgramPage() {
       </AnimatePresence>
 
       {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
+          ZONA 1: HERO HEADER & 3 ANGKA UTAMA
          ==================================================================== */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
             <span className="font-mono text-gold-accent">
-              00 / MESIN ALGORITMA FITT
+              MESIN ALGORITMA FITT
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
@@ -647,14 +647,14 @@ export default function ProgramPage() {
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka */}
+        {/* 3 Angka Utama */}
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
             <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : algorithms.length.toLocaleString("id-ID")}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Database Master
+              Database Master
             </div>
           </div>
 
@@ -665,7 +665,7 @@ export default function ProgramPage() {
                 : filteredAlgorithms.length.toLocaleString("id-ID")}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Hasil Filter Aktif
+              Hasil Filter Aktif
             </div>
           </div>
 
@@ -674,7 +674,7 @@ export default function ProgramPage() {
               {isLoading ? "—" : `${avgDuration}m`}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Rata-rata Durasi
+              Rata-rata Durasi
             </div>
           </div>
         </div>
@@ -722,7 +722,7 @@ export default function ProgramPage() {
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni */}
+        {/* Bar 3: Striped Track */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kapasitas Mesin Rekomendasi</span>
@@ -755,20 +755,19 @@ export default function ProgramPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
+          ZONA 3: TRIO KARTU BENTO LEBAR
          ==================================================================== */}
       <div
         className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10"
         ref={filterContainerRef}
       >
-        {/* BENTO 1 (PATTERN POLKADOT HALUS): FILTER KOMBINASI GENDER, TKJI & IMT */}
+        {/* BENTO 1: FILTER KOMBINASI GENDER, TKJI & IMT */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[400px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
-                <span className="font-mono">01 /</span>
                 <SlidersHorizontal size={14} />
                 <span>Parameter Profil</span>
               </div>
@@ -828,7 +827,7 @@ export default function ProgramPage() {
               })}
             </div>
 
-            {/* Bottom-Bordered Custom Dropdown TKJI */}
+            {/* Underline Dropdown TKJI */}
             <div className="relative w-full mb-4">
               <div
                 onClick={() =>
@@ -876,7 +875,7 @@ export default function ProgramPage() {
               </AnimatePresence>
             </div>
 
-            {/* Bottom-Bordered Custom Dropdown IMT */}
+            {/* Underline Dropdown IMT */}
             <div className="relative w-full mb-5">
               <div
                 onClick={() =>
@@ -934,13 +933,12 @@ export default function ProgramPage() {
           </button>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): DISTRIBUSI 8 MINGGU */}
+        {/* BENTO 2: GRAFIK BATANG VERTIKAL DISTRIBUSI MINGGU */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
               <Calendar size={15} />
               <span>Distribusi Minggu W1 – W8</span>
             </div>
@@ -948,7 +946,7 @@ export default function ProgramPage() {
               <button
                 type="button"
                 onClick={() => setFilterWeek("all")}
-                className="text-xs font-bold font-mono text-gold-accent cursor-pointer hover:underline"
+                className="text-xs font-bold font-mono text-emerald-accent cursor-pointer hover:underline"
               >
                 RESET MINGGU
               </button>
@@ -975,7 +973,7 @@ export default function ProgramPage() {
                   const heightPct = Math.round((d.count / maxW) * 100);
                   const isSelected = filterWeek === d.week;
                   const fillClass = isSelected
-                    ? "chart-fill-gold"
+                    ? "chart-fill-emerald"
                     : filterWeek === "all"
                     ? "chart-fill-primary"
                     : "opacity-35 chart-fill-primary";
@@ -1008,7 +1006,7 @@ export default function ProgramPage() {
                       </div>
                       <span
                         className={`w-2 h-2 rounded-full ${
-                          isSelected ? "chart-fill-gold" : "chart-fill-primary"
+                          isSelected ? "chart-fill-emerald" : "chart-fill-primary"
                         }`}
                       />
                       <span className="text-[10px] font-bold font-mono opacity-65">
@@ -1022,17 +1020,16 @@ export default function ProgramPage() {
           })()}
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS ALGORITMA */}
+        {/* BENTO 3: INDEKS DOSIS LATIHAN (TEKS LABEL DI LUAR LINGKARAN CHART) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
               <Activity size={15} />
               <span>Indeks Dosis Latihan</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "filter", label: "Cakupan" },
                 { key: "duration", label: "Durasi" },
@@ -1045,7 +1042,7 @@ export default function ProgramPage() {
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
                     className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1065,12 +1062,12 @@ export default function ProgramPage() {
 
             const gaugeLabel =
               gaugeMode === "filter"
-                ? `${filteredAlgorithms.length.toLocaleString(
+                ? `Ditampilkan ${filteredAlgorithms.length.toLocaleString(
                     "id-ID"
-                  )} dari ${algorithms.length.toLocaleString("id-ID")}`
+                  )} dari ${algorithms.length.toLocaleString("id-ID")} Baris`
                 : gaugeMode === "duration"
-                ? "Rata-rata Durasi Sesi"
-                : "Rata-rata Jeda Pemulihan";
+                ? "Rata-rata Durasi Sesi Latihan"
+                : "Rata-rata Jeda Waktu Pemulihan";
 
             const gaugePct =
               gaugeMode === "filter"
@@ -1085,41 +1082,43 @@ export default function ProgramPage() {
               circumference - (Math.max(10, gaugePct) / 100) * circumference;
 
             return (
-              <div className="relative flex items-center justify-center my-2 z-10">
-                <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="6"
-                    strokeDasharray="2 5"
-                    className="gauge-circle-track"
-                  />
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={dashOffset}
-                    className={`transition-all duration-700 ${
-                      gaugeMode === "duration"
-                        ? "gauge-circle-emerald"
-                        : "gauge-circle-gold"
-                    }`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                    {isLoading ? "—" : gaugeValue}
-                  </span>
-                  <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
-                    {gaugeLabel}
-                  </span>
+              <div className="relative flex flex-col items-center justify-center my-2 z-10">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="6"
+                      strokeDasharray="2 5"
+                      className="gauge-circle-track"
+                    />
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={dashOffset}
+                      className={`transition-all duration-700 ${
+                        gaugeMode === "duration"
+                          ? "gauge-circle-emerald"
+                          : "gauge-circle-gold"
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-light font-mono tracking-tighter leading-none">
+                      {isLoading ? "—" : gaugeValue}
+                    </span>
+                  </div>
                 </div>
+                <span className="text-xs font-semibold opacity-65 mt-3 text-center">
+                  {gaugeLabel}
+                </span>
               </div>
             );
           })()}
@@ -1135,14 +1134,14 @@ export default function ProgramPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 4: GRID KARTU FASE LATIHAN (PASTEL LIGHT / DEEP FOREST DARK)
+          ZONA 4: GRID KARTU FASE LATIHAN
          ==================================================================== */}
       {uniquePhasesSummary.length > 0 && (
         <div className="mb-10 relative z-10">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-                04 / TAHAPAN PERIODISASI
+                TAHAPAN PERIODISASI
               </div>
               <h3 className="text-2xl font-light tracking-tight">
                 Fase Periodisasi Latihan ({uniquePhasesSummary.length} Fase)
@@ -1152,7 +1151,7 @@ export default function ProgramPage() {
               <button
                 type="button"
                 onClick={() => setFilterPhase("all")}
-                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer btn-forest-gold"
+                className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer btn-forest-emerald"
               >
                 Tampilkan Semua Fase
               </button>
@@ -1194,7 +1193,7 @@ export default function ProgramPage() {
                     <span className="text-[10px] font-bold uppercase tracking-widest opacity-55">
                       Kombinasi Resep
                     </span>
-                    <span className="text-2xl font-light font-mono leading-none">
+                    <span className="text-2xl font-light font-mono leading-none text-emerald-accent">
                       {ph.count.toLocaleString("id-ID")}
                     </span>
                   </div>
@@ -1322,7 +1321,7 @@ export default function ProgramPage() {
                     className="border-b border-hairline transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                   >
                     <td className="py-4 px-4">
-                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono inline-block telemetry-bar-forest text-gold-accent">
+                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono inline-block badge-tint-emerald">
                         W{row.week} · M{row.meeting}
                       </span>
                     </td>
@@ -1485,7 +1484,7 @@ export default function ProgramPage() {
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer telemetry-bar-forest"
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer telemetry-bar-forest text-gold-accent"
                 >
                   Lompat
                 </button>
@@ -1496,11 +1495,11 @@ export default function ProgramPage() {
       </div>
 
       {/* ====================================================================
-          MODAL TAMBAH / EDIT ALGORITMA (DILENGKAPI FIELD KOMPONEN & PEMILIH GENDER)
+          MODAL TAMBAH / EDIT ALGORITMA
          ==================================================================== */}
       <AnimatePresence>
         {isModalOpen && editData && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1522,7 +1521,7 @@ export default function ProgramPage() {
                 <X size={18} />
               </button>
 
-              <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
+              <span className="text-xs font-bold font-mono uppercase tracking-widest text-emerald-accent block mb-1">
                 KONFIGURASI RESEP FITT · KELAS XII
               </span>
               <h2 className="text-3xl font-light tracking-tight mb-6">

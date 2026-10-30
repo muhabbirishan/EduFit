@@ -4,25 +4,25 @@
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    AlertCircle,
-    Archive,
-    ArrowUpRight,
-    Bell,
-    BrainCircuit,
-    CheckCircle2,
-    ChevronDown,
-    Download,
-    FolderArchive,
-    LayoutGrid,
-    Pencil,
-    Save,
-    Search,
-    SlidersHorizontal,
-    Table2,
-    Trash2,
-    Users,
-    UsersRound,
-    X,
+  AlertCircle,
+  Archive,
+  ArrowUpRight,
+  Bell,
+  BrainCircuit,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  FolderArchive,
+  LayoutGrid,
+  Pencil,
+  Save,
+  Search,
+  SlidersHorizontal,
+  Table2,
+  Trash2,
+  Users,
+  UsersRound,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -830,15 +830,42 @@ export default function DirektoriSiswaGuru() {
       ? circumference
       : circumference - (activeGaugePct / 100) * circumference;
 
+  const gaugeStrokeClass =
+    gaugeMode === "holistik"
+      ? "gauge-circle-gold"
+      : gaugeMode === "fisik"
+      ? "gauge-circle-emerald"
+      : "gauge-circle-sky";
+
   const pillarBars = [
-    { label: "FISIK", pct: stats.avgTkjiPct },
-    { label: "TEORI", pct: stats.avgCognitive },
-    { label: "MATERI", pct: stats.avgMaterial },
-    { label: "FITT", pct: stats.avgFitt },
+    {
+      label: "FISIK",
+      pct: stats.avgTkjiPct,
+      fillClass: "chart-fill-emerald",
+      textClass: "text-emerald-accent",
+    },
+    {
+      label: "TEORI",
+      pct: stats.avgCognitive,
+      fillClass: "chart-fill-sky",
+      textClass: "text-sky-accent",
+    },
+    {
+      label: "MATERI",
+      pct: stats.avgMaterial,
+      fillClass: "chart-fill-gold",
+      textClass: "text-gold-accent",
+    },
+    {
+      label: "FITT",
+      pct: stats.avgFitt,
+      fillClass: "chart-fill-terra",
+      textClass: "text-terra-accent",
+    },
   ];
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-guru-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
@@ -897,13 +924,13 @@ export default function DirektoriSiswaGuru() {
       {/* ZONA 1: HERO HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
             <span className="text-gold-accent">
               Direktori Peserta Didik & Rapor Terpadu
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
-              <UsersRound size={15} />
+              <UsersRound size={15} className="text-emerald-accent" />
               {selectedClass
                 ? `${selectedClass.name} (Kelas ${selectedClass.grade_level})`
                 : "Manajemen Biodata & Rekam Jejak Komprehensif Siswa"}
@@ -920,8 +947,14 @@ export default function DirektoriSiswaGuru() {
             <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : stats.total}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              Total Murid ({stats.male}L · {stats.female}P)
+            <div className="text-xs font-bold uppercase tracking-widest opacity-65 mt-4 flex items-center gap-1.5">
+              <span>Total Murid</span>
+              <span className="px-2 py-0.5 rounded-md font-mono text-[10px] badge-tint-sky">
+                {stats.male}L
+              </span>
+              <span className="px-2 py-0.5 rounded-md font-mono text-[10px] badge-tint-rose">
+                {stats.female}P
+              </span>
             </div>
           </div>
           <div>
@@ -933,7 +966,7 @@ export default function DirektoriSiswaGuru() {
             </div>
           </div>
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
               {isLoading ? "—" : archivesList.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
@@ -948,13 +981,15 @@ export default function DirektoriSiswaGuru() {
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Indeks Fisik (TKJI)</span>
-            <span className="font-mono">{stats.tkjiCount} TERUJI</span>
+            <span className="font-mono text-emerald-accent">
+              {stats.tkjiCount} TERUJI
+            </span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-forest">
             <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${stats.avgTkjiPct}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gold-accent">
               Kebugaran
             </span>
           </div>
@@ -963,7 +998,7 @@ export default function DirektoriSiswaGuru() {
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Capaian Kognitif</span>
-            <span className="font-mono">POSTTEST</span>
+            <span className="font-mono text-sky-accent">POSTTEST</span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between telemetry-bar-gold">
             <span className="text-2xl font-semibold font-mono tracking-tight">
@@ -978,14 +1013,14 @@ export default function DirektoriSiswaGuru() {
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Refleksi Materi & Program</span>
-            <span className="font-mono">PORTOFOLIO</span>
+            <span className="font-mono text-violet-accent">PORTOFOLIO</span>
           </div>
           <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
             <span className="text-2xl font-light font-mono tracking-tight relative z-10">
               {isLoading ? "—" : `${stats.avgMaterial}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
-              Rancangan FITT: {stats.avgFitt}%
+            <span className="px-3 py-1 rounded-xl text-[11px] font-mono font-bold uppercase tracking-wider relative z-10 badge-tint-violet">
+              FITT: {stats.avgFitt}%
             </span>
           </div>
         </div>
@@ -1000,10 +1035,10 @@ export default function DirektoriSiswaGuru() {
             <span className="font-mono">TAHUNAN</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-between transition-transform group-hover:scale-[1.02] edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {archivesList.length}
             </span>
-            <FolderArchive size={16} className="opacity-60" />
+            <FolderArchive size={16} className="text-gold-accent" />
           </div>
         </button>
       </div>
@@ -1011,12 +1046,12 @@ export default function DirektoriSiswaGuru() {
       {/* ZONA 3: TRIO BENTO UTAMA */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
         {/* Bento 1: Filter Kelas & Ekspor Rapor 360 */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={14} className="text-gold-accent" />
               <span>Kendali Rombel</span>
             </div>
 
@@ -1042,7 +1077,7 @@ export default function DirektoriSiswaGuru() {
                     type="button"
                     onClick={() => handleGradeFilterChange(g.val as any)}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "seg-btn-idle"
+                      active ? "seg-btn-active shadow-sm" : "seg-btn-idle"
                     }`}
                   >
                     {g.label}
@@ -1091,7 +1126,9 @@ export default function DirektoriSiswaGuru() {
                           setIsClassDropdownOpen(false);
                         }}
                         className={`px-6 py-4 text-lg font-medium cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
-                          selectedClass?.id === cls.id ? "text-gold-accent" : ""
+                          selectedClass?.id === cls.id
+                            ? "text-gold-accent font-bold"
+                            : ""
                         }`}
                       >
                         {cls.name} (Kelas {cls.grade_level})
@@ -1107,22 +1144,22 @@ export default function DirektoriSiswaGuru() {
             type="button"
             onClick={handleExportHolisticCSV}
             disabled={studentsList.length === 0}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 relative z-10 btn-forest-emerald"
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 relative z-10 btn-forest-gold"
           >
             <Download size={16} strokeWidth={2.5} /> Ekspor Rapor 360° CSV
           </button>
         </div>
 
-        {/* Bento 2: Keseimbangan 4 Pilar Kurikulum */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+        {/* Bento 2: Keseimbangan 4 Pilar Kurikulum (4 Warna Berbeda) */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit size={15} />
+              <BrainCircuit size={15} className="text-sky-accent" />
               <span>Komposisi 4 Pilar Kelas</span>
             </div>
-            <span className="text-xs font-bold font-mono uppercase tracking-wider text-gold-accent">
+            <span className="px-3 py-1 rounded-xl text-[10px] font-bold font-mono uppercase tracking-wider badge-tint-amber">
               RAPOR 360°
             </span>
           </div>
@@ -1136,47 +1173,48 @@ export default function DirektoriSiswaGuru() {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 items-end pt-4 h-44 relative z-10">
-            {pillarBars.map((bar, idx) => {
-              const heightPct = bar.pct <= 0 ? 4 : Math.max(12, bar.pct);
-              const fillClass =
-                idx === 0 || idx === 1
-                  ? "chart-fill-gold"
-                  : "chart-fill-primary";
-              return (
-                <div
-                  key={bar.label}
-                  className="flex flex-col items-center justify-end h-full gap-2"
-                >
-                  <span className="text-xs font-bold font-mono opacity-80">
-                    {bar.pct}%
-                  </span>
-                  <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                    <div
-                      className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{ height: `${heightPct}%` }}
-                    />
+          <div className="pt-4 pb-1 relative z-10">
+            <div className="grid grid-cols-4 gap-3 items-end h-44 px-4 py-3.5 rounded-2xl edufit-card-primary">
+              {pillarBars.map((bar) => {
+                const heightPct = bar.pct <= 0 ? 6 : Math.max(14, bar.pct);
+                return (
+                  <div
+                    key={bar.label}
+                    className="flex flex-col items-center justify-end h-full gap-1.5"
+                  >
+                    <span
+                      className={`text-[11px] font-bold font-mono ${bar.textClass}`}
+                    >
+                      {bar.pct}%
+                    </span>
+                    <div className="w-6 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${heightPct}%` }}
+                        transition={{ duration: 0.55, ease: "easeOut" }}
+                        className={`w-full rounded-lg ${bar.fillClass}`}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold font-mono opacity-70">
+                      {bar.label}
+                    </span>
                   </div>
-                  <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                  <span className="text-[11px] font-bold font-mono opacity-65">
-                    {bar.label}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Bento 3: Pembekuan Rapor Semester */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <Archive size={15} />
+              <Archive size={15} className="text-emerald-accent" />
               <span>Arsip Semester Tahunan</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "holistik", label: "360°" },
                 { key: "fisik", label: "Fisik" },
@@ -1186,10 +1224,8 @@ export default function DirektoriSiswaGuru() {
                   key={m.key}
                   type="button"
                   onClick={() => setGaugeMode(m.key as any)}
-                  className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider cursor-pointer ${
-                    gaugeMode === m.key
-                      ? "seg-btn-active"
-                      : "edufit-surface-subtle"
+                  className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
+                    gaugeMode === m.key ? "seg-btn-active" : "seg-btn-idle"
                   }`}
                 >
                   {m.label}
@@ -1220,7 +1256,7 @@ export default function DirektoriSiswaGuru() {
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700 gauge-circle-gold"
+                    className={`transition-all duration-700 ${gaugeStrokeClass}`}
                   />
                 )}
               </svg>
@@ -1230,7 +1266,7 @@ export default function DirektoriSiswaGuru() {
                 </span>
               </div>
             </div>
-            <p className="text-xs font-semibold opacity-65 mt-2 text-center">
+            <p className="text-xs font-semibold opacity-65 mt-3 text-center">
               {gaugeMode === "holistik"
                 ? "Rata-Rata Capaian Rapor 360° Kelas"
                 : gaugeMode === "fisik"
@@ -1265,7 +1301,7 @@ export default function DirektoriSiswaGuru() {
       {/* ZONA 4: FILTER GENDER, MODE SWITCHER & DAFTAR SISWA */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+          <div className="text-xs font-bold uppercase tracking-widest text-gold-accent mb-1">
             Daftar Peserta Didik & Rekam Jejak
           </div>
           <h3 className="text-3xl font-light tracking-tight">
@@ -1300,7 +1336,7 @@ export default function DirektoriSiswaGuru() {
             <button
               type="button"
               onClick={() => setViewMode("bento")}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
                 viewMode === "bento" ? "seg-btn-active" : "seg-btn-idle"
               }`}
             >
@@ -1309,7 +1345,7 @@ export default function DirektoriSiswaGuru() {
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
                 viewMode === "table" ? "seg-btn-active" : "seg-btn-idle"
               }`}
             >
@@ -1318,7 +1354,7 @@ export default function DirektoriSiswaGuru() {
             <button
               type="button"
               onClick={() => setViewMode("archives")}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all ${
                 viewMode === "archives" ? "seg-btn-active" : "seg-btn-idle"
               }`}
             >
@@ -1365,14 +1401,21 @@ export default function DirektoriSiswaGuru() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
-            {archivesList.map((ar) => {
+            {archivesList.map((ar, idx) => {
               const sd = ar.summary_data || {};
               return (
-                <div
+                <motion.div
                   key={ar.id}
-                  className="p-7 rounded-[2rem] flex flex-col justify-between gap-4 edufit-card-primary"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.3,
+                    delay: Math.min(idx * 0.04, 0.25),
+                  }}
+                  className="p-7 rounded-[2rem] flex flex-col justify-between gap-4 edufit-card-primary relative overflow-hidden"
                 >
-                  <div>
+                  <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
+                  <div className="relative z-10">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
                         Periode {ar.academic_year}
@@ -1386,23 +1429,25 @@ export default function DirektoriSiswaGuru() {
                     <h4 className="text-2xl font-semibold tracking-tight">
                       {ar.studentName}
                     </h4>
-                    <p className="text-xs font-mono opacity-60 mt-0.5">
+                    <p className="text-xs font-mono opacity-65 mt-0.5">
                       {sd.class_name || selectedClass?.name} · Indeks 360°:{" "}
-                      {sd.holistic_index ?? 0}%
+                      <strong className="text-gold-accent">
+                        {sd.holistic_index ?? 0}%
+                      </strong>
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
-                    <div className="p-3 rounded-xl edufit-surface-subtle">
-                      <span className="text-[10px] font-sans opacity-55 block">
+                  <div className="grid grid-cols-2 gap-2.5 text-xs font-mono relative z-10">
+                    <div className="p-3 rounded-xl badge-tint-emerald">
+                      <span className="text-[10px] font-sans opacity-75 block">
                         TKJI & IMT
                       </span>
                       <strong>
                         {sd.tkji_score ?? "-"}/25 · IMT {sd.bmi_score ?? "-"}
                       </strong>
                     </div>
-                    <div className="p-3 rounded-xl edufit-surface-subtle">
-                      <span className="text-[10px] font-sans opacity-55 block">
+                    <div className="p-3 rounded-xl badge-tint-sky">
+                      <span className="text-[10px] font-sans opacity-75 block">
                         Pretest / Posttest
                       </span>
                       <strong>
@@ -1410,7 +1455,7 @@ export default function DirektoriSiswaGuru() {
                       </strong>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -1428,17 +1473,27 @@ export default function DirektoriSiswaGuru() {
             const showcaseClass =
               BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
             return (
-              <div
+              <motion.div
                 key={st.studentId}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.32,
+                  delay: Math.min(index * 0.04, 0.25),
+                }}
                 onClick={() => openStudentModal(st, "rapor")}
-                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[320px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass}`}
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[320px] shadow-sm transition-transform duration-300 hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass}`}
               >
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                  <span
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold font-mono tracking-widest uppercase ${
+                      st.gender === "L" ? "badge-tint-sky" : "badge-tint-rose"
+                    }`}
+                  >
                     {st.gender === "L" ? "PUTRA (L)" : "PUTRI (P)"} ·{" "}
-                    {st.ageYears} THN ({st.birthDate})
+                    {st.ageYears} THN
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -1447,7 +1502,7 @@ export default function DirektoriSiswaGuru() {
                         e.stopPropagation();
                         openStudentModal(st, "edit");
                       }}
-                      className="w-9 h-9 rounded-xl flex items-center justify-center bg-black/5 dark:bg-white/5 hover:bg-black/15 dark:hover:bg-white/15"
+                      className="w-9 h-9 rounded-xl flex items-center justify-center bg-black/5 dark:bg-white/5 hover:bg-black/15 dark:hover:bg-white/15 transition-colors"
                       title="Edit Biodata & Kelas Siswa"
                     >
                       <Pencil size={14} />
@@ -1467,16 +1522,16 @@ export default function DirektoriSiswaGuru() {
                   </p>
 
                   <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-                    <span className="px-2.5 py-1 rounded-xl font-bold bg-black/10 dark:bg-white/10">
+                    <span className="px-2.5 py-1 rounded-xl font-bold badge-tint-emerald">
                       TKJI: {st.tkjiScore !== null ? `${st.tkjiScore}/25` : "—"}
                     </span>
-                    <span className="px-2.5 py-1 rounded-xl font-bold bg-black/10 dark:bg-white/10">
+                    <span className="px-2.5 py-1 rounded-xl font-bold badge-tint-sky">
                       IMT: {st.bmiScore ?? "—"}
                     </span>
-                    <span className="px-2.5 py-1 rounded-xl font-bold bg-black/10 dark:bg-white/10">
+                    <span className="px-2.5 py-1 rounded-xl font-bold badge-tint-amber">
                       POST: {st.posttestScore ?? "—"}
                     </span>
-                    <span className="px-2.5 py-1 rounded-xl font-bold bg-black/10 dark:bg-white/10">
+                    <span className="px-2.5 py-1 rounded-xl font-bold badge-tint-violet">
                       MATERI: {st.avgMaterialScore}%
                     </span>
                   </div>
@@ -1496,14 +1551,20 @@ export default function DirektoriSiswaGuru() {
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Status Arsip
                     </div>
-                    <div className="text-xs font-bold font-mono">
+                    <div
+                      className={`text-xs font-bold font-mono ${
+                        st.archivesCount > 0
+                          ? "text-emerald-accent"
+                          : "opacity-65"
+                      }`}
+                    >
                       {st.archivesCount > 0
                         ? `${st.archivesCount}x (${st.latestArchiveYear})`
                         : "Belum Diarsip"}
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -1524,11 +1585,17 @@ export default function DirektoriSiswaGuru() {
                 </tr>
               </thead>
               <tbody className="text-sm font-medium">
-                {filteredStudents.map((st) => (
-                  <tr
+                {filteredStudents.map((st, idx) => (
+                  <motion.tr
                     key={st.studentId}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      delay: Math.min(idx * 0.025, 0.2),
+                    }}
                     onClick={() => openStudentModal(st, "rapor")}
-                    className="border-b border-hairline hover:bg-black/[0.02] dark:hover:bg-white/[0.02] cursor-pointer"
+                    className="border-b border-hairline hover:bg-black/[0.025] dark:hover:bg-white/[0.025] cursor-pointer transition-colors"
                   >
                     <td className="py-4 px-5">
                       <div className="font-bold">{st.fullName}</div>
@@ -1537,25 +1604,39 @@ export default function DirektoriSiswaGuru() {
                       </div>
                     </td>
                     <td className="py-4 px-5 text-center font-mono text-xs">
-                      {st.gender} · {st.ageYears} Thn
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-bold ${
+                          st.gender === "L"
+                            ? "badge-tint-sky"
+                            : "badge-tint-rose"
+                        }`}
+                      >
+                        {st.gender} · {st.ageYears} Thn
+                      </span>
                     </td>
                     <td className="py-4 px-5 text-center font-mono text-xs">
-                      {st.tkjiScore !== null ? `${st.tkjiScore}/25` : "—"} · IMT{" "}
-                      {st.bmiScore ?? "—"}
+                      <span className="px-2.5 py-1 rounded-lg font-bold badge-tint-emerald">
+                        {st.tkjiScore !== null ? `${st.tkjiScore}/25` : "—"} ·
+                        IMT {st.bmiScore ?? "—"}
+                      </span>
                     </td>
                     <td className="py-4 px-5 text-center font-mono text-xs">
-                      {st.pretestScore ?? "—"} → {st.posttestScore ?? "—"}
+                      <span className="px-2.5 py-1 rounded-lg font-bold badge-tint-amber">
+                        {st.pretestScore ?? "—"} → {st.posttestScore ?? "—"}
+                      </span>
                     </td>
                     <td className="py-4 px-5 text-center font-mono text-xs">
                       {st.avgMaterialScore}% ({st.completedModules} Modul)
                     </td>
                     <td className="py-4 px-5 text-center font-mono text-xs">
-                      {st.fittAkhirScore ?? st.fittAwalScore ?? "—"}
+                      <span className="px-2.5 py-1 rounded-lg font-bold badge-tint-violet">
+                        {st.fittAkhirScore ?? st.fittAwalScore ?? "—"}
+                      </span>
                     </td>
-                    <td className="py-4 px-5 text-right font-mono font-bold text-gold-accent">
+                    <td className="py-4 px-5 text-right font-mono font-bold text-gold-accent text-base">
                       {st.holisticIndex}%
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
@@ -1597,7 +1678,7 @@ export default function DirektoriSiswaGuru() {
                     <button
                       type="button"
                       onClick={() => setModalMode("rapor")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
                         modalMode === "rapor"
                           ? "seg-btn-active"
                           : "seg-btn-idle"
@@ -1608,7 +1689,7 @@ export default function DirektoriSiswaGuru() {
                     <button
                       type="button"
                       onClick={() => setModalMode("edit")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
                         modalMode === "edit" ? "seg-btn-active" : "seg-btn-idle"
                       }`}
                     >
@@ -1631,31 +1712,31 @@ export default function DirektoriSiswaGuru() {
                   <div className="space-y-6">
                     {/* Ringkasan 4 Pilar */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="p-5 rounded-2xl edufit-surface-subtle">
-                        <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                      <div className="p-5 rounded-2xl badge-tint-emerald">
+                        <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                           Skor TKJI & IMT
                         </span>
-                        <span className="text-3xl font-mono font-semibold text-gold-accent">
+                        <span className="text-3xl font-mono font-semibold">
                           {selectedStudent.tkjiScore !== null
                             ? `${selectedStudent.tkjiScore}/25`
                             : "—"}
                         </span>
-                        <span className="text-xs font-mono opacity-65 block mt-1">
+                        <span className="text-xs font-mono opacity-80 block mt-1">
                           {selectedStudent.tkjiCategory || "Belum Uji"} · IMT{" "}
                           {selectedStudent.bmiScore ?? "-"} (
                           {selectedStudent.bmiCategory || "-"})
                         </span>
                       </div>
 
-                      <div className="p-5 rounded-2xl edufit-surface-subtle">
-                        <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                      <div className="p-5 rounded-2xl badge-tint-sky">
+                        <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                           Kognitif (Pre → Post)
                         </span>
                         <span className="text-3xl font-mono font-semibold">
                           {selectedStudent.pretestScore ?? "—"} →{" "}
                           {selectedStudent.posttestScore ?? "—"}
                         </span>
-                        <span className="text-xs font-mono opacity-65 block mt-1">
+                        <span className="text-xs font-mono opacity-80 block mt-1">
                           Selisih:{" "}
                           {selectedStudent.cognitiveGain !== null
                             ? selectedStudent.cognitiveGain > 0
@@ -1665,14 +1746,14 @@ export default function DirektoriSiswaGuru() {
                         </span>
                       </div>
 
-                      <div className="p-5 rounded-2xl edufit-surface-subtle">
-                        <span className="text-[10px] font-bold uppercase opacity-55 block mb-1">
+                      <div className="p-5 rounded-2xl badge-tint-violet">
+                        <span className="text-[10px] font-bold uppercase opacity-75 block mb-1">
                           Materi & Praktik
                         </span>
                         <span className="text-3xl font-mono font-semibold">
                           {selectedStudent.avgMaterialScore}%
                         </span>
-                        <span className="text-xs font-mono opacity-65 block mt-1">
+                        <span className="text-xs font-mono opacity-80 block mt-1">
                           {selectedStudent.completedModules} Modul Selesai ·{" "}
                           {selectedStudent.practiceNotesCount} Catatan Gerak
                         </span>
@@ -1695,7 +1776,7 @@ export default function DirektoriSiswaGuru() {
                     {/* Rincian 6 Pos Fisik */}
                     <div className="p-6 rounded-3xl space-y-4 edufit-card-secondary">
                       <div className="flex items-center justify-between border-b border-hairline pb-3">
-                        <span className="text-xs font-bold uppercase tracking-wider">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gold-accent">
                           Rincian Pengukuran Fisik (TKJI & Antropometri)
                         </span>
                         <span className="text-xs font-mono opacity-65">
@@ -1708,7 +1789,7 @@ export default function DirektoriSiswaGuru() {
                           <span className="text-[10px] font-sans opacity-55 block">
                             Lari Cepat 60m
                           </span>
-                          <strong className="text-base">
+                          <strong className="text-base text-gold-accent">
                             {selectedStudent.run60mSec
                               ? `${selectedStudent.run60mSec} dtk`
                               : "—"}
@@ -1718,7 +1799,7 @@ export default function DirektoriSiswaGuru() {
                           <span className="text-[10px] font-sans opacity-55 block">
                             Gantung Angkat/Siku
                           </span>
-                          <strong className="text-base">
+                          <strong className="text-base text-emerald-accent">
                             {selectedStudent.pullUpOrHang ?? "—"}
                           </strong>
                         </div>
@@ -1726,7 +1807,7 @@ export default function DirektoriSiswaGuru() {
                           <span className="text-[10px] font-sans opacity-55 block">
                             Baring Duduk (Sit-Up)
                           </span>
-                          <strong className="text-base">
+                          <strong className="text-base text-sky-accent">
                             {selectedStudent.sitUpCount ?? "—"}
                           </strong>
                         </div>
@@ -1734,7 +1815,7 @@ export default function DirektoriSiswaGuru() {
                           <span className="text-[10px] font-sans opacity-55 block">
                             Loncat Tegak
                           </span>
-                          <strong className="text-base">
+                          <strong className="text-base text-violet-accent">
                             {selectedStudent.verticalJumpCm
                               ? `${selectedStudent.verticalJumpCm} cm`
                               : "—"}
@@ -1744,7 +1825,7 @@ export default function DirektoriSiswaGuru() {
                           <span className="text-[10px] font-sans opacity-55 block">
                             Lari Jauh 1000/1200m
                           </span>
-                          <strong className="text-base">
+                          <strong className="text-base text-terra-accent">
                             {selectedStudent.enduranceMinSec || "—"}
                           </strong>
                         </div>
@@ -1768,7 +1849,10 @@ export default function DirektoriSiswaGuru() {
                         </span>
                         <p className="text-xs opacity-60">
                           Membekukan salinan nilai siswa ini pada periode{" "}
-                          <strong>{academicYearInput}</strong>.
+                          <strong className="text-gold-accent">
+                            {academicYearInput}
+                          </strong>
+                          .
                         </p>
                       </div>
                       <button
@@ -1776,14 +1860,14 @@ export default function DirektoriSiswaGuru() {
                         onClick={() =>
                           handleArchiveSingleStudent(selectedStudent)
                         }
-                        className="px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer btn-forest-emerald"
+                        className="px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer btn-forest-gold shadow-sm"
                       >
                         <Archive size={15} /> Simpan Arsip Rapor
                       </button>
                     </div>
                   </div>
                 ) : (
-                  /* FORM EDIT PROFIL SISWA & PEMINDAHAN KELAS (TANPA NAMA KOLOM TABEL) */
+                  /* FORM EDIT PROFIL SISWA & PEMINDAHAN KELAS */
                   <form
                     onSubmit={handleSaveStudentProfile}
                     className="space-y-6"
@@ -1812,9 +1896,11 @@ export default function DirektoriSiswaGuru() {
                               key={g}
                               type="button"
                               onClick={() => setEditGender(g)}
-                              className={`py-3 rounded-xl text-xs font-bold uppercase cursor-pointer ${
+                              className={`py-3 rounded-xl text-xs font-bold uppercase cursor-pointer transition-all ${
                                 editGender === g
-                                  ? "seg-btn-active"
+                                  ? g === "L"
+                                    ? "badge-tint-sky shadow-sm"
+                                    : "badge-tint-rose shadow-sm"
                                   : "seg-btn-idle"
                               }`}
                             >
@@ -1849,9 +1935,9 @@ export default function DirektoriSiswaGuru() {
                                 key={c.id}
                                 type="button"
                                 onClick={() => setEditTargetClassId(c.id)}
-                                className={`p-3.5 rounded-xl text-left text-xs font-bold cursor-pointer ${
+                                className={`p-3.5 rounded-xl text-left text-xs font-bold cursor-pointer transition-all ${
                                   active
-                                    ? "seg-btn-active"
+                                    ? "seg-btn-active shadow-sm"
                                     : "edufit-surface-subtle"
                                 }`}
                               >
@@ -1875,7 +1961,7 @@ export default function DirektoriSiswaGuru() {
                       <button
                         type="submit"
                         disabled={isSavingProfile}
-                        className="px-7 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 cursor-pointer btn-forest-emerald"
+                        className="px-7 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 cursor-pointer btn-forest-gold shadow-md"
                       >
                         <Save size={15} />
                         {isSavingProfile

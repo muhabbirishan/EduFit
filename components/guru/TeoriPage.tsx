@@ -12,9 +12,12 @@ import {
   BrainCircuit,
   CheckCircle2,
   ChevronDown,
+  ClipboardCheck,
   Download,
   FileQuestion,
   LayoutGrid,
+  MessageSquareText,
+  Save,
   Search,
   SlidersHorizontal,
   Table2,
@@ -42,6 +45,20 @@ interface StudentAnswerDetail {
   correctOptionText: string;
 }
 
+interface StudentReflectionItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  materialId: string | null;
+  unitName: string;
+  triggerQuestion: string;
+  answerText: string;
+  feedbackText: string;
+  grade: string;
+  score: number | null;
+  updatedAt: string | null;
+}
+
 interface StudentTheoryRow {
   id: string;
   name: string;
@@ -61,6 +78,8 @@ interface StudentTheoryRow {
     }
   >;
   answerSheet: StudentAnswerDetail[];
+  reflections: StudentReflectionItem[];
+  gradedReflectionsCount: number;
 }
 
 interface QuestionAnalyticsItem {
@@ -148,6 +167,13 @@ const DEFAULT_TP_BY_GRADE: Record<number, TpObjective[]> = {
   ],
 };
 
+function deriveGradeFromScore(scoreVal: number): string {
+  if (scoreVal >= 85) return "A";
+  if (scoreVal >= 75) return "B";
+  if (scoreVal >= 65) return "C";
+  return "D";
+}
+
 export default function TeoriPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -188,15 +214,21 @@ export default function TeoriPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "complete" | "partial" | "empty"
   >("all");
-  const [viewMode, setViewMode] = useState<"bento" | "table" | "questions">(
-    "bento"
-  );
+  const [viewMode, setViewMode] = useState<
+    "bento" | "table" | "questions" | "reflections"
+  >("bento");
   const [questionTypeFilter, setQuestionTypeFilter] = useState<
     "all" | "pretest" | "posttest"
   >("all");
+  const [reflectionStatusFilter, setReflectionStatusFilter] = useState<
+    "all" | "ungraded" | "graded"
+  >("all");
+  const [selectedMaterialUnit, setSelectedMaterialUnit] =
+    useState<string>("all");
+
   const [chartMode, setChartMode] = useState<"post" | "pre">("post");
   const [gaugeMode, setGaugeMode] = useState<
-    "posttest" | "ketuntasan" | "partisipasi"
+    "posttest" | "ketuntasan" | "refleksi"
   >("posttest");
   const [selectedTpCode, setSelectedTpCode] = useState<string | null>(null);
 
@@ -204,7 +236,16 @@ export default function TeoriPage() {
   const [rawScores, setRawScores] = useState<any[]>([]);
   const [rawAnswers, setRawAnswers] = useState<any[]>([]);
   const [rawQuestions, setRawQuestions] = useState<any[]>([]);
+  const [rawMaterials, setRawMaterials] = useState<any[]>([]);
+  const [rawReflections, setRawReflections] = useState<any[]>([]);
   const [instrumentData, setInstrumentData] = useState<any>(null);
+
+  const [gradingDrafts, setGradingDrafts] = useState<
+    Record<string, { score: string; grade: string; feedback: string }>
+  >({});
+  const [savingReflectionId, setSavingReflectionId] = useState<string | null>(
+    null
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,7 +253,9 @@ export default function TeoriPage() {
 
   const [selectedStudent, setSelectedStudent] =
     useState<StudentTheoryRow | null>(null);
-  const [modalTab, setModalTab] = useState<"tp" | "answers">("tp");
+  const [modalTab, setModalTab] = useState<"tp" | "answers" | "reflections">(
+    "tp"
+  );
   const [modalAnswerFilter, setModalAnswerFilter] = useState<
     "posttest" | "pretest"
   >("posttest");
@@ -287,7 +330,7 @@ export default function TeoriPage() {
     if (!cls?.id) return;
     setIsLoading(true);
     try {
-      const [stdRes, instRes, qBankRes] = await Promise.all([
+      const [stdRes, instRes, qBankRes, matRes] = await Promise.all([
         supabase
           .from("student_classes")
           .select("student_id, user_profiles(full_name)")
@@ -304,6 +347,14 @@ export default function TeoriPage() {
           )
           .eq("master_evaluations.grade_level", cls.grade_level)
           .order("created_at", { ascending: true }),
+        supabase
+          .from("master_materials")
+          .select(
+            "id, grade_level, unit_name, trigger_question, order_index, created_at"
+          )
+          .eq("grade_level", cls.grade_level)
+          .order("order_index", { ascending: true })
+          .order("created_at", { ascending: true }),
       ]);
 
       if (stdRes.error) throw stdRes.error;
@@ -312,6 +363,8 @@ export default function TeoriPage() {
       setRawStudents(stdList);
       setInstrumentData(instRes.data || null);
       setRawQuestions(qBankRes.data || []);
+      setRawMaterials(matRes.data || []);
+      setSelectedMaterialUnit("all");
 
       const studentIds = stdList
         .map((sc: any) => sc.student_id)
@@ -320,11 +373,12 @@ export default function TeoriPage() {
       if (studentIds.length === 0) {
         setRawScores([]);
         setRawAnswers([]);
+        setRawReflections([]);
         setIsLoading(false);
         return;
       }
 
-      const [scoresRes, answersRes] = await Promise.all([
+      const [scoresRes, answersRes, reflectionsRes] = await Promise.all([
         supabase
           .from("student_evaluation_scores")
           .select(
@@ -338,12 +392,41 @@ export default function TeoriPage() {
             "id, question_id, selected_option, is_correct, question_bank!inner(id, learning_objective_code, question_text, option_a, option_b, option_c, option_d, correct_answer), student_evaluation_scores!inner(student_id, master_evaluations!inner(type, grade_level))"
           )
           .in("student_evaluation_scores.student_id", studentIds),
+        supabase
+          .from("student_reflections")
+          .select(
+            "id, student_id, material_id, unit_name, answer_text, feedback_text, grade, score, updated_at, created_at"
+          )
+          .in("student_id", studentIds)
+          .order("updated_at", { ascending: false }),
       ]);
 
       if (scoresRes.error) throw scoresRes.error;
 
+      const validReflections = (reflectionsRes.data || []).filter((r: any) => {
+        const uName = String(r.unit_name || "")
+          .trim()
+          .toLowerCase();
+        return uName !== "cp_tp_read" && uName !== "akhir" && uName !== "";
+      });
+
+      const initialDrafts: Record<
+        string,
+        { score: string; grade: string; feedback: string }
+      > = {};
+      validReflections.forEach((r: any) => {
+        initialDrafts[r.id] = {
+          score:
+            r.score !== null && r.score !== undefined ? String(r.score) : "",
+          grade: r.grade ? String(r.grade).trim().toUpperCase() : "",
+          feedback: r.feedback_text ? String(r.feedback_text) : "",
+        };
+      });
+
+      setGradingDrafts(initialDrafts);
       setRawScores(scoresRes.data || []);
       setRawAnswers(answersRes.data || []);
+      setRawReflections(validReflections);
       setSelectedTpCode(null);
       setLastSyncTime(
         new Date().toLocaleTimeString("id-ID", {
@@ -352,7 +435,7 @@ export default function TeoriPage() {
         })
       );
     } catch (error: any) {
-      toast.error("Gagal memuat data nilai teori", {
+      toast.error("Gagal memuat data nilai teori & refleksi", {
         description: error.message,
       });
     } finally {
@@ -365,6 +448,122 @@ export default function TeoriPage() {
       fetchTheoryEcosystem(selectedClass);
     }
   }, [selectedClass]);
+
+  const updateDraftField = (
+    reflectionId: string,
+    field: "score" | "grade" | "feedback",
+    value: string
+  ) => {
+    setGradingDrafts((prev) => {
+      const current = prev[reflectionId] || {
+        score: "",
+        grade: "",
+        feedback: "",
+      };
+      if (field === "score") {
+        const num = Number(value);
+        const autoGrade =
+          value.trim() !== "" && !isNaN(num)
+            ? deriveGradeFromScore(Math.min(100, Math.max(0, num)))
+            : current.grade;
+        return {
+          ...prev,
+          [reflectionId]: {
+            ...current,
+            score: value,
+            grade: autoGrade,
+          },
+        };
+      }
+      return {
+        ...prev,
+        [reflectionId]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const handleSaveReflectionGrade = async (refItem: StudentReflectionItem) => {
+    const draft = gradingDrafts[refItem.id] || {
+      score: "",
+      grade: "",
+      feedback: "",
+    };
+    const rawScoreStr = draft.score.trim();
+    const numericScore =
+      rawScoreStr !== "" ? Math.min(100, Math.max(0, Number(rawScoreStr))) : null;
+
+    if (rawScoreStr !== "" && isNaN(Number(rawScoreStr))) {
+      toast.error("Masukkan angka skor yang valid (0–100).");
+      return;
+    }
+
+    const finalGrade =
+      draft.grade.trim() ||
+      (numericScore !== null ? deriveGradeFromScore(numericScore) : "");
+
+    if (numericScore === null && !finalGrade) {
+      toast.error("Isi skor atau pilih Grade (A–D) terlebih dahulu.");
+      return;
+    }
+
+    setSavingReflectionId(refItem.id);
+    try {
+      const nowIso = new Date().toISOString();
+      const payload = {
+        score: numericScore,
+        grade: finalGrade || null,
+        feedback_text: draft.feedback.trim() || null,
+        updated_at: nowIso,
+      };
+
+      const { error } = await supabase
+        .from("student_reflections")
+        .update(payload)
+        .eq("id", refItem.id);
+
+      if (error) throw error;
+
+      if (refItem.materialId && refItem.studentId) {
+        await supabase
+          .from("student_material_progress")
+          .update({
+            teacher_feedback: draft.feedback.trim() || null,
+          })
+          .eq("student_id", refItem.studentId)
+          .eq("material_id", refItem.materialId);
+      }
+
+      setRawReflections((prev) =>
+        prev.map((r) => (r.id === refItem.id ? { ...r, ...payload } : r))
+      );
+
+      setGradingDrafts((prev) => ({
+        ...prev,
+        [refItem.id]: {
+          score: numericScore !== null ? String(numericScore) : "",
+          grade: finalGrade,
+          feedback: draft.feedback.trim(),
+        },
+      }));
+
+      toast.success(`Penilaian refleksi ${refItem.studentName} tersimpan!`);
+      triggerDynamicIsland(
+        "Nilai Refleksi Tersimpan",
+        `${refItem.studentName} · ${refItem.unitName} (${finalGrade}${
+          numericScore !== null ? ` / ${numericScore}` : ""
+        })`,
+        "success"
+      );
+    } catch (err: any) {
+      toast.error("Gagal menyimpan nilai refleksi: " + (err?.message || ""));
+      triggerDynamicIsland("Gagal Menyimpan Nilai", err?.message, "error");
+    } finally {
+      setSavingReflectionId(null);
+    }
+  };
 
   const activeTpList: TpObjective[] = useMemo(() => {
     const currentGrade = Number(selectedClass?.grade_level) || 10;
@@ -386,12 +585,39 @@ export default function TeoriPage() {
     return DEFAULT_TP_BY_GRADE[currentGrade] || DEFAULT_TP_BY_GRADE[10];
   }, [instrumentData, selectedClass]);
 
+  const materialTriggerMap = useMemo(() => {
+    const map: Record<string, { id: string; trigger: string }> = {};
+    rawMaterials.forEach((m: any) => {
+      const key = String(m.unit_name || "")
+        .trim()
+        .toLowerCase();
+      if (key) {
+        map[key] = {
+          id: m.id,
+          trigger:
+            m.trigger_question ||
+            "Pertanyaan analisis & refleksi pemahaman unit materi.",
+        };
+      }
+      if (m.id) {
+        map[m.id] = {
+          id: m.id,
+          trigger:
+            m.trigger_question ||
+            "Pertanyaan analisis & refleksi pemahaman unit materi.",
+        };
+      }
+    });
+    return map;
+  }, [rawMaterials]);
+
   const studentsData: StudentTheoryRow[] = useMemo(() => {
     const currentGrade = Number(selectedClass?.grade_level) || 10;
 
     return rawStudents
       .map((sc: any) => {
         const sId = sc.student_id;
+        const sName = sc.user_profiles?.full_name || "Siswa Tidak Diketahui";
         const studentScores = rawScores.filter(
           (s: any) =>
             s.student_id === sId &&
@@ -496,9 +722,42 @@ export default function TeoriPage() {
           });
         });
 
+        const studentRefs: StudentReflectionItem[] = rawReflections
+          .filter((r: any) => r.student_id === sId)
+          .map((r: any) => {
+            const uKey = String(r.unit_name || "")
+              .trim()
+              .toLowerCase();
+            const matInfo =
+              (r.material_id && materialTriggerMap[r.material_id]) ||
+              materialTriggerMap[uKey];
+            return {
+              id: r.id,
+              studentId: sId,
+              studentName: sName,
+              materialId: r.material_id || matInfo?.id || null,
+              unitName: r.unit_name || "Unit Materi",
+              triggerQuestion:
+                matInfo?.trigger ||
+                "Pertanyaan analisis & refleksi pemahaman unit materi.",
+              answerText: r.answer_text || "",
+              feedbackText: r.feedback_text || "",
+              grade: r.grade ? String(r.grade).trim() : "",
+              score:
+                r.score !== null && r.score !== undefined
+                  ? Number(r.score)
+                  : null,
+              updatedAt: r.updated_at || r.created_at || null,
+            };
+          });
+
+        const gradedCount = studentRefs.filter(
+          (r) => r.score !== null || r.grade !== ""
+        ).length;
+
         return {
           id: sId,
-          name: sc.user_profiles?.full_name || "Siswa Tidak Diketahui",
+          name: sName,
           pretest: pre,
           posttest: post,
           selisih,
@@ -507,10 +766,64 @@ export default function TeoriPage() {
           status,
           tpBreakdown,
           answerSheet,
+          reflections: studentRefs,
+          gradedReflectionsCount: gradedCount,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rawStudents, rawScores, rawAnswers, selectedClass, activeTpList]);
+  }, [
+    rawStudents,
+    rawScores,
+    rawAnswers,
+    rawReflections,
+    selectedClass,
+    activeTpList,
+    materialTriggerMap,
+  ]);
+
+  useEffect(() => {
+    if (selectedStudent) {
+      const updated = studentsData.find((s) => s.id === selectedStudent.id);
+      if (updated) setSelectedStudent(updated);
+    }
+  }, [studentsData]);
+
+  const allClassReflections: StudentReflectionItem[] = useMemo(() => {
+    const list: StudentReflectionItem[] = [];
+    studentsData.forEach((s) => {
+      s.reflections.forEach((r) => list.push(r));
+    });
+    return list;
+  }, [studentsData]);
+
+  const filteredReflections = useMemo(() => {
+    return allClassReflections.filter((r) => {
+      if (selectedMaterialUnit !== "all") {
+        const matchUnit =
+          r.materialId === selectedMaterialUnit ||
+          r.unitName.trim().toLowerCase() ===
+            selectedMaterialUnit.trim().toLowerCase();
+        if (!matchUnit) return false;
+      }
+      const isGraded = r.score !== null || r.grade !== "";
+      if (reflectionStatusFilter === "graded" && !isGraded) return false;
+      if (reflectionStatusFilter === "ungraded" && isGraded) return false;
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchStudent = r.studentName.toLowerCase().includes(q);
+        const matchUnit = r.unitName.toLowerCase().includes(q);
+        const matchAnswer = r.answerText.toLowerCase().includes(q);
+        if (!matchStudent && !matchUnit && !matchAnswer) return false;
+      }
+      return true;
+    });
+  }, [
+    allClassReflections,
+    selectedMaterialUnit,
+    reflectionStatusFilter,
+    searchQuery,
+  ]);
 
   const questionAnalytics: QuestionAnalyticsItem[] = useMemo(() => {
     const mapByQuestionId: Record<string, QuestionAnalyticsItem> = {};
@@ -653,6 +966,16 @@ export default function TeoriPage() {
         ? Math.round((kkmPassedCount / validPost.length) * 100)
         : 0;
 
+    const totalReflections = allClassReflections.length;
+    const gradedReflections = allClassReflections.filter(
+      (r) => r.score !== null || r.grade !== ""
+    ).length;
+    const ungradedReflections = totalReflections - gradedReflections;
+    const reflectionGradedPct =
+      totalReflections > 0
+        ? Math.round((gradedReflections / totalReflections) * 100)
+        : 0;
+
     const tpBars = activeTpList.map((tp) => {
       let preC = 0,
         preT = 0,
@@ -695,9 +1018,13 @@ export default function TeoriPage() {
       participationPct,
       kkmPassedCount,
       ketuntasanPct,
+      totalReflections,
+      gradedReflections,
+      ungradedReflections,
+      reflectionGradedPct,
       tpBars,
     };
-  }, [studentsData, activeTpList]);
+  }, [studentsData, activeTpList, allClassReflections]);
 
   const filteredData = useMemo(() => {
     return studentsData.filter((row) => {
@@ -728,6 +1055,7 @@ export default function TeoriPage() {
       "Skor Pretest",
       "Skor Posttest",
       "Progres (Gain)",
+      "Refleksi Materi Dinilai",
       "Status Ketuntasan",
     ];
     const rows = studentsData.map((r) => [
@@ -740,6 +1068,7 @@ export default function TeoriPage() {
           ? `+${r.selisih}`
           : r.selisih
         : "-",
+      `${r.gradedReflectionsCount}/${r.reflections.length} Unit`,
       r.posttest !== null
         ? r.posttest >= 75
           ? "Tuntas (>=75)"
@@ -754,17 +1083,171 @@ export default function TeoriPage() {
     link.setAttribute("href", encodeURI(csvContent));
     link.setAttribute(
       "download",
-      `Rekap_Teori_${activeClassName.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`
+      `Rekap_Teori_Refleksi_${activeClassName.replace(
+        /[^a-zA-Z0-9]/g,
+        "_"
+      )}_${new Date().toISOString().slice(0, 10)}.csv`
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     triggerDynamicIsland(
-      "Rekap Nilai Teori Diunduh",
+      "Rekap Nilai Teori & Refleksi Diunduh",
       `Berkas CSV untuk ${activeClassName} berhasil diekspor.`,
       "success"
+    );
+  };
+
+  const renderReflectionGradingCard = (
+    refItem: StudentReflectionItem,
+    showStudentHeader = true
+  ) => {
+    const draft = gradingDrafts[refItem.id] || {
+      score: refItem.score !== null ? String(refItem.score) : "",
+      grade: refItem.grade || "",
+      feedback: refItem.feedbackText || "",
+    };
+    const isGraded = refItem.score !== null || refItem.grade !== "";
+    const isSaving = savingReflectionId === refItem.id;
+
+    return (
+      <div
+        key={refItem.id}
+        className="p-6 sm:p-7 rounded-[2rem] flex flex-col justify-between gap-5 edufit-card-primary relative overflow-hidden"
+      >
+        <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
+
+        <div className="space-y-4 relative z-10">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-hairline">
+            <div>
+              {showStudentHeader && (
+                <div className="text-xl font-bold tracking-tight">
+                  {refItem.studentName}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase badge-tint-amber">
+                  {refItem.unitName}
+                </span>
+                {refItem.updatedAt && (
+                  <span className="text-[11px] font-mono opacity-55">
+                    Dikirim:{" "}
+                    {new Date(refItem.updatedAt).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <span
+              className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase ${
+                isGraded ? "badge-tint-emerald" : "badge-tint-rose"
+              }`}
+            >
+              {isGraded
+                ? `Dinilai: ${refItem.grade || "-"} (${
+                    refItem.score !== null ? refItem.score : "-"
+                  })`
+                : "Menunggu Penilaian Guru"}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl edufit-surface-subtle space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-60 block">
+              Pertanyaan Pemantik Unit Materi:
+            </span>
+            <p className="text-xs font-semibold leading-relaxed">
+              {refItem.triggerQuestion}
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl edufit-card-secondary space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+              Jawaban Analisis & Refleksi Siswa:
+            </span>
+            <p className="text-sm leading-relaxed whitespace-pre-line font-medium">
+              {refItem.answerText || "Tidak ada teks jawaban."}
+            </p>
+          </div>
+        </div>
+
+        {/* FORM PENILAIAN GURU (SKOR, GRADE A-D, FEEDBACK) */}
+        <div className="pt-4 border-t border-hairline space-y-3 relative z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+            <div className="sm:col-span-4">
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
+                Skor Angka (0–100)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={draft.score}
+                onChange={(e) =>
+                  updateDraftField(refItem.id, "score", e.target.value)
+                }
+                placeholder="Cth: 88"
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono font-bold outline-none edufit-surface-subtle"
+              />
+            </div>
+
+            <div className="sm:col-span-8">
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
+                Predikat Nilai (Grade)
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(["A", "B", "C", "D"] as const).map((gOpt) => {
+                  const active = draft.grade === gOpt;
+                  return (
+                    <button
+                      key={gOpt}
+                      type="button"
+                      onClick={() => updateDraftField(refItem.id, "grade", gOpt)}
+                      className={`py-2 rounded-xl text-xs font-mono font-bold cursor-pointer transition-all ${
+                        active
+                          ? "seg-btn-active shadow-sm"
+                          : "edufit-surface-subtle opacity-75 hover:opacity-100"
+                      }`}
+                    >
+                      Grade {gOpt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
+              Umpan Balik Guru PJOK (Tampil di Aplikasi Siswa)
+            </label>
+            <textarea
+              rows={2}
+              value={draft.feedback}
+              onChange={(e) =>
+                updateDraftField(refItem.id, "feedback", e.target.value)
+              }
+              placeholder="Tuliskan apresiasi atau catatan koreksi pemahaman untuk siswa..."
+              className="w-full p-3.5 rounded-xl text-xs leading-relaxed outline-none resize-y edufit-surface-subtle"
+            />
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleSaveReflectionGrade(refItem)}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-transform hover:scale-[1.02] disabled:opacity-50 btn-forest-gold"
+            >
+              <Save size={14} />
+              {isSaving ? "Menyimpan..." : "Simpan Penilaian Refleksi"}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   };
 
@@ -784,7 +1267,7 @@ export default function TeoriPage() {
     : null;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-guru-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
@@ -840,53 +1323,43 @@ export default function TeoriPage() {
         )}
       </AnimatePresence>
 
-      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA (BEBAS 01/ 02/) */}
+      {/* ZONA 1: HERO HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
             <span className="text-gold-accent">
-              Analitik Kognitif & Bedah Soal
+              Analitik Kognitif & Penilaian Refleksi Materi
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
-              <BrainCircuit size={15} />
+              <BrainCircuit size={15} className="text-emerald-accent" />
               {selectedClass
-                ? `${activeClassName} · ${rawQuestions.length} Butir Soal · Sinkron ${
+                ? `${activeClassName} · ${rawMaterials.length} Unit Materi · Sinkron ${
                     lastSyncTime || "Live"
                   }`
-                : "Evaluasi Pretest & Posttest Kurikulum PJOK"}
+                : "Evaluasi Pretest, Posttest & Refleksi Materi PJOK"}
             </span>
           </div>
           <h1 className="text-5xl md:text-7xl font-light tracking-tighter leading-[1.05]">
             Pantau <br />
-            <span className="font-semibold">Teori Siswa</span>
+            <span className="font-semibold">Teori & Refleksi</span>
           </h1>
         </div>
 
-        <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
+        <div className="flex flex-wrap gap-10 md:gap-14 items-baseline shrink-0">
           <button
             type="button"
-            onClick={() => setStatusFilter("all")}
+            onClick={() => {
+              setViewMode("bento");
+              setStatusFilter("all");
+            }}
             className="text-left cursor-pointer group"
           >
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none group-hover:text-gold-accent transition-colors">
+            <div className="text-6xl md:text-7xl font-light font-mono tracking-tighter leading-none text-sky-accent group-hover:scale-[1.02] transition-transform">
               {isLoading ? "—" : stats.totalSiswa}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              Total Siswa Kelas
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setChartMode("pre")}
-            className="text-left cursor-pointer group"
-          >
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none group-hover:text-gold-accent transition-colors">
-              {isLoading ? "—" : `${stats.avgPre}%`}
-            </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              Rata-Rata Pretest
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-3">
+              Total Siswa
             </div>
           </button>
 
@@ -895,17 +1368,32 @@ export default function TeoriPage() {
             onClick={() => setChartMode("post")}
             className="text-left cursor-pointer group"
           >
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent group-hover:opacity-85 transition-opacity">
+            <div className="text-6xl md:text-7xl font-light font-mono tracking-tighter leading-none text-emerald-accent group-hover:scale-[1.02] transition-transform">
               {isLoading ? "—" : `${stats.avgPost}%`}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-3">
               Rata-Rata Posttest
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode("reflections")}
+            className="text-left cursor-pointer group"
+          >
+            <div className="text-6xl md:text-7xl font-light font-mono tracking-tighter leading-none text-gold-accent group-hover:scale-[1.02] transition-transform">
+              {isLoading
+                ? "—"
+                : `${stats.gradedReflections}/${stats.totalReflections}`}
+            </div>
+            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-3">
+              Refleksi Dinilai
             </div>
           </button>
         </div>
       </div>
 
-      {/* ZONA 2: 4 BAR TELEMETRI KOGNITIF */}
+      {/* ZONA 2: 4 BAR TELEMETRI KOGNITIF & REFLEKSI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
         <button
           type="button"
@@ -914,7 +1402,9 @@ export default function TeoriPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rata-Rata Pretest</span>
-            <span className="font-mono">{stats.preCount} SISWA</span>
+            <span className="font-mono text-sky-accent">
+              {stats.preCount} SISWA
+            </span>
           </div>
           <div
             className={`h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] ${
@@ -926,7 +1416,7 @@ export default function TeoriPage() {
             <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${stats.avgPre}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-75">
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-80">
               Tes Awal
             </span>
           </div>
@@ -939,7 +1429,7 @@ export default function TeoriPage() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rata-Rata Posttest</span>
-            <span className="font-mono">
+            <span className="font-mono text-emerald-accent">
               {stats.classGain >= 0
                 ? `+${stats.classGain} Poin`
                 : `${stats.classGain} Poin`}
@@ -961,30 +1451,36 @@ export default function TeoriPage() {
           </div>
         </button>
 
-        <div className="sm:col-span-2 lg:col-span-4 space-y-2">
+        <button
+          type="button"
+          onClick={() => setViewMode("reflections")}
+          className="sm:col-span-2 lg:col-span-4 space-y-2 text-left cursor-pointer group"
+        >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Partisipasi Ujian Teori</span>
-            <span className="font-mono">
-              {stats.activeParticipants}/{stats.totalSiswa} SISWA
+            <span>Penilaian Refleksi Unit Materi</span>
+            <span className="font-mono text-gold-accent">
+              {stats.ungradedReflections} BELUM DINILAI
             </span>
           </div>
-          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped">
+          <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between telemetry-bar-striped group-hover:scale-[1.01] transition-transform">
             <span className="text-2xl font-light font-mono tracking-tight relative z-10">
-              {isLoading ? "—" : `${stats.participationPct}%`}
+              {isLoading
+                ? "—"
+                : `${stats.gradedReflections}/${stats.totalReflections} Jawaban`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
-              {stats.completeCount} Lengkap Pre & Post
+            <span className="px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase tracking-widest relative z-10 badge-tint-emerald">
+              {stats.reflectionGradedPct}% Dinilai
             </span>
           </div>
-        </div>
+        </button>
 
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Ketuntasan</span>
-            <span className="font-mono">SKOR &ge; 75</span>
+            <span className="font-mono text-emerald-accent">SKOR &ge; 75</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {isLoading ? "—" : `${stats.ketuntasanPct}%`}
             </span>
           </div>
@@ -994,12 +1490,12 @@ export default function TeoriPage() {
       {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
         {/* BENTO 1: KENDALI ROMBEL */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-30">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={14} className="text-gold-accent" />
               <span>Filter Angkatan & Rombel</span>
             </div>
 
@@ -1007,8 +1503,8 @@ export default function TeoriPage() {
               Kendali Rombel
             </h2>
             <p className="text-sm mb-6 leading-relaxed font-medium opacity-55">
-              Pilih jenjang angkatan dan rombel kelas untuk menganalisis hasil
-              Pretest, Posttest, dan distribusi jawaban soal.
+              Pilih jenjang angkatan dan rombel kelas untuk memeriksa hasil
+              ujian teori serta menilai jawaban refleksi materi siswa.
             </p>
 
             <div className="flex gap-1.5 p-1.5 rounded-2xl mb-6 edufit-surface-subtle">
@@ -1025,7 +1521,7 @@ export default function TeoriPage() {
                     type="button"
                     onClick={() => handleGradeFilterChange(g.val as any)}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "seg-btn-idle"
+                      active ? "seg-btn-active shadow-sm" : "seg-btn-idle"
                     }`}
                   >
                     {g.label}
@@ -1074,12 +1570,14 @@ export default function TeoriPage() {
                           setIsClassDropdownOpen(false);
                           triggerDynamicIsland(
                             `Kelas Aktif: ${cls.name}`,
-                            `Memuat rekap Pretest, Posttest, dan analisis TP Kelas ${cls.grade_level}.`,
+                            `Memuat rekap Pretest, Posttest, dan jawaban refleksi Kelas ${cls.grade_level}.`,
                             "info"
                           );
                         }}
                         className={`px-6 py-4 text-lg font-medium cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
-                          selectedClass?.id === cls.id ? "text-gold-accent" : ""
+                          selectedClass?.id === cls.id
+                            ? "text-gold-accent font-bold"
+                            : ""
                         }`}
                       >
                         {cls.name} (Kelas {cls.grade_level})
@@ -1095,25 +1593,27 @@ export default function TeoriPage() {
             type="button"
             onClick={handleExportCSV}
             disabled={studentsData.length === 0}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-emerald"
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-gold"
           >
             <Download size={16} strokeWidth={2.5} /> Ekspor Rekapitulasi CSV
           </button>
         </div>
 
         {/* BENTO 2: CAPAIAN PER TUJUAN PEMBELAJARAN (TP) */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit size={15} />
+              <BrainCircuit size={15} className="text-sky-accent" />
               <span>Capaian Kisi-Kisi TP</span>
             </div>
             <button
               type="button"
               onClick={() => setChartMode(chartMode === "post" ? "pre" : "post")}
-              className="px-3.5 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer btn-forest-gold"
+              className={`px-3.5 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                chartMode === "post" ? "badge-tint-emerald" : "badge-tint-sky"
+              }`}
             >
               Mode {chartMode === "post" ? "Posttest" : "Pretest"}
             </button>
@@ -1142,68 +1642,88 @@ export default function TeoriPage() {
             </div>
           </div>
 
-          <div
-            className="grid gap-4 items-end pt-4 h-44 relative z-10"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(
-                1,
-                stats.tpBars.length
-              )}, minmax(0, 1fr))`,
-            }}
-          >
-            {stats.tpBars.map((bar) => {
-              const val = chartMode === "post" ? bar.post : bar.pre;
-              const heightPct = val <= 0 ? 4 : Math.max(12, val);
-              const isHighest = bar.code === highestTpBar.code && val > 0;
-              const isSelected = selectedTpCode === bar.code;
-              const fillClass =
-                isSelected || isHighest
+          <div className="pt-4 pb-1 relative z-10">
+            <div
+              className="grid gap-3 items-end h-44 px-3.5 py-3.5 rounded-2xl edufit-card-primary"
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(
+                  1,
+                  stats.tpBars.length
+                )}, minmax(0, 1fr))`,
+              }}
+            >
+              {stats.tpBars.map((bar, bIdx) => {
+                const val = chartMode === "post" ? bar.post : bar.pre;
+                const heightPct = val <= 0 ? 6 : Math.max(14, val);
+                const isHighest = bar.code === highestTpBar.code && val > 0;
+                const isSelected = selectedTpCode === bar.code;
+                const cycleColors = [
+                  "chart-fill-gold",
+                  "chart-fill-emerald",
+                  "chart-fill-sky",
+                  "chart-fill-terra",
+                ];
+                const fillClass = isSelected
+                  ? "chart-fill-emerald"
+                  : isHighest
                   ? "chart-fill-gold"
-                  : "chart-fill-primary";
+                  : cycleColors[bIdx % cycleColors.length];
 
-              return (
-                <button
-                  key={bar.code}
-                  type="button"
-                  onClick={() =>
-                    setSelectedTpCode(isSelected ? null : bar.code)
-                  }
-                  className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
-                  title={`${bar.code} (${bar.title}): Pretest ${bar.pre}% → Posttest ${bar.post}%`}
-                >
-                  <span className="text-xs font-bold font-mono opacity-80">
-                    {val}%
-                  </span>
-                  <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                    <div
-                      className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </div>
-                  <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                  <span className="text-[11px] font-bold font-mono opacity-65">
-                    {bar.code}
-                  </span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={bar.code}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTpCode(isSelected ? null : bar.code)
+                    }
+                    className="flex flex-col items-center justify-end h-full gap-1.5 group cursor-pointer focus:outline-none"
+                    title={`${bar.code} (${bar.title}): Pretest ${bar.pre}% → Posttest ${bar.post}%`}
+                  >
+                    <span
+                      className={`text-[11px] font-bold font-mono ${
+                        isSelected || isHighest
+                          ? "text-gold-accent"
+                          : "opacity-80"
+                      }`}
+                    >
+                      {val}%
+                    </span>
+                    <div className="w-6 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${heightPct}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className={`w-full rounded-lg ${fillClass}`}
+                      />
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold font-mono ${
+                        isSelected ? "text-emerald-accent" : "opacity-70"
+                      }`}
+                    >
+                      {bar.code}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* BENTO 3: INDEKS KOGNITIF KELAS (DIPERBAIKI: 0% MURNI & TEKS DI BAWAH LINGKARAN) */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* BENTO 3: INDEKS KOGNITIF & REFLEKSI KELAS */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <Activity size={15} />
-              <span>Indeks Kognitif Kelas</span>
+              <Activity size={15} className="text-emerald-accent" />
+              <span>Indeks Kelas</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "posttest", label: "Posttest" },
                 { key: "ketuntasan", label: "Tuntas" },
-                { key: "partisipasi", label: "Aktif" },
+                { key: "refleksi", label: "Refleksi" },
               ].map((m) => {
                 const active = gaugeMode === m.key;
                 return (
@@ -1211,8 +1731,8 @@ export default function TeoriPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1228,14 +1748,21 @@ export default function TeoriPage() {
                 ? stats.avgPost
                 : gaugeMode === "ketuntasan"
                 ? stats.ketuntasanPct
-                : stats.participationPct;
+                : stats.reflectionGradedPct;
 
             const gaugeLabel =
               gaugeMode === "posttest"
                 ? "Rata-Rata Skor Posttest Akhir"
                 : gaugeMode === "ketuntasan"
                 ? "Proporsi Siswa Mencapai Skor >= 75"
-                : "Partisipasi Ujian Kognitif Kelas";
+                : `Jawaban Refleksi Dinilai Guru (${stats.gradedReflections}/${stats.totalReflections})`;
+
+            const strokeCls =
+              gaugeMode === "posttest"
+                ? "gauge-circle-gold"
+                : gaugeMode === "ketuntasan"
+                ? "gauge-circle-emerald"
+                : "gauge-circle-sky";
 
             const radius = 58;
             const circumference = 2 * Math.PI * radius;
@@ -1267,7 +1794,7 @@ export default function TeoriPage() {
                         strokeLinecap="round"
                         strokeDasharray={circumference}
                         strokeDashoffset={dashOffset}
-                        className="transition-all duration-700 gauge-circle-gold"
+                        className={`transition-all duration-700 ${strokeCls}`}
                       />
                     )}
                   </svg>
@@ -1285,26 +1812,32 @@ export default function TeoriPage() {
           })()}
 
           <div className="relative z-10">
-            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-3 border-t border-hairline">
-              <span>{stats.completeCount} Lengkap</span>
-              <span>—</span>
-              <span>{stats.partialCount} Sebagian</span>
-              <span>—</span>
-              <span>{stats.emptyCount} Kosong</span>
+            <div className="grid grid-cols-3 gap-2 text-[10px] font-bold font-mono tracking-wider uppercase pt-3 border-t border-hairline text-center">
+              <span className="py-1 rounded-lg badge-tint-emerald">
+                {stats.completeCount} Lengkap Tes
+              </span>
+              <span className="py-1 rounded-lg badge-tint-amber">
+                {stats.gradedReflections} Refleksi Nilai
+              </span>
+              <span className="py-1 rounded-lg badge-tint-rose">
+                {stats.ungradedReflections} Antrean Nilai
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ZONA 4: HEADER FILTER & SWITCHER MODE */}
+      {/* ZONA 4: HEADER FILTER & SWITCHER MODE (KARTU, TABEL, REFLEKSI MATERI, BEDAH SOAL) */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
-            Rekapitulasi Capaian & Diagnostik Butir Soal
+          <div className="text-xs font-bold uppercase tracking-widest text-gold-accent mb-1">
+            Evaluasi Kognitif & Penilaian Refleksi Materi
           </div>
           <h3 className="text-3xl font-light tracking-tight">
             {viewMode === "questions"
               ? `Analisis Butir Soal (${filteredQuestions.length})`
+              : viewMode === "reflections"
+              ? `Penilaian Jawaban Refleksi Materi (${filteredReflections.length})`
               : `Rekapitulasi Nilai Teori (${filteredData.length})`}
           </h3>
 
@@ -1350,6 +1883,73 @@ export default function TeoriPage() {
                 </button>
               )}
             </div>
+          ) : viewMode === "reflections" ? (
+            <div className="space-y-2.5 mt-3">
+              <div className="flex flex-wrap items-center gap-4">
+                {[
+                  {
+                    key: "all",
+                    label: `Semua Jawaban (${stats.totalReflections})`,
+                  },
+                  {
+                    key: "ungraded",
+                    label: `Belum Dinilai (${stats.ungradedReflections})`,
+                  },
+                  {
+                    key: "graded",
+                    label: `Sudah Dinilai (${stats.gradedReflections})`,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setReflectionStatusFilter(tab.key as any)}
+                    className={`text-xs font-bold uppercase tracking-widest transition-opacity cursor-pointer ${
+                      reflectionStatusFilter === tab.key
+                        ? "opacity-100 underline decoration-gold-accent decoration-2 underline-offset-8"
+                        : "opacity-45 hover:opacity-80"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {rawMaterials.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMaterialUnit("all")}
+                    className={`px-3 py-1 rounded-xl text-[11px] font-bold cursor-pointer transition-all ${
+                      selectedMaterialUnit === "all"
+                        ? "seg-btn-active"
+                        : "edufit-surface-subtle opacity-75"
+                    }`}
+                  >
+                    Semua Unit ({rawMaterials.length})
+                  </button>
+                  {rawMaterials.map((mat, mIdx) => {
+                    const active =
+                      selectedMaterialUnit === mat.id ||
+                      selectedMaterialUnit === mat.unit_name;
+                    return (
+                      <button
+                        key={mat.id}
+                        type="button"
+                        onClick={() => setSelectedMaterialUnit(mat.unit_name)}
+                        className={`px-3 py-1 rounded-xl text-[11px] font-bold cursor-pointer transition-all ${
+                          active
+                            ? "seg-btn-active"
+                            : "edufit-surface-subtle opacity-75"
+                        }`}
+                      >
+                        U{mIdx + 1}: {mat.unit_name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex flex-wrap items-center gap-4 mt-2">
               {[
@@ -1379,7 +1979,7 @@ export default function TeoriPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <div className="flex p-1.5 rounded-2xl edufit-surface-subtle">
+          <div className="flex flex-wrap p-1.5 rounded-2xl edufit-surface-subtle">
             <button
               type="button"
               onClick={() => setViewMode("bento")}
@@ -1397,6 +1997,16 @@ export default function TeoriPage() {
               }`}
             >
               <Table2 size={14} /> Tabel
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("reflections")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "reflections" ? "seg-btn-active" : "seg-btn-idle"
+              }`}
+            >
+              <ClipboardCheck size={14} /> Refleksi Materi (
+              {stats.totalReflections})
             </button>
             <button
               type="button"
@@ -1418,6 +2028,8 @@ export default function TeoriPage() {
               placeholder={
                 viewMode === "questions"
                   ? "Cari teks soal / TP..."
+                  : viewMode === "reflections"
+                  ? "Cari siswa / unit / jawaban..."
                   : "Cari nama siswa..."
               }
               className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs font-semibold outline-none transition-colors edufit-card-primary"
@@ -1447,9 +2059,28 @@ export default function TeoriPage() {
       ) : isLoading ? (
         <div className="flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55 animate-pulse">
           <div className="text-xl font-light tracking-tight">
-            Menarik data evaluasi kognitif & bank soal...
+            Menarik data evaluasi kognitif & jawaban refleksi materi siswa...
           </div>
         </div>
+      ) : viewMode === "reflections" ? (
+        filteredReflections.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55 text-center">
+            <MessageSquareText className="w-10 h-10 mb-3 opacity-60" />
+            <div className="text-xl font-light tracking-tight">
+              Belum ada jawaban refleksi materi siswa pada filter ini.
+            </div>
+            <p className="text-xs mt-1 max-w-md">
+              Jawaban akan otomatis muncul di sini segera setelah siswa membaca
+              modul materi di aplikasi mobile dan menekan tombol Simpan Refleksi.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10 mb-12">
+            {filteredReflections.map((refItem) =>
+              renderReflectionGradingCard(refItem, true)
+            )}
+          </div>
+        )
       ) : viewMode === "questions" ? (
         filteredQuestions.length === 0 ? (
           <div className="flex items-center justify-center p-14 rounded-[2rem] border border-dashed border-hairline opacity-55">
@@ -1462,22 +2093,33 @@ export default function TeoriPage() {
             {filteredQuestions.map((q, idx) => {
               const isHardQuestion =
                 q.totalAttempts > 0 && q.accuracyPct < 55;
+              const isPost = q.evalType === "posttest";
               return (
-                <div
+                <motion.div
                   key={q.id}
-                  className={`p-7 sm:p-8 rounded-[2rem] flex flex-col justify-between gap-5 edufit-card-primary ${
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.28,
+                    delay: Math.min(idx * 0.03, 0.25),
+                  }}
+                  className={`p-7 sm:p-8 rounded-[2rem] flex flex-col justify-between gap-5 edufit-card-primary relative overflow-hidden ${
                     isHardQuestion ? "bento-showcase-selected" : ""
                   }`}
                 >
-                  <div className="space-y-3">
+                  <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
+                  <div className="space-y-3 relative z-10">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                        <span className="px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold uppercase badge-tint-amber">
                           {q.tpCode}
                         </span>
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase edufit-surface-subtle">
-                          {q.evalType === "posttest" ? "Posttest" : "Pretest"} ·
-                          Soal #{idx + 1}
+                        <span
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold uppercase ${
+                            isPost ? "badge-tint-emerald" : "badge-tint-sky"
+                          }`}
+                        >
+                          {isPost ? "Posttest" : "Pretest"} · Soal #{idx + 1}
                         </span>
                       </div>
 
@@ -1503,7 +2145,7 @@ export default function TeoriPage() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 relative z-10">
                     {(["A", "B", "C", "D"] as const).map((optKey) => {
                       const isCorrectKey = q.correctAnswer === optKey;
                       const pickedCount = q.optionCounts[optKey] || 0;
@@ -1517,7 +2159,7 @@ export default function TeoriPage() {
                           key={optKey}
                           className={`p-3.5 rounded-2xl text-xs flex flex-col justify-between gap-2 ${
                             isCorrectKey
-                              ? "badge-tint-emerald font-semibold"
+                              ? "badge-tint-emerald font-semibold shadow-sm"
                               : "edufit-surface-subtle"
                           }`}
                         >
@@ -1539,7 +2181,7 @@ export default function TeoriPage() {
                       );
                     })}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -1559,20 +2201,34 @@ export default function TeoriPage() {
             const isPartial = row.status === "partial";
 
             return (
-              <div
+              <motion.div
                 key={row.id}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.32,
+                  delay: Math.min(index * 0.04, 0.25),
+                }}
                 onClick={() => {
                   setSelectedStudent(row);
-                  setModalTab("tp");
+                  setModalTab(row.reflections.length > 0 ? "reflections" : "tp");
                 }}
-                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[300px] shadow-sm transition-transform duration-300 hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${showcaseClass} ${
                   isComplete ? "bento-showcase-selected" : ""
                 }`}
               >
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                  <span
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold font-mono tracking-widest uppercase ${
+                      isComplete
+                        ? "badge-tint-emerald"
+                        : isPartial
+                        ? "badge-tint-amber"
+                        : "bg-black/10 dark:bg-white/10"
+                    }`}
+                  >
                     KELAS {selectedClass?.grade_level} ·{" "}
                     {isComplete
                       ? "PRE & POST SELESAI"
@@ -1594,7 +2250,7 @@ export default function TeoriPage() {
                       <span
                         className={`px-3.5 py-1 rounded-xl text-xs font-bold font-mono ${
                           row.selisih >= 0
-                            ? "seg-btn-active"
+                            ? "badge-tint-emerald"
                             : "badge-tint-rose"
                         }`}
                       >
@@ -1606,11 +2262,16 @@ export default function TeoriPage() {
                         Menunggu Tes Lengkap
                       </span>
                     )}
-                    {row.answerSheet.length > 0 && (
-                      <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-black/10 dark:bg-white/10">
-                        {row.answerSheet.length} Jawaban
-                      </span>
-                    )}
+                    <span
+                      className={`px-3 py-1 rounded-xl text-xs font-mono font-bold ${
+                        row.reflections.length > 0
+                          ? "badge-tint-amber"
+                          : "bg-black/10 dark:bg-white/10"
+                      }`}
+                    >
+                      Refleksi: {row.gradedReflectionsCount}/
+                      {row.reflections.length} Dinilai
+                    </span>
                   </div>
                 </div>
 
@@ -1633,7 +2294,7 @@ export default function TeoriPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
@@ -1653,18 +2314,31 @@ export default function TeoriPage() {
                   <th className="py-4 px-6 text-center">
                     Progres Kognitif (Selisih)
                   </th>
-                  <th className="py-4 px-6 text-right">Detail TP & Jawaban</th>
+                  <th className="py-4 px-6 text-center">
+                    Refleksi Unit Materi
+                  </th>
+                  <th className="py-4 px-6 text-right">
+                    Rincian & Penilaian
+                  </th>
                 </tr>
               </thead>
               <tbody className="text-sm font-medium">
-                {filteredData.map((row) => (
-                  <tr
+                {filteredData.map((row, idx) => (
+                  <motion.tr
                     key={row.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      delay: Math.min(idx * 0.025, 0.2),
+                    }}
                     onClick={() => {
                       setSelectedStudent(row);
-                      setModalTab("tp");
+                      setModalTab(
+                        row.reflections.length > 0 ? "reflections" : "tp"
+                      );
                     }}
-                    className="border-b border-hairline transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02] cursor-pointer"
+                    className="border-b border-hairline transition-colors hover:bg-black/[0.025] dark:hover:bg-white/[0.025] cursor-pointer"
                   >
                     <td className="py-5 px-6 font-bold text-base">
                       {row.name}
@@ -1674,7 +2348,7 @@ export default function TeoriPage() {
                       {row.pretest === null ? (
                         <span className="opacity-35">—</span>
                       ) : (
-                        <span className="px-4 py-1.5 rounded-xl font-bold text-base inline-block min-w-[64px] edufit-surface-subtle">
+                        <span className="px-4 py-1.5 rounded-xl font-bold text-base inline-block min-w-[64px] badge-tint-sky">
                           {row.pretest}
                         </span>
                       )}
@@ -1697,7 +2371,7 @@ export default function TeoriPage() {
                         <span
                           className={`font-bold text-xs px-4 py-1.5 rounded-xl inline-block ${
                             row.selisih > 0
-                              ? "seg-btn-active"
+                              ? "badge-tint-amber"
                               : row.selisih < 0
                               ? "badge-tint-rose"
                               : "edufit-surface-subtle"
@@ -1709,12 +2383,28 @@ export default function TeoriPage() {
                       )}
                     </td>
 
-                    <td className="py-5 px-6 text-right">
-                      <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest opacity-65 hover:opacity-100">
-                        Lihat Rincian <ArrowUpRight size={14} />
+                    <td className="py-5 px-6 text-center font-mono">
+                      <span
+                        className={`font-bold text-xs px-3.5 py-1.5 rounded-xl inline-block ${
+                          row.reflections.length === 0
+                            ? "edufit-surface-subtle opacity-60"
+                            : row.gradedReflectionsCount ===
+                              row.reflections.length
+                            ? "badge-tint-emerald"
+                            : "badge-tint-amber"
+                        }`}
+                      >
+                        {row.gradedReflectionsCount}/{row.reflections.length}{" "}
+                        Dinilai
                       </span>
                     </td>
-                  </tr>
+
+                    <td className="py-5 px-6 text-right">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gold-accent hover:opacity-100">
+                        Buka & Nilai <ArrowUpRight size={14} />
+                      </span>
+                    </td>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
@@ -1722,7 +2412,7 @@ export default function TeoriPage() {
         </div>
       )}
 
-      {/* MODAL DETAIL KOGNITIF, CAPAIAN TP & LEMBAR JAWABAN SISWA */}
+      {/* MODAL DETAIL KOGNITIF, CAPAIAN TP, LEMBAR JAWABAN & PENILAIAN REFLEKSI SISWA */}
       <AnimatePresence>
         {selectedStudent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 edufit-modal-open">
@@ -1743,19 +2433,19 @@ export default function TeoriPage() {
               <div className="p-6 sm:p-8 border-b border-hairline flex flex-wrap justify-between items-center gap-4 shrink-0">
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-widest text-gold-accent block mb-1">
-                    Profil Kognitif Siswa · {activeClassName}
+                    Profil Kognitif & Refleksi Siswa · {activeClassName}
                   </span>
                   <h2 className="text-3xl sm:text-4xl font-light tracking-tight">
                     {selectedStudent.name}
                   </h2>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="flex p-1.5 rounded-2xl edufit-surface-subtle">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap p-1.5 rounded-2xl edufit-surface-subtle">
                     <button
                       type="button"
                       onClick={() => setModalTab("tp")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
                         modalTab === "tp" ? "seg-btn-active" : "seg-btn-idle"
                       }`}
                     >
@@ -1763,8 +2453,19 @@ export default function TeoriPage() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setModalTab("reflections")}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
+                        modalTab === "reflections"
+                          ? "seg-btn-active"
+                          : "seg-btn-idle"
+                      }`}
+                    >
+                      Refleksi Materi ({selectedStudent.reflections.length})
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setModalTab("answers")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition-all ${
                         modalTab === "answers"
                           ? "seg-btn-active"
                           : "seg-btn-idle"
@@ -1786,8 +2487,8 @@ export default function TeoriPage() {
 
               <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-6 rounded-2xl edufit-surface-subtle">
-                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-2">
+                  <div className="p-6 rounded-2xl badge-tint-sky">
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-75 block mb-2">
                       Skor Pretest Awal
                     </span>
                     <span className="text-5xl font-light font-mono tracking-tighter">
@@ -1797,11 +2498,11 @@ export default function TeoriPage() {
                     </span>
                   </div>
 
-                  <div className="p-6 rounded-2xl edufit-surface-subtle">
-                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-2">
+                  <div className="p-6 rounded-2xl badge-tint-emerald">
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-75 block mb-2">
                       Skor Posttest Akhir
                     </span>
-                    <span className="text-5xl font-light font-mono tracking-tighter text-gold-accent">
+                    <span className="text-5xl font-light font-mono tracking-tighter">
                       {selectedStudent.posttest !== null
                         ? selectedStudent.posttest
                         : "—"}
@@ -1810,14 +2511,11 @@ export default function TeoriPage() {
 
                   <div className="p-6 rounded-2xl telemetry-bar-gold">
                     <span className="text-[10px] font-bold uppercase tracking-widest opacity-75 block mb-2">
-                      Peningkatan (Gain)
+                      Refleksi Materi Dinilai
                     </span>
                     <span className="text-5xl font-semibold font-mono tracking-tighter">
-                      {selectedStudent.selisih !== null
-                        ? selectedStudent.selisih > 0
-                          ? `+${selectedStudent.selisih}`
-                          : selectedStudent.selisih
-                        : "—"}
+                      {selectedStudent.gradedReflectionsCount}/
+                      {selectedStudent.reflections.length}
                     </span>
                   </div>
                 </div>
@@ -1826,7 +2524,7 @@ export default function TeoriPage() {
                   <div className="p-6 sm:p-8 rounded-[1.75rem] space-y-4 edufit-card-secondary">
                     <div className="flex items-center justify-between border-b border-hairline pb-4">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-gold-accent block mb-1">
                           Diagnostik Kompetensi
                         </span>
                         <h3 className="text-2xl font-light tracking-tight">
@@ -1837,11 +2535,11 @@ export default function TeoriPage() {
                           {selectedClass?.grade_level}
                         </p>
                       </div>
-                      <BookOpen size={20} className="opacity-45" />
+                      <BookOpen size={20} className="text-gold-accent" />
                     </div>
 
                     <div className="space-y-3">
-                      {activeTpList.map((tp) => {
+                      {activeTpList.map((tp, idx) => {
                         const b = selectedStudent.tpBreakdown[tp.code];
                         const hasAnswerDetail =
                           b && (b.preTotal > 0 || b.postTotal > 0);
@@ -1853,6 +2551,12 @@ export default function TeoriPage() {
                           b && b.postTotal > 0
                             ? Math.round((b.postCorrect / b.postTotal) * 100)
                             : null;
+                        const tpBadges = [
+                          "badge-tint-amber",
+                          "badge-tint-emerald",
+                          "badge-tint-sky",
+                          "badge-tint-violet",
+                        ];
 
                         return (
                           <div
@@ -1861,11 +2565,15 @@ export default function TeoriPage() {
                           >
                             <div className="space-y-1 max-w-xl">
                               <div className="flex items-center gap-2">
-                                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase ${
+                                    tpBadges[idx % tpBadges.length]
+                                  }`}
+                                >
                                   {tp.code}
                                 </span>
                                 {tp.mappingDesc && (
-                                  <span className="text-[11px] font-semibold opacity-55">
+                                  <span className="text-[11px] font-semibold opacity-60">
                                     {tp.mappingDesc}
                                   </span>
                                 )}
@@ -1875,28 +2583,28 @@ export default function TeoriPage() {
                               </p>
                             </div>
 
-                            <div className="flex items-center gap-4 shrink-0 font-mono">
+                            <div className="flex items-center gap-3 shrink-0 font-mono">
                               {hasAnswerDetail ? (
                                 <>
-                                  <div className="text-right">
-                                    <span className="text-[10px] font-bold uppercase opacity-55 block">
+                                  <div className="px-3 py-1.5 rounded-xl badge-tint-sky text-right">
+                                    <span className="text-[9px] font-bold uppercase opacity-75 block">
                                       Pretest
                                     </span>
                                     <span className="text-sm font-bold">
                                       {prePct !== null ? `${prePct}%` : "—"}
                                     </span>
                                   </div>
-                                  <div className="text-right">
-                                    <span className="text-[10px] font-bold uppercase opacity-55 block">
+                                  <div className="px-3 py-1.5 rounded-xl badge-tint-emerald text-right">
+                                    <span className="text-[9px] font-bold uppercase opacity-75 block">
                                       Posttest
                                     </span>
-                                    <span className="text-sm font-bold text-gold-accent">
+                                    <span className="text-sm font-bold">
                                       {postPct !== null ? `${postPct}%` : "—"}
                                     </span>
                                   </div>
                                 </>
                               ) : (
-                                <span className="text-xs font-semibold opacity-60">
+                                <span className="px-3 py-1.5 rounded-xl text-xs font-semibold badge-tint-amber">
                                   Skor Paket:{" "}
                                   {selectedStudent.posttest ??
                                     selectedStudent.pretest ??
@@ -1909,11 +2617,24 @@ export default function TeoriPage() {
                       })}
                     </div>
                   </div>
+                ) : modalTab === "reflections" ? (
+                  <div className="space-y-4">
+                    {selectedStudent.reflections.length === 0 ? (
+                      <div className="p-12 rounded-[1.75rem] text-center opacity-60 edufit-card-secondary">
+                        Siswa ini belum mengirimkan jawaban refleksi pada unit
+                        materi mana pun.
+                      </div>
+                    ) : (
+                      selectedStudent.reflections.map((refItem) =>
+                        renderReflectionGradingCard(refItem, false)
+                      )
+                    )}
+                  </div>
                 ) : (
                   <div className="p-6 sm:p-8 rounded-[1.75rem] space-y-4 edufit-card-secondary">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-gold-accent block mb-1">
                           Evaluasi Pilihan Ganda
                         </span>
                         <h3 className="text-2xl font-light tracking-tight">
@@ -1927,7 +2648,7 @@ export default function TeoriPage() {
                             key={t}
                             type="button"
                             onClick={() => setModalAnswerFilter(t)}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer ${
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer transition-all ${
                               modalAnswerFilter === t
                                 ? "seg-btn-active"
                                 : "seg-btn-idle"
@@ -1959,7 +2680,7 @@ export default function TeoriPage() {
                               className="p-5 rounded-2xl space-y-2.5 edufit-card-primary"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase telemetry-bar-forest text-gold-accent">
+                                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase badge-tint-amber">
                                   Soal #{idx + 1} · {ans.tpCode}
                                 </span>
                                 <span
@@ -1976,19 +2697,25 @@ export default function TeoriPage() {
                                 {ans.questionText}
                               </p>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs font-mono">
-                                <div className="p-3 rounded-xl edufit-surface-subtle">
-                                  <span className="font-sans opacity-55 block text-[10px]">
+                                <div
+                                  className={`p-3 rounded-xl ${
+                                    ans.isCorrect
+                                      ? "badge-tint-emerald"
+                                      : "badge-tint-rose"
+                                  }`}
+                                >
+                                  <span className="font-sans opacity-75 block text-[10px]">
                                     Jawaban Siswa:
                                   </span>
                                   <strong>
                                     {ans.selectedOption}. {ans.optionText}
                                   </strong>
                                 </div>
-                                <div className="p-3 rounded-xl edufit-surface-subtle">
-                                  <span className="font-sans opacity-55 block text-[10px]">
+                                <div className="p-3 rounded-xl badge-tint-emerald">
+                                  <span className="font-sans opacity-75 block text-[10px]">
                                     Kunci Jawaban:
                                   </span>
-                                  <strong className="text-gold-accent">
+                                  <strong>
                                     {ans.correctAnswer}. {ans.correctOptionText}
                                   </strong>
                                 </div>

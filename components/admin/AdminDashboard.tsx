@@ -4,24 +4,24 @@
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    Activity,
-    AlertCircle,
-    ArrowUpRight,
-    Bell,
-    BookOpen,
-    BrainCircuit,
-    Building2,
-    Check,
-    CheckCircle2,
-    ChevronDown,
-    Download,
-    FileCheck2,
-    Layers,
-    Play,
-    School,
-    SlidersHorizontal,
-    TrendingUp,
-    Users,
+  Activity,
+  AlertCircle,
+  ArrowUpRight,
+  Bell,
+  BookOpen,
+  BrainCircuit,
+  Building2,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  FileCheck2,
+  Layers,
+  Play,
+  School,
+  SlidersHorizontal,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -76,8 +76,9 @@ export default function AdminDashboard() {
     role: "Pemilik Sistem & Kurikulum",
   });
 
-  // Dynamic Island Alert State (Menggunakan class dari globals.css)
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -762,10 +763,8 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
-         ==================================================================== */}
+    <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
           <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
@@ -820,13 +819,11 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
-         ==================================================================== */}
+      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">00 / KENDALI PUSAT</span>
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
+            <span className="text-gold-accent">KENDALI PUSAT</span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <School size={15} />
@@ -844,7 +841,7 @@ export default function AdminDashboard() {
                   "success"
                 )
               }
-              className="font-mono underline decoration-dotted underline-offset-4 hover:opacity-100 cursor-pointer"
+              className="font-mono underline decoration-dotted underline-offset-4 hover:opacity-100 cursor-pointer text-gold-accent"
             >
               SYNC {lastSyncTime || "LIVE"}
             </button>
@@ -858,14 +855,13 @@ export default function AdminDashboard() {
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka */}
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <Link href="/admin/institusi" className="group">
             <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none group-hover:text-gold-accent transition-colors">
               {isLoading ? "—" : counts.totalSchools}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4 flex items-center gap-1.5">
-              <span>01 / Sekolah Mitra</span>
+              <span>Sekolah Mitra</span>
               <ArrowUpRight
                 size={14}
                 className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
@@ -874,11 +870,11 @@ export default function AdminDashboard() {
           </Link>
 
           <Link href="/admin/institusi" className="group">
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent transition-colors">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent transition-colors">
               {isLoading ? "—" : counts.totalGuru}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4 flex items-center gap-1.5">
-              <span>02 / Guru PJOK</span>
+              <span>Guru PJOK</span>
               <ArrowUpRight
                 size={14}
                 className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
@@ -891,7 +887,7 @@ export default function AdminDashboard() {
               {isLoading ? "—" : counts.totalSiswa}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4 flex items-center gap-1.5">
-              <span>03 / Siswa Aktif</span>
+              <span>Siswa Aktif</span>
               <ArrowUpRight
                 size={14}
                 className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
@@ -901,11 +897,8 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 2: 4 BAR TELEMETRI EKOSISTEM
-         ==================================================================== */}
+      {/* ZONA 2: 4 BAR TELEMETRI EKOSISTEM */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
-        {/* Bar 1: Rata-rata Pretest */}
         <button
           type="button"
           onClick={() => {
@@ -932,13 +925,12 @@ export default function AdminDashboard() {
             <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${counts.avgPretest}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
+            <span className="text-[11px] font-bold uppercase tracking-wider opacity-75">
               {counts.totalEvaluations} Paket
             </span>
           </div>
         </button>
 
-        {/* Bar 2: Rata-rata Posttest */}
         <button
           type="button"
           onClick={() => {
@@ -969,7 +961,6 @@ export default function AdminDashboard() {
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni */}
         <Link
           href="/admin/materi"
           className="sm:col-span-2 lg:col-span-4 space-y-2 block group"
@@ -988,7 +979,6 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
-        {/* Bar 4: Cakupan Data TKJI */}
         <Link
           href="/admin/program"
           className="sm:col-span-2 lg:col-span-2 space-y-2 block group"
@@ -998,7 +988,7 @@ export default function AdminDashboard() {
             <span className="font-mono">{counts.totalMetrics} SISWA</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-between transition-transform group-hover:scale-[1.02] edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
               {isLoading ? "—" : `${physicalCoverageRate}%`}
             </span>
             <ArrowUpRight size={16} className="opacity-50" />
@@ -1006,18 +996,15 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
-      {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
-         ==================================================================== */}
+      {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1 (PATTERN POLKADOT HALUS): CAKUPAN SISTEM & FILTER */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[400px] edufit-card-primary">
+        {/* BENTO 1: CAKUPAN SISTEM & FILTER */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
-                <span className="font-mono">01 /</span>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60">
                 <SlidersHorizontal size={14} />
                 <span>Filter Ekosistem</span>
               </div>
@@ -1039,7 +1026,6 @@ export default function AdminDashboard() {
               metrik di layar.
             </p>
 
-            {/* Segmented Grade Filter */}
             <div className="flex gap-1.5 p-1.5 rounded-2xl mb-6 edufit-surface-subtle">
               {[
                 { val: "all", label: "Semua" },
@@ -1072,7 +1058,6 @@ export default function AdminDashboard() {
               })}
             </div>
 
-            {/* Architectural Underline Dropdown Sekolah */}
             <div className="relative w-full mb-6" ref={schoolDropdownRef}>
               <div
                 onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
@@ -1146,7 +1131,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Ringkasan Cepat 3 Angkatan */}
           <div className="grid grid-cols-3 gap-2.5 relative z-10 pt-2">
             {gradeSummaries.map((g) => {
               const active = selectedGradeFilter === g.grade;
@@ -1176,13 +1160,12 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): CAPAIAN KOGNITIF & TP */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-secondary">
+        {/* BENTO 2: CAPAIAN KOGNITIF & GRAFIK TP */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BrainCircuit size={15} />
               <span>Capaian Kognitif & TP</span>
             </div>
@@ -1193,7 +1176,7 @@ export default function AdminDashboard() {
                   cognitiveViewMode === "post" ? "pre" : "post"
                 )
               }
-              className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-colors edufit-card-primary"
+              className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-transform hover:scale-105 edufit-card-primary"
             >
               {cognitiveViewMode === "post" ? "Mode Posttest" : "Mode Pretest"}
             </button>
@@ -1208,7 +1191,7 @@ export default function AdminDashboard() {
                   ? `${counts.avgPosttest}%`
                   : `${counts.avgPretest}%`}
               </div>
-              <div className="text-sm font-semibold opacity-55 mb-1">
+              <div className="text-sm font-semibold opacity-60 mb-1">
                 {selectedTpCode
                   ? `Fokus TP ${selectedTpCode}`
                   : cognitiveViewMode === "post"
@@ -1218,89 +1201,101 @@ export default function AdminDashboard() {
             </div>
 
             {kognitifGain !== 0 && (
-              <div className="flex items-center gap-1 text-xs font-bold font-mono uppercase tracking-widest mb-1 text-emerald-accent">
+              <div className="flex items-center gap-1 text-xs font-bold font-mono uppercase tracking-widest mb-1 text-gold-accent">
                 <TrendingUp size={15} />
                 {kognitifGain > 0 ? `+${kognitifGain}` : kognitifGain} PT
               </div>
             )}
           </div>
 
-          {/* Grafik Batang Vertikal Bertitik per Tujuan Pembelajaran */}
-          <div
-            className="grid gap-3 items-end pt-4 h-44 relative z-10"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(
-                1,
-                tpBars.length
-              )}, minmax(0, 1fr))`,
-            }}
-          >
-            {tpBars.map((bar) => {
-              const val = cognitiveViewMode === "post" ? bar.post : bar.pre;
-              const isHighest = bar.code === highestPostTp.code && val > 0;
-              const isSelected = selectedTpCode === bar.code;
+          {/* Grafik Batang Proporsional & Rapi */}
+          <div className="pt-4 pb-1 relative z-10">
+            <div
+              className="grid gap-2.5 items-end h-44 px-2 py-3 rounded-2xl edufit-card-primary"
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(
+                  1,
+                  tpBars.length
+                )}, minmax(0, 1fr))`,
+              }}
+            >
+              {tpBars.map((bar) => {
+                const val = cognitiveViewMode === "post" ? bar.post : bar.pre;
+                const isHighest = bar.code === highestPostTp.code && val > 0;
+                const isSelected = selectedTpCode === bar.code;
 
-              const fillClass = isSelected
-                ? "chart-fill-emerald"
-                : isHighest
-                ? "chart-fill-gold"
-                : "chart-fill-primary";
+                const fillClass = isSelected
+                  ? "chart-fill-emerald"
+                  : isHighest
+                  ? "chart-fill-gold"
+                  : "chart-fill-primary";
 
-              return (
-                <button
-                  key={bar.code}
-                  type="button"
-                  onClick={() => {
-                    const nextTp =
-                      selectedTpCode === bar.code ? null : bar.code;
-                    setSelectedTpCode(nextTp);
-                    if (nextTp) {
-                      triggerDynamicIsland(
-                        `Tujuan Pembelajaran ${bar.code}`,
-                        `${bar.title} — Pretest ${bar.pre}% → Posttest ${bar.post}%`,
-                        "info"
-                      );
-                    }
-                  }}
-                  className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
-                  title={`${bar.code} (${bar.title}): Pretest ${bar.pre}% → Posttest ${bar.post}%`}
-                >
-                  <span className="text-[11px] font-bold font-mono opacity-80">
-                    {val}%
-                  </span>
-                  <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                    <div
-                      className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{
-                        height: `${Math.max(val > 0 ? 14 : 0, val)}%`,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      val > 0 ? fillClass : "opacity-30 chart-fill-primary"
-                    }`}
-                  />
-                  <span className="text-[11px] font-bold font-mono opacity-65 truncate max-w-full">
-                    {bar.code}
-                  </span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={bar.code}
+                    type="button"
+                    onClick={() => {
+                      const nextTp =
+                        selectedTpCode === bar.code ? null : bar.code;
+                      setSelectedTpCode(nextTp);
+                      if (nextTp) {
+                        triggerDynamicIsland(
+                          `Tujuan Pembelajaran ${bar.code}`,
+                          `${bar.title} — Pretest ${bar.pre}% → Posttest ${bar.post}%`,
+                          "info"
+                        );
+                      }
+                    }}
+                    className="flex flex-col items-center justify-end h-full gap-1.5 group cursor-pointer focus:outline-none"
+                    title={`${bar.code} (${bar.title}): Pretest ${bar.pre}% → Posttest ${bar.post}%`}
+                  >
+                    <span
+                      className={`text-[10px] font-bold font-mono transition-opacity ${
+                        isSelected || isHighest
+                          ? "opacity-100 text-gold-accent"
+                          : "opacity-65 group-hover:opacity-100"
+                      }`}
+                    >
+                      {val}%
+                    </span>
+                    <div className="w-5 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{
+                          height: `${Math.max(val > 0 ? 12 : 4, val)}%`,
+                        }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className={`w-full rounded-lg ${fillClass}`}
+                      />
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold font-mono tracking-tight truncate max-w-full ${
+                        isSelected
+                          ? "text-emerald-accent"
+                          : isHighest
+                          ? "text-gold-accent"
+                          : "opacity-70"
+                      }`}
+                    >
+                      {bar.code}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS FISIK, TKJI & IMT */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[400px] edufit-card-primary">
+        {/* BENTO 3: INDEKS FISIK, TKJI & IMT (TEKS LABEL DI LUAR LINGKARAN CHART) */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
               <span>Fisik, TKJI & IMT</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "tkji", label: "TKJI" },
                 { key: "bmi", label: "IMT" },
@@ -1312,8 +1307,8 @@ export default function AdminDashboard() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1364,41 +1359,43 @@ export default function AdminDashboard() {
               circumference - (Math.max(10, gaugePct) / 100) * circumference;
 
             return (
-              <div className="relative flex items-center justify-center my-2 z-10">
-                <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="6"
-                    strokeDasharray="2 5"
-                    className="gauge-circle-track"
-                  />
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={dashOffset}
-                    className={`transition-all duration-700 ${
-                      gaugeMode === "bmi"
-                        ? "gauge-circle-emerald"
-                        : "gauge-circle-gold"
-                    }`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                    {isLoading ? "—" : gaugeValue}
-                  </span>
-                  <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
-                    {gaugeLabel}
-                  </span>
+              <div className="relative flex flex-col items-center justify-center my-2 z-10">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="6"
+                      strokeDasharray="2 5"
+                      className="gauge-circle-track"
+                    />
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={dashOffset}
+                      className={`transition-all duration-700 ${
+                        gaugeMode === "bmi"
+                          ? "gauge-circle-emerald"
+                          : "gauge-circle-gold"
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-light font-mono tracking-tighter leading-none">
+                      {isLoading ? "—" : gaugeValue}
+                    </span>
+                  </div>
                 </div>
+                <span className="text-xs font-semibold opacity-65 mt-3 text-center">
+                  {gaugeLabel}
+                </span>
               </div>
             );
           })()}
@@ -1416,7 +1413,7 @@ export default function AdminDashboard() {
                     }}
                   />
                   <div
-                    className="h-full chart-fill-emerald"
+                    className="h-full chart-fill-gold"
                     style={{
                       width: `${
                         (counts.bmiStats.normal / counts.bmiStats.total) * 100
@@ -1443,17 +1440,14 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 4: MATRIKS KURIKULUM (KIRI) & PANEL KESIAPAN SISTEM FOREST (KANAN)
-         ==================================================================== */}
+      {/* ZONA 4: MATRIKS KURIKULUM (KIRI) & KESIAPAN SISTEM (KANAN) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch mb-12 relative z-10">
-        {/* KIRI (col-span-7): MATRIKS KURIKULUM & AKTIVITAS KELAS */}
         <div className="lg:col-span-7 p-8 md:p-10 rounded-[2rem] flex flex-col justify-between gap-6 edufit-card-primary">
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div>
                 <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-                  04 / DISTRIBUSI JENJANG
+                  DISTRIBUSI JENJANG
                 </div>
                 <h3 className="text-3xl font-light tracking-tight">
                   Matriks Kurikulum & Aktivitas Kelas
@@ -1514,7 +1508,7 @@ export default function AdminDashboard() {
                           <span className="opacity-75">
                             PRE {row.avgPretest}% → POST {row.avgPosttest}%
                           </span>
-                          <span className="text-emerald-accent">
+                          <span className="text-gold-accent">
                             {gradeGain >= 0 ? `+${gradeGain}%` : `${gradeGain}%`}
                           </span>
                         </div>
@@ -1570,7 +1564,7 @@ export default function AdminDashboard() {
                             >
                               <div className="min-w-0">
                                 <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-50 block">
-                                  UNIT 0{gIdx + 1} · KELAS {row.grade}
+                                  UNIT {gIdx + 1} · KELAS {row.grade}
                                 </span>
                                 <p className="text-sm font-bold truncate mt-0.5">
                                   {gm.unit_name}
@@ -1629,11 +1623,11 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* KANAN (col-span-5): KESIAPAN SISTEM DENGAN PANEL DEEP FOREST MOBILE */}
+        {/* KANAN: KESIAPAN SISTEM */}
         <div className="lg:col-span-5 p-8 md:p-10 rounded-[2rem] flex flex-col justify-between gap-6 edufit-card-secondary">
           <div>
             <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-              05 / KELENGKAPAN MODUL
+              KELENGKAPAN MODUL
             </div>
             <div className="flex items-baseline justify-between mb-4">
               <button
@@ -1643,7 +1637,7 @@ export default function AdminDashboard() {
               >
                 Kesiapan Sistem
               </button>
-              <span className="text-5xl font-light font-mono tracking-tighter text-emerald-accent">
+              <span className="text-5xl font-light font-mono tracking-tighter text-gold-accent">
                 {isLoading ? "—" : `${ecosystemReadinessPct}%`}
               </span>
             </div>
@@ -1694,7 +1688,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Panel Dalam Menggunakan Deep Forest Mobile */}
           <div className="flex-1 rounded-[1.75rem] p-6 flex flex-col justify-between edufit-panel-forest">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-base font-medium">
@@ -1739,7 +1732,7 @@ export default function AdminDashboard() {
                         <div
                           className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
                             task.done
-                              ? "bg-forest-card text-gold-accent"
+                              ? "bg-white/10 text-gold-accent"
                               : "bg-white text-ink-dark"
                           }`}
                         >
@@ -1755,7 +1748,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       {task.done ? (
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 btn-forest-emerald">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 btn-forest-gold">
                           <Check size={13} strokeWidth={3} />
                         </div>
                       ) : (
@@ -1832,9 +1825,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ====================================================================
-          ZONA 5: GRID KARTU BESAR (PASTEL LIGHT / DEEP FOREST DARK + POLKADOT)
-         ==================================================================== */}
+      {/* ZONA 5: GRID KARTU SEKOLAH MITRA & TUJUAN PEMBELAJARAN */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
         <div className="flex flex-wrap items-center gap-6">
           <button
@@ -1846,7 +1837,7 @@ export default function AdminDashboard() {
                 : "opacity-45 hover:opacity-80"
             }`}
           >
-            06 / Daftar Sekolah Mitra ({schoolsList.length})
+            Daftar Sekolah Mitra ({schoolsList.length})
           </button>
           <button
             type="button"
@@ -1857,7 +1848,7 @@ export default function AdminDashboard() {
                 : "opacity-45 hover:opacity-80"
             }`}
           >
-            07 / Capaian Tujuan Pembelajaran ({tpBars.length})
+            Capaian Tujuan Pembelajaran ({tpBars.length})
           </button>
         </div>
 
@@ -1867,7 +1858,7 @@ export default function AdminDashboard() {
               ? "/admin/institusi"
               : "/admin/evaluasi"
           }
-          className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md btn-forest-emerald"
+          className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md btn-forest-gold"
         >
           <Layers size={15} strokeWidth={2.2} />
           {bottomShowcaseTab === "schools"
@@ -1906,7 +1897,7 @@ export default function AdminDashboard() {
                   <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                   <div className="flex justify-between items-start relative z-10">
-                    <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                    <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-75">
                       {sch.school_type} · {sch.classCount} ROMBEL KELAS
                     </span>
                     <Link
@@ -1922,7 +1913,7 @@ export default function AdminDashboard() {
                     <div className="text-4xl font-light tracking-tighter leading-tight mb-2">
                       {sch.name}
                     </div>
-                    <p className="text-xs font-medium opacity-60 truncate">
+                    <p className="text-xs font-medium opacity-65 truncate">
                       {sch.address}
                     </p>
                   </div>
@@ -1960,7 +1951,7 @@ export default function AdminDashboard() {
                   <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                   <div className="flex justify-between items-start relative z-10">
-                    <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                    <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-75">
                       TUJUAN PEMBELAJARAN · {tp.code}
                     </span>
                     <Link
@@ -1991,7 +1982,7 @@ export default function AdminDashboard() {
                       <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                         Posttest Akhir
                       </div>
-                      <div className="text-4xl font-light font-mono leading-none">
+                      <div className="text-4xl font-light font-mono leading-none text-gold-accent">
                         {tp.post}%
                       </div>
                     </div>

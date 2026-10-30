@@ -68,7 +68,9 @@ export default function EvaluasiPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -820,7 +822,6 @@ export default function EvaluasiPage() {
 
   if (!mounted) return null;
 
-  // Komponen Dynamic Island Reusable di dalam halaman
   const renderDynamicIsland = () => (
     <AnimatePresence>
       {islandAlert && (
@@ -894,10 +895,10 @@ export default function EvaluasiPage() {
     };
 
     return (
-      <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
         {renderDynamicIsland()}
 
-        {/* ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS */}
+        {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -918,10 +919,8 @@ export default function EvaluasiPage() {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-3 opacity-60">
-              <span className="font-mono text-gold-accent">
-                00 / INSPEKSI BANK SOAL
-              </span>
+            <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-3 opacity-65">
+              <span className="text-gold-accent">INSPEKSI BANK SOAL</span>
               <span>—</span>
               <span className="inline-flex items-center gap-1.5 font-mono">
                 <Database size={14} /> KELAS {activeEval.grade_level} ·{" "}
@@ -940,16 +939,16 @@ export default function EvaluasiPage() {
                 {isLoadingQuestions ? "—" : questions.length}
               </div>
               <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-                01 / Butir Soal
+                Butir Soal
               </div>
             </div>
 
             <div>
-              <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
+              <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent">
                 {uniqueTpCodesInBank.length}
               </div>
               <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-                02 / Kode TP Terpetakan
+                Kode TP Terpetakan
               </div>
             </div>
 
@@ -958,7 +957,7 @@ export default function EvaluasiPage() {
                 {activeEvalStat.avg}%
               </div>
               <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-                03 / Rata-rata ({activeEvalStat.count} Siswa)
+                Rata-rata ({activeEvalStat.count} Siswa)
               </div>
             </div>
           </div>
@@ -1018,7 +1017,7 @@ export default function EvaluasiPage() {
             <button
               type="button"
               onClick={openAddQuestionModal}
-              className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-[1.02] cursor-pointer shadow-sm btn-forest-emerald"
+              className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-[1.02] cursor-pointer shadow-sm btn-forest-gold"
             >
               <Plus size={16} /> Tambah Butir Soal
             </button>
@@ -1051,8 +1050,14 @@ export default function EvaluasiPage() {
               ).trim();
 
               return (
-                <div
+                <motion.div
                   key={q.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.3,
+                    delay: Math.min(index * 0.03, 0.25),
+                  }}
                   className="p-8 rounded-[2rem] flex flex-col justify-between gap-6 transition-transform hover:-translate-y-0.5 relative overflow-hidden group edufit-card-primary"
                 >
                   <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
@@ -1064,11 +1069,11 @@ export default function EvaluasiPage() {
                           {String(index + 1).padStart(2, "0")}
                         </span>
                         <div>
-                          <span className="text-xs font-bold font-mono uppercase tracking-widest block">
+                          <span className="text-xs font-bold font-mono uppercase tracking-widest block text-gold-accent">
                             TP {tpCode}
                           </span>
                           {TP_CATALOG[tpCode] && (
-                            <span className="text-[11px] opacity-55 block">
+                            <span className="text-[11px] opacity-60 block">
                               {TP_CATALOG[tpCode]}
                             </span>
                           )}
@@ -1099,7 +1104,6 @@ export default function EvaluasiPage() {
                       {q.question_text}
                     </p>
 
-                    {/* 4 Opsi Jawaban A, B, C, D */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {["A", "B", "C", "D"].map((optKey) => {
                         const isCorrect = normalizedCorrect === optKey;
@@ -1116,7 +1120,7 @@ export default function EvaluasiPage() {
                           >
                             <span
                               className={`font-mono font-bold shrink-0 ${
-                                isCorrect ? "text-emerald-accent" : "opacity-60"
+                                isCorrect ? "text-gold-accent" : "opacity-60"
                               }`}
                             >
                               {optKey}.
@@ -1134,11 +1138,11 @@ export default function EvaluasiPage() {
                     <span className="opacity-55">
                       KUNCI JAWABAN TERVERIFIKASI
                     </span>
-                    <span className="text-emerald-accent flex items-center gap-1.5">
+                    <span className="text-gold-accent flex items-center gap-1.5">
                       <CheckCircle2 size={14} /> OPSI {normalizedCorrect}
                     </span>
                   </div>
-                </div>
+                </motion.div>
               );
             })
           )}
@@ -1147,7 +1151,7 @@ export default function EvaluasiPage() {
         {/* MODAL TAMBAH / EDIT BUTIR SOAL */}
         <AnimatePresence>
           {isQuestionModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 edufit-modal-open">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1311,7 +1315,7 @@ export default function EvaluasiPage() {
                   <button
                     type="submit"
                     disabled={isSubmittingQuestion}
-                    className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md btn-forest-emerald"
+                    className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md btn-forest-gold"
                   >
                     {isSubmittingQuestion
                       ? "Menyimpan..."
@@ -1332,18 +1336,16 @@ export default function EvaluasiPage() {
   const kognitifGain = avgPosttestGlobal - avgPretestGlobal;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {renderDynamicIsland()}
 
       {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
+          ZONA 1: HERO HEADER & 3 ANGKA UTAMA
          ==================================================================== */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / KURIKULUM KOGNITIF
-            </span>
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
+            <span className="text-gold-accent">KURIKULUM KOGNITIF</span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <FileCheck2 size={15} />
@@ -1358,23 +1360,23 @@ export default function EvaluasiPage() {
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka */}
+        {/* 3 Angka Utama */}
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
             <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : evaluations.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Paket Evaluasi
+              Paket Evaluasi
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent">
               {isLoading ? "—" : totalQuestionsAll}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Total Butir Soal
+              Total Butir Soal
             </div>
           </div>
 
@@ -1383,7 +1385,7 @@ export default function EvaluasiPage() {
               {isLoading ? "—" : totalSubmissionsAll}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Partisipasi Ujian
+              Partisipasi Ujian
             </div>
           </div>
         </div>
@@ -1423,7 +1425,7 @@ export default function EvaluasiPage() {
             <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${avgPretestGlobal}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gold-accent">
               Tes Awal
             </span>
           </div>
@@ -1461,7 +1463,7 @@ export default function EvaluasiPage() {
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni */}
+        {/* Bar 3: Striped Track */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kesiapan Bank Soal</span>
@@ -1484,7 +1486,7 @@ export default function EvaluasiPage() {
             <span className="font-mono">TEREKAM</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
               {isLoading ? "—" : `${totalSubmissionsAll} Sesi`}
             </span>
           </div>
@@ -1492,17 +1494,16 @@ export default function EvaluasiPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
+          ZONA 3: TRIO KARTU BENTO LEBAR
          ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1 (PATTERN POLKADOT HALUS): KENDALI & FILTER PAKET EVALUASI */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* BENTO 1: KENDALI & FILTER PAKET EVALUASI */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
-                <span className="font-mono">01 /</span>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60">
                 <SlidersHorizontal size={14} />
                 <span>Filter Instrumen</span>
               </div>
@@ -1556,7 +1557,7 @@ export default function EvaluasiPage() {
               })}
             </div>
 
-            {/* Bottom-Bordered Custom Dropdown Tipe Evaluasi */}
+            {/* Underline Custom Dropdown Tipe Evaluasi */}
             <div className="relative w-full mb-6" ref={typeDropdownRef}>
               <div
                 onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
@@ -1615,23 +1616,22 @@ export default function EvaluasiPage() {
           <button
             type="button"
             onClick={openCreateEvalModal}
-            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md relative z-10 btn-forest-emerald"
+            className="w-full py-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md relative z-10 btn-forest-gold"
           >
             <Plus size={16} strokeWidth={2.5} /> Buat Paket Evaluasi Baru
           </button>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): GRAFIK BATANG VERTIKAL BERTITIK PER PAKET UJIAN */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+        {/* BENTO 2: GRAFIK BATANG DISTRIBUSI SOAL & SKOR */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <BrainCircuit size={15} />
               <span>Distribusi Soal & Skor</span>
             </div>
-            <span className="text-[11px] font-bold font-mono opacity-55">
+            <span className="text-[11px] font-bold font-mono text-gold-accent">
               KLIK BATANG
             </span>
           </div>
@@ -1641,13 +1641,13 @@ export default function EvaluasiPage() {
               <div className="text-6xl font-light font-mono tracking-tighter leading-none">
                 {isLoading ? "—" : `${avgPosttestGlobal}%`}
               </div>
-              <div className="text-sm font-semibold opacity-55 mb-1">
+              <div className="text-sm font-semibold opacity-60 mb-1">
                 Rata-rata Posttest
               </div>
             </div>
 
             {kognitifGain !== 0 && (
-              <div className="flex items-center gap-1 text-xs font-bold font-mono uppercase tracking-widest text-emerald-accent mb-1">
+              <div className="flex items-center gap-1 text-xs font-bold font-mono uppercase tracking-widest text-gold-accent mb-1">
                 <TrendingUp size={15} />
                 {kognitifGain > 0 ? `+${kognitifGain}` : kognitifGain} PT
               </div>
@@ -1662,71 +1662,91 @@ export default function EvaluasiPage() {
             );
 
             return (
-              <div
-                className="grid gap-3 items-end pt-4 h-44 relative z-10"
-                style={{
-                  gridTemplateColumns: `repeat(${Math.max(
-                    1,
-                    bars.length
-                  )}, minmax(0, 1fr))`,
-                }}
-              >
-                {bars.map((ev) => {
-                  const qCnt = Number(ev.question_bank?.[0]?.count) || 0;
-                  const st = submissionStats[ev.id] || { count: 0, avg: 0 };
-                  const heightPct =
-                    st.avg > 0 ? st.avg : Math.round((qCnt / maxQ) * 100);
-                  const isPost = ev.type === "posttest";
-                  const shortCode = `${ev.grade_level}${isPost ? "Po" : "Pr"}`;
-                  const fillClass = isPost
-                    ? "chart-fill-gold"
-                    : "chart-fill-primary";
+              <div className="pt-4 pb-1 relative z-10">
+                <div
+                  className="grid gap-2.5 items-end h-44 px-3 py-3 rounded-2xl edufit-card-primary"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.max(
+                      1,
+                      bars.length
+                    )}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {bars.length === 0 ? (
+                    <div className="col-span-full h-full flex items-center justify-center text-xs opacity-50">
+                      Belum ada paket evaluasi
+                    </div>
+                  ) : (
+                    bars.map((ev) => {
+                      const qCnt = Number(ev.question_bank?.[0]?.count) || 0;
+                      const st = submissionStats[ev.id] || { count: 0, avg: 0 };
+                      const heightPct =
+                        st.avg > 0 ? st.avg : Math.round((qCnt / maxQ) * 100);
+                      const isPost = ev.type === "posttest";
+                      const shortCode = `${ev.grade_level}${
+                        isPost ? "Po" : "Pr"
+                      }`;
+                      const fillClass = isPost
+                        ? "chart-fill-gold"
+                        : "chart-fill-emerald";
 
-                  return (
-                    <button
-                      key={ev.id}
-                      type="button"
-                      onClick={() => handleOpenBank(ev)}
-                      className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
-                      title={`${ev.title}: ${qCnt} Soal · Rata-rata ${st.avg}%`}
-                    >
-                      <span className="text-[11px] font-bold font-mono opacity-80">
-                        {st.avg > 0 ? `${st.avg}%` : `${qCnt}s`}
-                      </span>
-                      <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                        <div
-                          className={`w-full rounded-full transition-all duration-500 group-hover:scale-y-105 ${fillClass}`}
-                          style={{
-                            height: `${Math.max(
-                              heightPct > 0 ? 18 : 8,
-                              heightPct
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                      <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                      <span className="text-[10px] font-bold font-mono opacity-65 truncate max-w-full">
-                        {shortCode}
-                      </span>
-                    </button>
-                  );
-                })}
+                      return (
+                        <button
+                          key={ev.id}
+                          type="button"
+                          onClick={() => handleOpenBank(ev)}
+                          className="flex flex-col items-center justify-end h-full gap-1.5 group cursor-pointer focus:outline-none"
+                          title={`${ev.title}: ${qCnt} Soal · Rata-rata ${st.avg}%`}
+                        >
+                          <span
+                            className={`text-[10px] font-bold font-mono transition-opacity ${
+                              isPost
+                                ? "opacity-100 text-gold-accent"
+                                : "opacity-75 group-hover:opacity-100"
+                            }`}
+                          >
+                            {st.avg > 0 ? `${st.avg}%` : `${qCnt}s`}
+                          </span>
+                          <div className="w-5 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{
+                                height: `${Math.max(
+                                  heightPct > 0 ? 14 : 6,
+                                  heightPct
+                                )}%`,
+                              }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                              className={`w-full rounded-lg ${fillClass}`}
+                            />
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold font-mono tracking-tight truncate max-w-full ${
+                              isPost ? "text-gold-accent" : "opacity-75"
+                            }`}
+                          >
+                            {shortCode}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
           })()}
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): KESIAPAN BANK SOAL */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* BENTO 3: INDEKS BANK SOAL (TEKS LABEL DI LUAR LINGKARAN CHART) */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
               <span>Indeks Bank Soal</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "readiness", label: "Kapasitas" },
                 { key: "post", label: "Posttest" },
@@ -1738,8 +1758,8 @@ export default function EvaluasiPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1759,10 +1779,10 @@ export default function EvaluasiPage() {
 
             const gaugeLabel =
               gaugeMode === "readiness"
-                ? "Kapasitas Bank Soal"
+                ? "Kapasitas Kesiapan Bank Soal"
                 : gaugeMode === "post"
-                ? "Rata-rata Skor Posttest"
-                : "Rata-rata Skor Pretest";
+                ? "Rata-rata Skor Posttest Nasional"
+                : "Rata-rata Skor Pretest Nasional";
 
             const gaugePct =
               gaugeMode === "readiness"
@@ -1777,41 +1797,43 @@ export default function EvaluasiPage() {
               circumference - (Math.max(10, gaugePct) / 100) * circumference;
 
             return (
-              <div className="relative flex items-center justify-center my-2 z-10">
-                <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="6"
-                    strokeDasharray="2 5"
-                    className="gauge-circle-track"
-                  />
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={dashOffset}
-                    className={`transition-all duration-700 ${
-                      gaugeMode === "post"
-                        ? "gauge-circle-emerald"
-                        : "gauge-circle-gold"
-                    }`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                    {isLoading ? "—" : gaugeValue}
-                  </span>
-                  <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
-                    {gaugeLabel}
-                  </span>
+              <div className="relative flex flex-col items-center justify-center my-2 z-10">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="6"
+                      strokeDasharray="2 5"
+                      className="gauge-circle-track"
+                    />
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={dashOffset}
+                      className={`transition-all duration-700 ${
+                        gaugeMode === "pre"
+                          ? "gauge-circle-emerald"
+                          : "gauge-circle-gold"
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-light font-mono tracking-tighter leading-none">
+                      {isLoading ? "—" : gaugeValue}
+                    </span>
+                  </div>
                 </div>
+                <span className="text-xs font-semibold opacity-65 mt-3 text-center">
+                  {gaugeLabel}
+                </span>
               </div>
             );
           })()}
@@ -1849,12 +1871,12 @@ export default function EvaluasiPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 4: GRID KARTU BESAR PAKET EVALUASI (PASTEL LIGHT / DEEP FOREST DARK)
+          ZONA 4: GRID KARTU BESAR PAKET EVALUASI
          ==================================================================== */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-            04 / DIREKTORI INSTRUMEN UJIAN
+          <div className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent mb-1">
+            DIREKTORI INSTRUMEN UJIAN
           </div>
           <h3 className="text-3xl font-light tracking-tight">
             Daftar Paket Evaluasi ({filteredEvaluations.length})
@@ -1899,6 +1921,8 @@ export default function EvaluasiPage() {
               BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
             const qCount = ev.question_bank?.[0]?.count || 0;
             const subStat = submissionStats[ev.id] || { count: 0, avg: 0 };
+            const isPosttest =
+              String(ev.type || "").toLowerCase() === "posttest";
 
             return (
               <div
@@ -1909,7 +1933,11 @@ export default function EvaluasiPage() {
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-70">
+                  <span
+                    className={`px-3 py-1 rounded-xl text-[11px] font-bold font-mono tracking-widest uppercase ${
+                      isPosttest ? "badge-tint-emerald" : "badge-tint-sky"
+                    }`}
+                  >
                     KELAS {ev.grade_level} ·{" "}
                     {String(ev.type || "").toUpperCase()}
                   </span>
@@ -1964,7 +1992,7 @@ export default function EvaluasiPage() {
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                       Skor Rata-rata
                     </div>
-                    <div className="text-4xl font-light font-mono leading-none">
+                    <div className="text-4xl font-light font-mono leading-none text-gold-accent">
                       {subStat.avg}%
                     </div>
                   </div>
@@ -1978,7 +2006,7 @@ export default function EvaluasiPage() {
       {/* MODAL BUAT / EDIT PAKET EVALUASI */}
       <AnimatePresence>
         {isEvalModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2087,7 +2115,7 @@ export default function EvaluasiPage() {
                 <button
                   type="submit"
                   disabled={isSubmittingEval}
-                  className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md btn-forest-emerald"
+                  className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md btn-forest-gold"
                 >
                   {isSubmittingEval ? "Menyimpan..." : "Simpan Paket Evaluasi"}
                 </button>

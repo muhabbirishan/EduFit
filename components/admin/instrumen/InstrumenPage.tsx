@@ -60,7 +60,9 @@ export default function InstrumenPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -279,7 +281,9 @@ export default function InstrumenPage() {
     setViewMode("form");
     triggerDynamicIsland(
       `Editor Kurikulum Kelas ${activeGrade}`,
-      `Fase ${activeGrade === 10 ? "E" : "F"} · Susun CP, TP, dan Kisi-kisi Indikator.`,
+      `Fase ${
+        activeGrade === 10 ? "E" : "F"
+      } · Susun CP, TP, dan Kisi-kisi Indikator.`,
       "info"
     );
   };
@@ -452,7 +456,7 @@ export default function InstrumenPage() {
     const roman = getRomanGrade(activeGrade);
 
     return (
-      <div className="w-full pt-2 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      <div className="edufit-admin-theme w-full pt-2 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
         {renderDynamicIsland()}
 
         {/* ARCHITECTURAL HEADER FOR EDITOR */}
@@ -470,7 +474,7 @@ export default function InstrumenPage() {
 
             <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-3 opacity-60">
               <span className="font-mono text-gold-accent">
-                00 / EDITOR ARSITEKTUR KURIKULUM
+                EDITOR ARSITEKTUR KURIKULUM
               </span>
               <span>—</span>
               <span className="inline-flex items-center gap-1.5 font-mono">
@@ -492,7 +496,7 @@ export default function InstrumenPage() {
                 {objectives.length}
               </div>
               <div className="text-[11px] font-bold uppercase tracking-widest opacity-55 mt-2">
-                01 / Butir TP
+                Butir TP
               </div>
             </div>
             <div>
@@ -500,7 +504,7 @@ export default function InstrumenPage() {
                 {mappings.length}
               </div>
               <div className="text-[11px] font-bold uppercase tracking-widest opacity-55 mt-2">
-                02 / Indikator
+                Indikator
               </div>
             </div>
             <button
@@ -522,7 +526,7 @@ export default function InstrumenPage() {
             <div className="flex items-center justify-between border-b border-hairline pb-4 relative z-10">
               <div>
                 <span className="text-xs font-bold font-mono uppercase tracking-widest text-gold-accent block mb-1">
-                  01 / FONDASI PEDAGOGIS
+                  FONDASI PEDAGOGIS
                 </span>
                 <h3 className="text-2xl font-light tracking-tight">
                   Identitas Fase &{" "}
@@ -619,7 +623,7 @@ export default function InstrumenPage() {
               <div className="flex items-center justify-between border-b border-hairline pb-4">
                 <div>
                   <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block">
-                    02 / KOMPONEN KOMPETENSI
+                    KOMPONEN KOMPETENSI
                   </span>
                   <h3 className="text-2xl font-light tracking-tight">
                     Daftar <span className="font-semibold">Tujuan Belajar</span>
@@ -690,7 +694,7 @@ export default function InstrumenPage() {
               <div className="flex items-center justify-between border-b border-hairline pb-4">
                 <div>
                   <span className="text-[10px] font-bold font-mono uppercase tracking-widest opacity-55 block">
-                    03 / MATRIKS EVALUASI
+                    MATRIKS EVALUASI
                   </span>
                   <h3 className="text-2xl font-light tracking-tight">
                     Pemetaan{" "}
@@ -766,7 +770,7 @@ export default function InstrumenPage() {
   const romanActive = getRomanGrade(activeGrade);
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {renderDynamicIsland()}
 
       {/* ====================================================================
@@ -776,7 +780,7 @@ export default function InstrumenPage() {
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
             <span className="font-mono text-gold-accent">
-              00 / ARSITEKTUR KURIKULUM
+              ARSITEKTUR KURIKULUM
             </span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
@@ -798,7 +802,7 @@ export default function InstrumenPage() {
               {isLoading ? "—" : parsedObjectives.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Tujuan Belajar (TP)
+              Tujuan Belajar (TP)
             </div>
           </div>
 
@@ -807,7 +811,7 @@ export default function InstrumenPage() {
               {isLoading ? "—" : parsedMappings.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Pemetaan Indikator
+              Pemetaan Indikator
             </div>
           </div>
 
@@ -816,7 +820,7 @@ export default function InstrumenPage() {
               {isLoading ? "—" : gradeQuestions.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Soal Kelas {activeGrade}
+              Soal Kelas {activeGrade}
             </div>
           </div>
         </div>
@@ -900,7 +904,6 @@ export default function InstrumenPage() {
           <div className="relative z-20">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
-                <span className="font-mono">01 /</span>
                 <SlidersHorizontal size={14} />
                 <span>Filter Jenjang</span>
               </div>
@@ -950,7 +953,7 @@ export default function InstrumenPage() {
               })}
             </div>
 
-            {/* Bottom-Bordered Custom Dropdown Fokus Tampilan */}
+            {/* Underline Custom Dropdown Fokus Tampilan */}
             <div className="relative w-full mb-6" ref={quickMenuRef}>
               <div
                 onClick={() => setIsQuickMenuOpen(!isQuickMenuOpen)}
@@ -1021,7 +1024,7 @@ export default function InstrumenPage() {
             <button
               type="button"
               onClick={openForm}
-              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.02] cursor-pointer shadow-sm btn-forest-emerald"
+              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.02] cursor-pointer shadow-sm btn-forest-gold"
             >
               <Edit3 size={15} />{" "}
               {instrument ? "Edit Rancangan" : "Buat Rancangan"}
@@ -1035,7 +1038,6 @@ export default function InstrumenPage() {
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
               <Database size={15} />
               <span>Sebaran Soal per Kode TP</span>
             </div>
@@ -1057,7 +1059,6 @@ export default function InstrumenPage() {
           </div>
 
           {(() => {
-            // Menggunakan awalan Romawi (X-1, XI-1, XII-1) agar sinkron 100% dengan question_bank!
             const tpListForChart =
               parsedObjectives.length > 0
                 ? parsedObjectives.slice(0, 6)
@@ -1079,69 +1080,87 @@ export default function InstrumenPage() {
             );
 
             return (
-              <div
-                className="grid gap-3 items-end pt-4 h-44 relative z-10"
-                style={{
-                  gridTemplateColumns: `repeat(${Math.max(
-                    1,
-                    tpListForChart.length
-                  )}, minmax(0, 1fr))`,
-                }}
-              >
-                {tpListForChart.map((obj: any, idx: number) => {
-                  const cleanCode = String(obj.code || "")
-                    .trim()
-                    .toUpperCase();
-                  const qCnt = questionCountByTpCode[cleanCode] || 0;
-                  const heightPct = Math.round((qCnt / maxQ) * 100);
-                  const isHighest = qCnt === maxQ && qCnt > 0;
-                  const fillClass = isHighest
-                    ? "chart-fill-gold"
-                    : "chart-fill-primary";
-
-                  return (
-                    <div
-                      key={cleanCode || idx}
-                      className="flex flex-col items-center justify-end h-full gap-2"
-                      title={`${cleanCode}: ${qCnt} Butir Soal di Bank Evaluasi`}
-                    >
-                      <span className="text-[11px] font-bold font-mono opacity-80">
-                        {qCnt}s
-                      </span>
-                      <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                        <div
-                          className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                          style={{
-                            height: `${Math.max(
-                              qCnt > 0 ? 18 : 10,
-                              heightPct
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                      <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                      <span className="text-[10px] font-bold font-mono opacity-65 truncate max-w-full">
-                        {cleanCode || `${romanActive}-${idx + 1}`}
-                      </span>
+              <div className="pt-4 pb-1 relative z-10">
+                <div
+                  className="grid gap-2.5 items-end h-44 px-3 py-3 rounded-2xl edufit-card-primary"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.max(
+                      1,
+                      tpListForChart.length
+                    )}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {tpListForChart.length === 0 ? (
+                    <div className="col-span-full h-full flex items-center justify-center text-xs opacity-50">
+                      Belum ada tujuan pembelajaran
                     </div>
-                  );
-                })}
+                  ) : (
+                    tpListForChart.map((obj: any, idx: number) => {
+                      const cleanCode = String(obj.code || "")
+                        .trim()
+                        .toUpperCase();
+                      const qCnt = questionCountByTpCode[cleanCode] || 0;
+                      const heightPct = Math.round((qCnt / maxQ) * 100);
+                      const isHighest = qCnt === maxQ && qCnt > 0;
+                      const fillClass = isHighest
+                        ? "chart-fill-gold"
+                        : "chart-fill-primary";
+
+                      return (
+                        <div
+                          key={cleanCode || idx}
+                          className="flex flex-col items-center justify-end h-full gap-1.5 group cursor-default"
+                          title={`${cleanCode}: ${qCnt} Butir Soal di Bank Evaluasi`}
+                        >
+                          <span
+                            className={`text-[10px] font-bold font-mono transition-opacity ${
+                              isHighest
+                                ? "opacity-100 text-gold-accent"
+                                : "opacity-65 group-hover:opacity-100"
+                            }`}
+                          >
+                            {qCnt}s
+                          </span>
+                          <div className="w-5 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{
+                                height: `${Math.max(
+                                  qCnt > 0 ? 14 : 4,
+                                  heightPct
+                                )}%`,
+                              }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                              className={`w-full rounded-lg ${fillClass}`}
+                            />
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold font-mono tracking-tight truncate max-w-full ${
+                              isHighest ? "text-gold-accent" : "opacity-70"
+                            }`}
+                          >
+                            {cleanCode || `${romanActive}-${idx + 1}`}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
           })()}
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS INSTRUMEN */}
+        {/* BENTO 3: INDEKS INSTRUMEN (TEKS LABEL DI LUAR LINGKARAN CHART) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
               <Activity size={15} />
               <span>Indeks Instrumen</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "completeness", label: "Dokumen" },
                 { key: "tp", label: "TP" },
@@ -1153,8 +1172,8 @@ export default function InstrumenPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1174,10 +1193,10 @@ export default function InstrumenPage() {
 
             const gaugeLabel =
               gaugeMode === "completeness"
-                ? "Kelengkapan Rancangan"
+                ? "Kelengkapan Dokumen Rancangan"
                 : gaugeMode === "tp"
-                ? "Tujuan Pembelajaran (TP)"
-                : `Butir Soal Kelas ${activeGrade}`;
+                ? "Total Tujuan Pembelajaran Terdaftar"
+                : `Total Butir Soal Kelas ${activeGrade}`;
 
             const gaugePct =
               gaugeMode === "completeness"
@@ -1192,41 +1211,43 @@ export default function InstrumenPage() {
               circumference - (Math.max(10, gaugePct) / 100) * circumference;
 
             return (
-              <div className="relative flex items-center justify-center my-2 z-10">
-                <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="6"
-                    strokeDasharray="2 5"
-                    className="gauge-circle-track"
-                  />
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={dashOffset}
-                    className={`transition-all duration-700 ${
-                      gaugeMode === "tp"
-                        ? "gauge-circle-emerald"
-                        : "gauge-circle-gold"
-                    }`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                    {isLoading ? "—" : gaugeValue}
-                  </span>
-                  <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
-                    {gaugeLabel}
-                  </span>
+              <div className="relative flex flex-col items-center justify-center my-2 z-10">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="6"
+                      strokeDasharray="2 5"
+                      className="gauge-circle-track"
+                    />
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={dashOffset}
+                      className={`transition-all duration-700 ${
+                        gaugeMode === "tp"
+                          ? "gauge-circle-emerald"
+                          : "gauge-circle-gold"
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-light font-mono tracking-tighter leading-none">
+                      {isLoading ? "—" : gaugeValue}
+                    </span>
+                  </div>
                 </div>
+                <span className="text-xs font-semibold opacity-65 mt-3 text-center">
+                  {gaugeLabel}
+                </span>
               </div>
             );
           })()}
@@ -1246,8 +1267,7 @@ export default function InstrumenPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 4: FOKUS UNIT & LANDASAN RASIONAL (KIRI col-span-7)
-                  + PANEL DEEP FOREST DESKRIPSI KISI-KISI INSTRUMEN (KANAN col-span-5)
+          ZONA 4: FOKUS UNIT & LANDASAN RASIONAL (KIRI) + KISI-KISI INSTRUMEN (KANAN)
          ==================================================================== */}
       {isLoading ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
@@ -1271,12 +1291,12 @@ export default function InstrumenPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch mb-12 relative z-10">
-            {/* KIRI (col-span-7): FOKUS PEMBELAJARAN & LANDASAN RASIONAL */}
+            {/* KIRI: FOKUS PEMBELAJARAN & LANDASAN RASIONAL */}
             <div className="lg:col-span-7 p-8 md:p-10 rounded-[2rem] flex flex-col justify-between gap-6 edufit-card-primary">
               <div>
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <span className="text-xs font-bold font-mono uppercase tracking-widest opacity-55">
-                    04 / FOKUS UTAMA PEMBELAJARAN · KELAS {activeGrade} (FASE{" "}
+                    FOKUS UTAMA PEMBELAJARAN · KELAS {activeGrade} (FASE{" "}
                     {instrument.fase})
                   </span>
                   <button
@@ -1317,17 +1337,17 @@ export default function InstrumenPage() {
               </div>
             </div>
 
-            {/* KANAN (col-span-5): PANEL DEEP FOREST KISI-KISI & ACUAN INSTRUMEN */}
+            {/* KANAN: PANEL KISI-KISI & ACUAN INSTRUMEN */}
             <div className="lg:col-span-5 p-8 md:p-10 rounded-[2rem] flex flex-col justify-between gap-6 edufit-card-secondary">
               <div>
                 <div className="text-xs font-bold font-mono uppercase tracking-widest opacity-50 mb-1">
-                  05 / SPESIFIKASI PENILAIAN
+                  SPESIFIKASI PENILAIAN
                 </div>
                 <div className="flex items-baseline justify-between mb-3">
                   <h3 className="text-3xl font-light tracking-tight">
                     Kisi-Kisi Instrumen
                   </h3>
-                  <span className="text-4xl font-light font-mono tracking-tighter text-emerald-accent">
+                  <span className="text-4xl font-light font-mono tracking-tighter text-gold-accent">
                     Fase {instrument.fase}
                   </span>
                 </div>
@@ -1364,7 +1384,7 @@ export default function InstrumenPage() {
           </div>
 
           {/* ==================================================================
-              ZONA 5: GRID KARTU BESAR PASTEL / DEEP FOREST (TUJUAN BELAJAR & INDIKATOR)
+              ZONA 5: GRID KARTU BESAR (TUJUAN BELAJAR & INDIKATOR)
              ================================================================== */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4 relative z-10">
             <div className="flex flex-wrap items-center gap-6">
@@ -1377,7 +1397,7 @@ export default function InstrumenPage() {
                     : "opacity-45 hover:opacity-80"
                 }`}
               >
-                06 / Daftar Tujuan Pembelajaran ({parsedObjectives.length})
+                Daftar Tujuan Pembelajaran ({parsedObjectives.length})
               </button>
               <button
                 type="button"
@@ -1388,7 +1408,7 @@ export default function InstrumenPage() {
                     : "opacity-45 hover:opacity-80"
                 }`}
               >
-                07 / Pemetaan Indikator Kisi-Kisi ({parsedMappings.length})
+                Pemetaan Indikator Kisi-Kisi ({parsedMappings.length})
               </button>
             </div>
 
@@ -1500,7 +1520,7 @@ export default function InstrumenPage() {
                           <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">
                             Label Pemetaan
                           </div>
-                          <div className="text-2xl font-light font-mono leading-none">
+                          <div className="text-2xl font-light font-mono leading-none text-gold-accent">
                             {mp.code}
                           </div>
                         </div>

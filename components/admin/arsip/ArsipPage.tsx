@@ -54,7 +54,9 @@ export default function ArsipPage() {
   const [selectedArchive, setSelectedArchive] = useState<any | null>(null);
 
   // Dynamic Island Alert State
-  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(
+    null
+  );
   const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerDynamicIsland = useCallback(
@@ -90,39 +92,42 @@ export default function ArsipPage() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  const fetchArchives = useCallback(async (showNotification = false) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("legacy_archives")
-        .select("*, user_profiles(full_name, email, gender)")
-        .order("archived_at", { ascending: false });
-      if (error) throw error;
-      const list = data || [];
-      setArchives(list);
-      const years = Array.from(
-        new Set(list.map((item: any) => item.academic_year).filter(Boolean))
-      ) as string[];
-      setUniqueYears(years);
+  const fetchArchives = useCallback(
+    async (showNotification = false) => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("legacy_archives")
+          .select("*, user_profiles(full_name, email, gender)")
+          .order("archived_at", { ascending: false });
+        if (error) throw error;
+        const list = data || [];
+        setArchives(list);
+        const years = Array.from(
+          new Set(list.map((item: any) => item.academic_year).filter(Boolean))
+        ) as string[];
+        setUniqueYears(years);
 
-      if (showNotification) {
+        if (showNotification) {
+          triggerDynamicIsland(
+            "Brankas Legacy Disinkronkan",
+            `Berhasil memuat ${list.length} rekaman arsip dari ${years.length} periode tahun ajaran.`,
+            "success"
+          );
+        }
+      } catch (error: any) {
+        toast.error("Gagal menarik data arsip");
         triggerDynamicIsland(
-          "Brankas Legacy Disinkronkan",
-          `Berhasil memuat ${list.length} rekaman arsip dari ${years.length} periode tahun ajaran.`,
-          "success"
+          "Gagal Memuat Brankas Arsip",
+          "Periksa koneksi server atau izin tabel legacy_archives.",
+          "error"
         );
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error: any) {
-      toast.error("Gagal menarik data arsip");
-      triggerDynamicIsland(
-        "Gagal Memuat Brankas Arsip",
-        "Periksa koneksi server atau izin tabel legacy_archives.",
-        "error"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [triggerDynamicIsland]);
+    },
+    [triggerDynamicIsland]
+  );
 
   useEffect(() => {
     fetchArchives(false);
@@ -180,6 +185,14 @@ export default function ArsipPage() {
       return { year: yr, count: cnt };
     });
   }, [archives, uniqueYears]);
+
+  const getTkjiBadgeClass = (categoryStr: string) => {
+    const lower = String(categoryStr || "").toLowerCase();
+    if (lower.includes("baik")) return "badge-tint-emerald";
+    if (lower.includes("sedang")) return "badge-tint-sky";
+    if (lower.includes("kurang")) return "badge-tint-rose";
+    return "edufit-surface-subtle";
+  };
 
   const handleDeleteArchive = (row: any) => {
     const studentName = row.user_profiles?.full_name || "Siswa";
@@ -270,9 +283,9 @@ export default function ArsipPage() {
   if (!mounted) return null;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {/* ====================================================================
-          DYNAMIC ISLAND OVERLAY (MURNI MENGGUNAKAN CLASS GLOBALS.CSS)
+          DYNAMIC ISLAND OVERLAY
          ==================================================================== */}
       <AnimatePresence>
         {islandAlert && (
@@ -329,14 +342,12 @@ export default function ArsipPage() {
       </AnimatePresence>
 
       {/* ====================================================================
-          ZONA 1: ARCHITECTURAL HERO HEADER & 3 GIANT NAKED NUMBERS
+          ZONA 1: HERO HEADER & 3 ANGKA UTAMA
          ==================================================================== */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
-            <span className="font-mono text-gold-accent">
-              00 / BRANKAS LEGACY
-            </span>
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
+            <span className="text-gold-accent">BRANKAS LEGACY</span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
               <Archive size={15} />
@@ -349,23 +360,23 @@ export default function ArsipPage() {
           </h1>
         </div>
 
-        {/* 3 Angka Raksasa Terbuka */}
+        {/* 3 Angka Utama */}
         <div className="flex flex-wrap gap-12 md:gap-16 items-baseline shrink-0">
           <div>
             <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : archives.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              01 / Total Rekaman
+              Total Rekaman
             </div>
           </div>
 
           <div>
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent">
               {isLoading ? "—" : uniqueStudentsCount}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              02 / Siswa Terarsip
+              Siswa Terarsip
             </div>
           </div>
 
@@ -374,7 +385,7 @@ export default function ArsipPage() {
               {isLoading ? "—" : uniqueYears.length}
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              03 / Tahun Ajaran
+              Tahun Ajaran
             </div>
           </div>
         </div>
@@ -394,7 +405,7 @@ export default function ArsipPage() {
             <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : latestAcademicYear}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gold-accent">
               Legacy
             </span>
           </div>
@@ -429,7 +440,7 @@ export default function ArsipPage() {
           </div>
         </button>
 
-        {/* Bar 3: Striped Track Murni */}
+        {/* Bar 3: Striped Track */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kapasitas Brankas Arsip</span>
@@ -452,7 +463,7 @@ export default function ArsipPage() {
             <span className="font-mono">PERIODE</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-center edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
               {isLoading ? "—" : `${uniqueYears.length} Tahun`}
             </span>
           </div>
@@ -460,20 +471,19 @@ export default function ArsipPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 3: TRIO KARTU BENTO LEBAR (POLKADOT + GRID MILIMETER + DIAGONAL)
+          ZONA 3: TRIO KARTU BENTO LEBAR
          ==================================================================== */}
       <div
         className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10"
         ref={yearDropdownRef}
       >
-        {/* BENTO 1 (PATTERN POLKADOT HALUS): KENDALI & FILTER TAHUN AJARAN */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* BENTO 1: KENDALI & FILTER TAHUN AJARAN */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
 
           <div className="relative z-20">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-55">
-                <span className="font-mono">01 /</span>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60">
                 <SlidersHorizontal size={14} />
                 <span>Kendali Periode</span>
               </div>
@@ -495,7 +505,7 @@ export default function ArsipPage() {
               dan kebugaran siswa.
             </p>
 
-            {/* Architectural Underline Dropdown Tahun */}
+            {/* Underline Dropdown Tahun */}
             <div className="relative w-full mb-6">
               <div
                 onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
@@ -582,24 +592,23 @@ export default function ArsipPage() {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-sm btn-forest-emerald"
+              className="py-4 px-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-sm btn-forest-gold"
             >
               <Download size={15} /> Ekspor CSV
             </button>
           </div>
         </div>
 
-        {/* BENTO 2 (PATTERN GRID MILIMETER): GRAFIK BATANG VERTIKAL BERTITIK ARSIP PER TAHUN */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-secondary">
+        {/* BENTO 2: GRAFIK BATANG DISTRIBUSI PER TAHUN */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">02 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <History size={15} />
               <span>Distribusi per Tahun</span>
             </div>
-            <span className="text-xs font-bold font-mono opacity-55">
+            <span className="text-xs font-bold font-mono text-gold-accent">
               {uniqueYears.length} PERIODE
             </span>
           </div>
@@ -608,7 +617,7 @@ export default function ArsipPage() {
             <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : archives.length}
             </div>
-            <div className="text-sm font-semibold opacity-55 mb-1">
+            <div className="text-sm font-semibold opacity-60 mb-1">
               Total Arsip Tersimpan
             </div>
           </div>
@@ -618,79 +627,101 @@ export default function ArsipPage() {
             const maxCnt = Math.max(1, ...bars.map((b) => b.count));
 
             return (
-              <div
-                className="grid gap-3 items-end pt-4 h-44 relative z-10"
-                style={{
-                  gridTemplateColumns: `repeat(${Math.max(
-                    1,
-                    bars.length
-                  )}, minmax(0, 1fr))`,
-                }}
-              >
-                {bars.map((bar, idx) => {
-                  const heightPct = Math.round((bar.count / maxCnt) * 100);
-                  const isSelected = filterYear === bar.year;
-                  const fillClass = isSelected
-                    ? "chart-fill-emerald"
-                    : idx === 0
-                    ? "chart-fill-gold"
-                    : "chart-fill-primary";
+              <div className="pt-4 pb-1 relative z-10">
+                <div
+                  className="grid gap-2.5 items-end h-44 px-3 py-3 rounded-2xl edufit-card-primary"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.max(
+                      1,
+                      bars.length
+                    )}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {bars.length === 0 ? (
+                    <div className="col-span-full h-full flex items-center justify-center text-xs opacity-50">
+                      Belum ada distribusi tahun ajaran
+                    </div>
+                  ) : (
+                    bars.map((bar, idx) => {
+                      const heightPct = Math.round((bar.count / maxCnt) * 100);
+                      const isSelected = filterYear === bar.year;
+                      const fillClass = isSelected
+                        ? "chart-fill-emerald"
+                        : idx === 0
+                        ? "chart-fill-gold"
+                        : "chart-fill-primary";
 
-                  return (
-                    <button
-                      key={bar.year}
-                      type="button"
-                      onClick={() => {
-                        const nextYr = isSelected ? "all" : bar.year;
-                        setFilterYear(nextYr);
-                        triggerDynamicIsland(
-                          nextYr === "all"
-                            ? "Filter Tahun Direset"
-                            : `Fokus Tahun Ajaran ${bar.year}`,
-                          `${bar.count} rekaman siswa tersimpan pada periode ini.`,
-                          "info"
-                        );
-                      }}
-                      className="flex flex-col items-center justify-end h-full gap-2 group cursor-pointer focus:outline-none"
-                      title={`Tahun ${bar.year}: ${bar.count} Arsip`}
-                    >
-                      <span className="text-[11px] font-bold font-mono opacity-80">
-                        {bar.count}
-                      </span>
-                      <div className="w-3.5 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                        <div
-                          className={`w-full rounded-full transition-all duration-500 group-hover:scale-y-105 ${fillClass}`}
-                          style={{
-                            height: `${Math.max(
-                              bar.count > 0 ? 18 : 8,
-                              heightPct
-                            )}%`,
+                      return (
+                        <button
+                          key={bar.year}
+                          type="button"
+                          onClick={() => {
+                            const nextYr = isSelected ? "all" : bar.year;
+                            setFilterYear(nextYr);
+                            triggerDynamicIsland(
+                              nextYr === "all"
+                                ? "Filter Tahun Direset"
+                                : `Fokus Tahun Ajaran ${bar.year}`,
+                              `${bar.count} rekaman siswa tersimpan pada periode ini.`,
+                              "info"
+                            );
                           }}
-                        />
-                      </div>
-                      <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                      <span className="text-[10px] font-bold font-mono opacity-65 truncate max-w-full">
-                        {bar.year.split("/")[0]}
-                      </span>
-                    </button>
-                  );
-                })}
+                          className="flex flex-col items-center justify-end h-full gap-1.5 group cursor-pointer focus:outline-none"
+                          title={`Tahun ${bar.year}: ${bar.count} Arsip`}
+                        >
+                          <span
+                            className={`text-[10px] font-bold font-mono transition-opacity ${
+                              isSelected || idx === 0
+                                ? "opacity-100 text-gold-accent"
+                                : "opacity-65 group-hover:opacity-100"
+                            }`}
+                          >
+                            {bar.count}
+                          </span>
+                          <div className="w-5 flex-1 rounded-xl flex items-end overflow-hidden p-0.5 chart-track-pill">
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{
+                                height: `${Math.max(
+                                  bar.count > 0 ? 14 : 4,
+                                  heightPct
+                                )}%`,
+                              }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                              className={`w-full rounded-lg ${fillClass}`}
+                            />
+                          </div>
+                          <span
+                            className={`text-[10px] font-bold font-mono tracking-tight truncate max-w-full ${
+                              isSelected
+                                ? "text-emerald-accent"
+                                : idx === 0
+                                ? "text-gold-accent"
+                                : "opacity-70"
+                            }`}
+                          >
+                            {bar.year.split("/")[0]}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
           })()}
         </div>
 
-        {/* BENTO 3 (PATTERN DIAGONAL STRIPES + CIRCULAR TICK-MARK GAUGE): INDEKS RETENSI ARSIP */}
-        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[390px] edufit-card-primary">
+        {/* BENTO 3: INDEKS RETENSI ARSIP (TEKS LABEL DI LUAR LINGKARAN CHART) */}
+        <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest">
-              <span className="font-mono">03 /</span>
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
               <span>Indeks Retensi Arsip</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "retention", label: "Arsip" },
                 { key: "students", label: "Siswa" },
@@ -702,8 +733,8 @@ export default function ArsipPage() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -723,10 +754,10 @@ export default function ArsipPage() {
 
             const gaugeLabel =
               gaugeMode === "retention"
-                ? "Total Rekaman Brankas"
+                ? "Total Rekaman Brankas Tersimpan"
                 : gaugeMode === "students"
-                ? "Total Siswa Terarsip"
-                : "Periode Tahun Ajaran";
+                ? "Total Siswa Unik Terarsip"
+                : "Periode Tahun Ajaran Tersimpan";
 
             const gaugePct =
               gaugeMode === "retention"
@@ -741,41 +772,43 @@ export default function ArsipPage() {
               circumference - (Math.max(10, gaugePct) / 100) * circumference;
 
             return (
-              <div className="relative flex items-center justify-center my-2 z-10">
-                <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="6"
-                    strokeDasharray="2 5"
-                    className="gauge-circle-track"
-                  />
-                  <circle
-                    cx="70"
-                    cy="70"
-                    r={radius}
-                    fill="none"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={dashOffset}
-                    className={`transition-all duration-700 ${
-                      gaugeMode === "students"
-                        ? "gauge-circle-emerald"
-                        : "gauge-circle-gold"
-                    }`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                  <span className="text-4xl font-light font-mono tracking-tighter leading-none">
-                    {isLoading ? "—" : gaugeValue}
-                  </span>
-                  <span className="text-[11px] font-medium opacity-60 mt-1.5 leading-tight">
-                    {gaugeLabel}
-                  </span>
+              <div className="relative flex flex-col items-center justify-center my-2 z-10">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-40 h-40 -rotate-90" viewBox="0 0 140 140">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="6"
+                      strokeDasharray="2 5"
+                      className="gauge-circle-track"
+                    />
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={radius}
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={dashOffset}
+                      className={`transition-all duration-700 ${
+                        gaugeMode === "students"
+                          ? "gauge-circle-emerald"
+                          : "gauge-circle-gold"
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-4xl font-light font-mono tracking-tighter leading-none">
+                      {isLoading ? "—" : gaugeValue}
+                    </span>
+                  </div>
                 </div>
+                <span className="text-xs font-semibold opacity-65 mt-3 text-center">
+                  {gaugeLabel}
+                </span>
               </div>
             );
           })()}
@@ -791,16 +824,15 @@ export default function ArsipPage() {
       </div>
 
       {/* ====================================================================
-          ZONA 4: TABEL DIREKTORI ARSIP JANGKA PANJANG (BENTO TABLE)
+          ZONA 4: TABEL DIREKTORI ARSIP JANGKA PANJANG
          ==================================================================== */}
       <div className="rounded-[2rem] p-8 md:p-10 relative z-10 overflow-hidden edufit-card-primary">
         <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
         <div className="relative z-10 flex flex-col lg:flex-row justify-between items-stretch lg:items-end gap-6 mb-8 pb-6 border-b border-hairline">
           <div>
-            <div className="flex items-center gap-2 opacity-55 text-xs font-bold uppercase tracking-widest mb-2">
-              <span className="font-mono">04 /</span>
-              <Archive size={15} />
+            <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest mb-2">
+              <Archive size={15} className="text-gold-accent" />
               <span>Direktori Brankas Legacy</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-light tracking-tight">
@@ -860,18 +892,24 @@ export default function ArsipPage() {
                   </td>
                 </tr>
               ) : (
-                filteredArchives.map((row) => {
+                filteredArchives.map((row, idx) => {
                   const parsed = parseSummaryObject(row.summary_data);
                   const preAvg = parsed.pretest_avg ?? parsed.pretest ?? "—";
                   const postAvg = parsed.posttest_avg ?? parsed.posttest ?? "—";
                   const tkjiCat = parsed.tkji_category ?? parsed.tkji ?? "—";
 
                   return (
-                    <tr
+                    <motion.tr
                       key={row.id}
-                      className="border-b border-hairline transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.28,
+                        delay: Math.min(idx * 0.03, 0.25),
+                      }}
+                      className="border-b border-hairline transition-colors hover:bg-black/[0.025] dark:hover:bg-white/[0.025]"
                     >
-                      <td className="py-5 px-4 font-bold font-mono">
+                      <td className="py-5 px-4 font-bold font-mono text-gold-accent">
                         {row.academic_year || "—"}
                       </td>
                       <td className="py-5 px-4">
@@ -886,13 +924,17 @@ export default function ArsipPage() {
                       </td>
                       <td className="py-5 px-4">
                         <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-                          <span className="px-3 py-1.5 rounded-xl font-semibold edufit-surface-subtle">
+                          <span className="px-3 py-1.5 rounded-xl font-semibold badge-tint-sky">
                             PRE: <strong>{preAvg}</strong>
                           </span>
                           <span className="px-3 py-1.5 rounded-xl font-semibold badge-tint-amber">
                             POST: <strong>{postAvg}</strong>
                           </span>
-                          <span className="px-3 py-1.5 rounded-xl font-bold badge-tint-emerald">
+                          <span
+                            className={`px-3 py-1.5 rounded-xl font-bold ${getTkjiBadgeClass(
+                              tkjiCat
+                            )}`}
+                          >
                             TKJI: {tkjiCat}
                           </span>
                         </div>
@@ -928,7 +970,7 @@ export default function ArsipPage() {
                           </button>
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   );
                 })
               )}
@@ -942,7 +984,7 @@ export default function ArsipPage() {
          ==================================================================== */}
       <AnimatePresence>
         {selectedArchive && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 edufit-modal-open">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1012,7 +1054,7 @@ export default function ArsipPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedArchive(null)}
-                  className="flex-1 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md transition-opacity hover:opacity-90 btn-forest-emerald"
+                  className="flex-1 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md transition-opacity hover:opacity-90 btn-forest-gold"
                 >
                   Tutup Inspeksi
                 </button>

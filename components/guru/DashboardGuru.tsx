@@ -657,16 +657,22 @@ export default function DashboardGuru() {
       ? bmiKurangPct
       : bmiLebihPct;
 
+  const gaugeStrokeClass =
+    gaugeMode === "normal"
+      ? "gauge-circle-emerald"
+      : gaugeMode === "kurang"
+      ? "gauge-circle-sky"
+      : "gauge-circle-terra";
+
   const radius = 58;
   const circumference = 2 * Math.PI * radius;
-  // Diperbaiki: Jika 0%, maka dashOffset = circumference penuh (tidak muncul garis chart palsu)
   const dashOffset =
     gaugePct <= 0
       ? circumference
       : circumference - (gaugePct / 100) * circumference;
 
   return (
-    <div className="w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-guru-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
       {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
@@ -722,14 +728,14 @@ export default function DashboardGuru() {
         )}
       </AnimatePresence>
 
-      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA (BEBAS 01/ 02/) */}
+      {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
         <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-60">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-widest mb-4 opacity-65">
             <span className="text-gold-accent">Portal Pendidik PJOK</span>
             <span>—</span>
             <span className="inline-flex items-center gap-1.5">
-              <School size={15} />
+              <School size={15} className="text-emerald-accent" />
               {profile?.schools?.name || "Institusi Sekolah Mitra"} (Jenjang{" "}
               {schoolType})
             </span>
@@ -752,15 +758,21 @@ export default function DashboardGuru() {
             </div>
           </div>
           <Link href="/guru/siswa" className="group block">
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent group-hover:opacity-80 transition-opacity">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-gold-accent group-hover:scale-[1.02] transition-transform">
               {stats.totalStudents}
             </div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
-              Total Siswa ({stats.maleCount}L · {stats.femaleCount}P)
+            <div className="text-xs font-bold uppercase tracking-widest opacity-65 mt-4 flex items-center gap-1.5">
+              <span>Total Siswa</span>
+              <span className="px-2 py-0.5 rounded-md font-mono text-[10px] badge-tint-sky">
+                {stats.maleCount}L
+              </span>
+              <span className="px-2 py-0.5 rounded-md font-mono text-[10px] badge-tint-rose">
+                {stats.femaleCount}P
+              </span>
             </div>
           </Link>
           <Link href="/guru/teori" className="group block">
-            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none group-hover:text-gold-accent transition-colors">
+            <div className="text-7xl md:text-8xl font-light font-mono tracking-tighter leading-none text-emerald-accent group-hover:scale-[1.02] transition-transform">
               {stats.posttestAvg}%
             </div>
             <div className="text-xs font-bold uppercase tracking-widest opacity-55 mt-4">
@@ -778,13 +790,13 @@ export default function DashboardGuru() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rata-Rata Pretest</span>
-            <span className="font-mono">TES AWAL</span>
+            <span className="font-mono text-sky-accent">TES AWAL</span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-forest">
             <span className="text-2xl font-light font-mono tracking-tight">
               {isLoading ? "—" : `${stats.pretestAvg}%`}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gold-accent">
               Kognitif
             </span>
           </div>
@@ -796,8 +808,10 @@ export default function DashboardGuru() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rata-Rata Posttest</span>
-            <span className="font-mono">
-              {kognitifGain >= 0 ? `+${kognitifGain} Poin` : `${kognitifGain} Poin`}
+            <span className="font-mono text-emerald-accent">
+              {kognitifGain >= 0
+                ? `+${kognitifGain} Poin`
+                : `${kognitifGain} Poin`}
             </span>
           </div>
           <div className="h-14 rounded-2xl px-6 flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-gold">
@@ -820,7 +834,7 @@ export default function DashboardGuru() {
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Tugas & Rancangan Masuk</span>
-            <span className="font-mono">
+            <span className="font-mono text-emerald-accent">
               {stats.completedMaterialsCount} MODUL SELESAI
             </span>
           </div>
@@ -829,10 +843,14 @@ export default function DashboardGuru() {
               {stats.pendingReflectionsCount + stats.pendingProgramsCount}{" "}
               Antrean
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
-              {stats.pendingReflectionsCount} Materi ·{" "}
-              {stats.pendingProgramsCount} Program
-            </span>
+            <div className="flex items-center gap-1.5 relative z-10">
+              <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold badge-tint-amber">
+                {stats.pendingReflectionsCount} Materi
+              </span>
+              <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold badge-tint-violet">
+                {stats.pendingProgramsCount} Program
+              </span>
+            </div>
           </div>
         </Link>
 
@@ -845,17 +863,17 @@ export default function DashboardGuru() {
             <span className="font-mono">{stats.tkjiTestedCount} SISWA</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-between transition-transform group-hover:scale-[1.02] edufit-card-primary">
-            <span className="text-2xl font-light font-mono tracking-tight text-gold-accent">
+            <span className="text-2xl font-light font-mono tracking-tight text-emerald-accent">
               {stats.avgTkjiScore}/25
             </span>
-            <ArrowUpRight size={16} className="opacity-50" />
+            <ArrowUpRight size={16} className="text-gold-accent" />
           </div>
         </Link>
       </div>
 
       {/* ZONA 3: TRIO KARTU BENTO LEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1: FORM BUKA KELAS BARU (DENGAN FILTER SMA/SMK & TAHUN AJARAN) */}
+        {/* BENTO 1: FORM BUKA KELAS BARU */}
         <div
           className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary"
           ref={dropdownRef}
@@ -865,10 +883,12 @@ export default function DashboardGuru() {
           <div className="relative z-20">
             <div className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-widest opacity-60 mb-3">
               <span className="flex items-center gap-2">
-                <SlidersHorizontal size={14} />
+                <SlidersHorizontal size={14} className="text-gold-accent" />
                 <span>Manajemen Rombel {schoolType}</span>
               </span>
-              <span className="font-mono text-gold-accent">{academicYear}</span>
+              <span className="px-2.5 py-0.5 rounded-lg font-mono badge-tint-amber">
+                {academicYear}
+              </span>
             </div>
 
             <h2 className="text-3xl font-light tracking-tight mb-2">
@@ -890,7 +910,7 @@ export default function DashboardGuru() {
                       type="button"
                       onClick={() => setGradeLevel(g)}
                       className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        active ? "seg-btn-active" : "seg-btn-idle"
+                        active ? "seg-btn-active shadow-sm" : "seg-btn-idle"
                       }`}
                     >
                       Kelas {g}
@@ -899,7 +919,7 @@ export default function DashboardGuru() {
                 })}
               </div>
 
-              {/* Pilihan Tahun Ajaran untuk membedakan X MIPA 5 (2024/2025) vs X MIPA 5 (2026/2027) */}
+              {/* Pilihan Tahun Ajaran */}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest opacity-55 block mb-1.5">
                   Tahun Ajaran Rombel
@@ -913,7 +933,7 @@ export default function DashboardGuru() {
                         type="button"
                         onClick={() => setAcademicYear(yr)}
                         className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                          active ? "seg-btn-active" : "edufit-surface-subtle"
+                          active ? "badge-tint-emerald" : "edufit-surface-subtle"
                         }`}
                       >
                         {yr}
@@ -1002,7 +1022,7 @@ export default function DashboardGuru() {
             type="button"
             onClick={handleCreateClass}
             disabled={!selectedSchoolClass}
-            className="w-full py-4 mt-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-emerald"
+            className="w-full py-4 mt-4 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-transform hover:scale-[1.01] cursor-pointer shadow-md disabled:opacity-30 disabled:cursor-not-allowed relative z-10 btn-forest-gold"
           >
             <Plus size={16} strokeWidth={2.5} /> Buka Kelas ({academicYear})
           </button>
@@ -1014,12 +1034,16 @@ export default function DashboardGuru() {
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit size={15} />
+              <BrainCircuit size={15} className="text-sky-accent" />
               <span>Evaluasi Kognitif Siswa</span>
             </div>
             {kognitifGain !== 0 && (
-              <span className="text-xs font-bold font-mono uppercase tracking-wider text-gold-accent flex items-center gap-1">
-                <TrendingUp size={14} />
+              <span
+                className={`px-3 py-1 rounded-xl text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1 ${
+                  kognitifGain > 0 ? "badge-tint-emerald" : "badge-tint-rose"
+                }`}
+              >
+                <TrendingUp size={13} />
                 {kognitifGain > 0 ? `+${kognitifGain} Poin` : `${kognitifGain} Poin`}
               </span>
             )}
@@ -1034,57 +1058,61 @@ export default function DashboardGuru() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 items-end pt-4 h-44 relative z-10">
-            {[
-              {
-                label: "PRETEST AWAL",
-                score: stats.pretestAvg,
-                isHighlight: false,
-              },
-              {
-                label: "POSTTEST AKHIR",
-                score: stats.posttestAvg,
-                isHighlight: true,
-              },
-            ].map((bar) => {
-              const heightPct = bar.score <= 0 ? 4 : Math.max(12, bar.score);
-              const fillClass = bar.isHighlight
-                ? "chart-fill-gold"
-                : "chart-fill-primary";
-              return (
-                <div
-                  key={bar.label}
-                  className="flex flex-col items-center justify-end h-full gap-2"
-                >
-                  <span className="text-xs font-bold font-mono opacity-80">
-                    {bar.score}%
-                  </span>
-                  <div className="w-4 flex-1 rounded-full flex items-end overflow-hidden p-[1px] chart-track-pill">
-                    <div
-                      className={`w-full rounded-full transition-all duration-500 ${fillClass}`}
-                      style={{ height: `${heightPct}%` }}
-                    />
+          <div className="pt-4 pb-1 relative z-10">
+            <div className="grid grid-cols-2 gap-6 items-end h-44 px-6 py-4 rounded-2xl edufit-card-primary">
+              {[
+                {
+                  label: "PRETEST AWAL",
+                  score: stats.pretestAvg,
+                  fillClass: "chart-fill-sky",
+                  textClass: "text-sky-accent",
+                },
+                {
+                  label: "POSTTEST AKHIR",
+                  score: stats.posttestAvg,
+                  fillClass: "chart-fill-gold",
+                  textClass: "text-gold-accent",
+                },
+              ].map((bar) => {
+                const heightPct = bar.score <= 0 ? 6 : Math.max(14, bar.score);
+                return (
+                  <div
+                    key={bar.label}
+                    className="flex flex-col items-center justify-end h-full gap-2"
+                  >
+                    <span
+                      className={`text-xs font-bold font-mono ${bar.textClass}`}
+                    >
+                      {bar.score}%
+                    </span>
+                    <div className="w-8 flex-1 rounded-xl flex items-end overflow-hidden p-1 chart-track-pill">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${heightPct}%` }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        className={`w-full rounded-lg ${bar.fillClass}`}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold font-mono tracking-wider opacity-70">
+                      {bar.label}
+                    </span>
                   </div>
-                  <span className={`w-2 h-2 rounded-full ${fillClass}`} />
-                  <span className="text-[11px] font-bold font-mono opacity-65">
-                    {bar.label}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* BENTO 3: PROFIL FISIK IMT (DIPERBAIKI: TEKS DI BAWAH CHART & 0% MURNI TANPA GARIS PALSU) */}
+        {/* BENTO 3: PROFIL FISIK IMT */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
-              <Activity size={15} />
+              <Activity size={15} className="text-emerald-accent" />
               <span>Komposisi Fisik (IMT)</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
                 { key: "normal", label: "Normal" },
                 { key: "kurang", label: "Kurus" },
@@ -1096,8 +1124,8 @@ export default function DashboardGuru() {
                     key={m.key}
                     type="button"
                     onClick={() => setGaugeMode(m.key as any)}
-                    className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                      active ? "seg-btn-active" : "edufit-surface-subtle"
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      active ? "seg-btn-active" : "seg-btn-idle"
                     }`}
                   >
                     {m.label}
@@ -1107,7 +1135,6 @@ export default function DashboardGuru() {
             </div>
           </div>
 
-          {/* Lingkaran Chart Murni Hanya Berisi Angka Persentase, Keterangan Teks Berada di Bawahnya */}
           <div className="flex flex-col items-center justify-center my-3 relative z-10">
             <div className="relative flex items-center justify-center">
               <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
@@ -1130,7 +1157,7 @@ export default function DashboardGuru() {
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
-                    className="transition-all duration-700 gauge-circle-gold"
+                    className={`transition-all duration-700 ${gaugeStrokeClass}`}
                   />
                 )}
               </svg>
@@ -1161,7 +1188,7 @@ export default function DashboardGuru() {
                     style={{ width: `${bmiKurangPct}%` }}
                   />
                   <div
-                    className="h-full chart-fill-gold"
+                    className="h-full chart-fill-emerald"
                     style={{ width: `${bmiNormalPct}%` }}
                   />
                   <div
@@ -1171,20 +1198,26 @@ export default function DashboardGuru() {
                 </>
               )}
             </div>
-            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase opacity-75 pt-2 border-t border-hairline">
-              <span>{stats.bmiStats.kurang} Kurus</span>
-              <span>{stats.bmiStats.normal} Normal</span>
-              <span>{stats.bmiStats.lebih} Gemuk</span>
+            <div className="flex justify-between text-[11px] font-bold font-mono tracking-widest uppercase pt-2 border-t border-hairline">
+              <span className="text-sky-accent">
+                {stats.bmiStats.kurang} Kurus
+              </span>
+              <span className="text-emerald-accent">
+                {stats.bmiStats.normal} Normal
+              </span>
+              <span className="text-terra-accent">
+                {stats.bmiStats.lebih} Gemuk
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ZONA 3.5: PINTASAN MENU UTAMA GURU */}
+      {/* ZONA 3.5: PINTASAN MENU UTAMA GURU (4 WARNA KATEGORI BERBEDA) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-12 relative z-10">
         <Link
           href="/guru/siswa"
-          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+          className="p-6 rounded-3xl flex items-center justify-between transition-all duration-300 hover:-translate-y-1 edufit-card-primary group"
         >
           <div className="space-y-1">
             <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
@@ -1197,17 +1230,17 @@ export default function DashboardGuru() {
               Kelola {stats.totalStudents} profil siswa & arsip tahunan
             </p>
           </div>
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center badge-tint-amber group-hover:scale-110 transition-transform shrink-0">
             <UsersRound size={18} />
           </div>
         </Link>
 
         <Link
           href="/guru/praktik"
-          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+          className="p-6 rounded-3xl flex items-center justify-between transition-all duration-300 hover:-translate-y-1 edufit-card-primary group"
         >
           <div className="space-y-1">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-accent block">
               Pemantik & Jurnal
             </span>
             <div className="text-xl font-semibold tracking-tight">
@@ -1218,17 +1251,17 @@ export default function DashboardGuru() {
               {stats.gradedReflectionsCount} selesai dinilai
             </p>
           </div>
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center badge-tint-emerald group-hover:scale-110 transition-transform shrink-0">
             <BookOpen size={18} />
           </div>
         </Link>
 
         <Link
           href="/guru/rancangan"
-          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+          className="p-6 rounded-3xl flex items-center justify-between transition-all duration-300 hover:-translate-y-1 edufit-card-primary group"
         >
           <div className="space-y-1">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-violet-accent block">
               Program Latihan Kelas XII
             </span>
             <div className="text-xl font-semibold tracking-tight">
@@ -1238,17 +1271,17 @@ export default function DashboardGuru() {
               {stats.pendingProgramsCount} rancangan perlu koreksi rubrik
             </p>
           </div>
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center badge-tint-violet group-hover:scale-110 transition-transform shrink-0">
             <Target size={18} />
           </div>
         </Link>
 
         <Link
           href="/guru/kurikulum"
-          className="p-6 rounded-3xl flex items-center justify-between transition-transform hover:-translate-y-0.5 edufit-card-primary group"
+          className="p-6 rounded-3xl flex items-center justify-between transition-all duration-300 hover:-translate-y-1 edufit-card-primary group"
         >
           <div className="space-y-1">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-sky-accent block">
               Referensi Materi
             </span>
             <div className="text-xl font-semibold tracking-tight">
@@ -1258,16 +1291,16 @@ export default function DashboardGuru() {
               Lihat modul bacaan, video praktik & matriks latihan
             </p>
           </div>
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center edufit-surface-subtle group-hover:scale-105 transition-transform">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center badge-tint-sky group-hover:scale-110 transition-transform shrink-0">
             <Database size={18} />
           </div>
         </Link>
       </div>
 
-      {/* ZONA 4: DIREKTORI RUANG KELAS AKTIF (DENGAN FILTER TAHUN AJARAN & TANPA KODE KELAS) */}
+      {/* ZONA 4: DIREKTORI RUANG KELAS AKTIF */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+          <div className="text-xs font-bold uppercase tracking-widest text-gold-accent mb-1">
             Direktori Rombel Aktif
           </div>
           <h3 className="text-3xl font-light tracking-tight">
@@ -1312,7 +1345,7 @@ export default function DashboardGuru() {
         <button
           type="button"
           onClick={() => setIsStudentModalOpen(true)}
-          className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-opacity flex items-center gap-2 hover:opacity-90 shadow-md cursor-pointer btn-forest-emerald"
+          className="px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-transform hover:scale-[1.02] flex items-center gap-2 shadow-md cursor-pointer btn-forest-gold"
         >
           <UsersRound size={16} strokeWidth={2.5} /> Registrasi Akun Siswa
         </button>
@@ -1332,16 +1365,23 @@ export default function DashboardGuru() {
               BENTO_SHOWCASE_CLASSES[index % BENTO_SHOWCASE_CLASSES.length];
             const yearLabel = extractClassYearLabel(cls);
             const cleanName = cleanDisplayClassName(cls.name);
+            const isGrade12 = Number(cls.grade_level) === 12;
 
             return (
-              <div
+              <motion.div
                 key={cls.id}
-                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[290px] shadow-sm transition-transform hover:-translate-y-1 relative overflow-hidden group ${showcaseClass}`}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.35,
+                  delay: Math.min(index * 0.05, 0.25),
+                }}
+                className={`p-8 rounded-[2rem] flex flex-col justify-between min-h-[290px] shadow-sm transition-transform duration-300 hover:-translate-y-1 relative overflow-hidden group ${showcaseClass}`}
               >
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
                 <div className="flex justify-between items-start relative z-10">
-                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-75">
+                  <span className="text-xs font-bold font-mono tracking-widest uppercase opacity-80">
                     KELAS {cls.grade_level} · TA {yearLabel}
                   </span>
                   <div className="flex items-center gap-2">
@@ -1352,13 +1392,15 @@ export default function DashboardGuru() {
                     >
                       Data Murid
                     </Link>
-                    <Link
-                      href={`/guru/live-asesmen?classId=${cls.id}`}
-                      className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15"
-                      title="Buka Studio Live Asesmen untuk Kelas Ini"
-                    >
-                      <Radio size={17} strokeWidth={2} />
-                    </Link>
+                    {isGrade12 && (
+                      <Link
+                        href={`/guru/live-asesmen?classId=${cls.id}`}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform hover:scale-105 badge-tint-rose"
+                        title="Buka Studio Live Asesmen untuk Kelas 12 Ini"
+                      >
+                        <Radio size={17} strokeWidth={2} />
+                      </Link>
+                    )}
                   </div>
                 </div>
 
@@ -1392,7 +1434,7 @@ export default function DashboardGuru() {
                     <ArrowUpRight size={15} />
                   </Link>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         )}
@@ -1461,7 +1503,7 @@ export default function DashboardGuru() {
                         onClick={() => setStudentGender("L")}
                         className={`p-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
                           studentGender === "L"
-                            ? "seg-btn-active"
+                            ? "badge-tint-sky shadow-sm"
                             : "seg-btn-idle"
                         }`}
                       >
@@ -1474,7 +1516,7 @@ export default function DashboardGuru() {
                         onClick={() => setStudentGender("P")}
                         className={`p-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
                           studentGender === "P"
-                            ? "seg-btn-active"
+                            ? "badge-tint-rose shadow-sm"
                             : "seg-btn-idle"
                         }`}
                       >
@@ -1588,7 +1630,7 @@ export default function DashboardGuru() {
                 <button
                   type="submit"
                   disabled={isSubmittingStudent}
-                  className="w-full py-4 mt-6 rounded-2xl font-bold text-xs uppercase tracking-widest transition-opacity shadow-md disabled:opacity-50 hover:opacity-90 cursor-pointer btn-forest-emerald"
+                  className="w-full py-4 mt-6 rounded-2xl font-bold text-xs uppercase tracking-widest transition-opacity shadow-md disabled:opacity-50 hover:opacity-90 cursor-pointer btn-forest-gold"
                 >
                   {isSubmittingStudent
                     ? "Memproses ke Server..."
