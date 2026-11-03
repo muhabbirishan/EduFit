@@ -10,21 +10,27 @@ import {
   Bell,
   BookOpen,
   BrainCircuit,
+  Calculator,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   ClipboardCheck,
   Download,
+  Eye,
   FileQuestion,
+  GitCompare,
   LayoutGrid,
   MessageSquareText,
   Save,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Table2,
+  Target,
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface TpObjective {
@@ -167,6 +173,87 @@ const DEFAULT_TP_BY_GRADE: Record<number, TpObjective[]> = {
   ],
 };
 
+const QUICK_GRADING_PRESETS = [
+  {
+    label: "Sangat Tuntas (92 · A)",
+    score: "92",
+    grade: "A",
+    feedback:
+      "Analisis sangat tepat! Anda mampu menghubungkan konsep pengukuran kebugaran dan indikator antropometri secara kritis sesuai materi unit.",
+  },
+  {
+    label: "Baik & Paham (82 · B)",
+    score: "82",
+    grade: "B",
+    feedback:
+      "Pemahaman konsep sudah baik. Pertahankan kemampuan menafsirkan data hasil tes secara objektif dalam latihan berikutnya.",
+  },
+  {
+    label: "Cukup (72 · C)",
+    score: "72",
+    grade: "C",
+    feedback:
+      "Jawaban sudah mencakup poin dasar, namun perlu diperjelas lagi perbedaan fungsi antara indikator IMT dan performa kebugaran TKJI.",
+  },
+  {
+    label: "Perlu Penguatan (60 · D)",
+    score: "60",
+    grade: "D",
+    feedback:
+      "Pelajari kembali bagian prosedur, rumus, dan studi kasus pada modul materi ini, lalu perbarui jawaban refleksi Anda.",
+  },
+];
+
+const EDUFIT_BLOCKS_MARKER_START = "<!--EDUFIT_SAAS_BLOCKS_START:";
+const EDUFIT_BLOCKS_MARKER_END = ":EDUFIT_SAAS_BLOCKS_END-->";
+
+function safeBase64ToUtf8(base64: string): string {
+  try {
+    if (typeof window === "undefined") return "";
+    const binary = window.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    try {
+      return decodeURIComponent(escape(window.atob(base64)));
+    } catch {
+      return "";
+    }
+  }
+}
+
+function parseMaterialBlocksForTeacher(mat: any): any[] {
+  if (!mat) return [];
+  if (Array.isArray(mat.content_blocks) && mat.content_blocks.length > 0) {
+    return mat.content_blocks;
+  }
+  if (typeof mat.content_blocks === "string" && mat.content_blocks.trim()) {
+    try {
+      const parsed = JSON.parse(mat.content_blocks);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+  }
+
+  const htmlString = String(mat.content_text || "");
+  const startIdx = htmlString.indexOf(EDUFIT_BLOCKS_MARKER_START);
+  const endIdx = htmlString.indexOf(EDUFIT_BLOCKS_MARKER_END);
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    try {
+      const b64 = htmlString.substring(
+        startIdx + EDUFIT_BLOCKS_MARKER_START.length,
+        endIdx
+      );
+      const jsonStr = safeBase64ToUtf8(b64);
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+  }
+  return [];
+}
+
 function deriveGradeFromScore(scoreVal: number): string {
   if (scoreVal >= 85) return "A";
   if (scoreVal >= 75) return "B";
@@ -225,6 +312,8 @@ export default function TeoriPage() {
   >("all");
   const [selectedMaterialUnit, setSelectedMaterialUnit] =
     useState<string>("all");
+  const [showUnitReferenceDrawer, setShowUnitReferenceDrawer] =
+    useState<boolean>(false);
 
   const [chartMode, setChartMode] = useState<"post" | "pre">("post");
   const [gaugeMode, setGaugeMode] = useState<
@@ -246,6 +335,9 @@ export default function TeoriPage() {
   const [savingReflectionId, setSavingReflectionId] = useState<string | null>(
     null
   );
+  const [expandedMaterialPreviewId, setExpandedMaterialPreviewId] = useState<
+    Record<string, boolean>
+  >({});
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -350,7 +442,7 @@ export default function TeoriPage() {
         supabase
           .from("master_materials")
           .select(
-            "id, grade_level, unit_name, trigger_question, order_index, created_at"
+            "id, grade_level, unit_name, trigger_question, content_text, content_blocks, image_url, media_url, order_index, created_at"
           )
           .eq("grade_level", cls.grade_level)
           .order("order_index", { ascending: true })
@@ -363,7 +455,22 @@ export default function TeoriPage() {
       setRawStudents(stdList);
       setInstrumentData(instRes.data || null);
       setRawQuestions(qBankRes.data || []);
-      setRawMaterials(matRes.data || []);
+
+      // Urutkan unit materi sama persis seperti di Admin & Aplikasi Siswa
+      const sortedMats = [...(matRes.data || [])].sort((a, b) => {
+        const orderA = a.order_index || 0;
+        const orderB = b.order_index || 0;
+        if (orderA !== orderB && orderA > 0 && orderB > 0)
+          return orderA - orderB;
+        const nA = (a.unit_name || "").toLowerCase();
+        const nB = (b.unit_name || "").toLowerCase();
+        const numA = parseInt(nA.match(/\d+/)?.[0] || "0", 10);
+        const numB = parseInt(nB.match(/\d+/)?.[0] || "0", 10);
+        if (numA !== numB) return numA - numB;
+        return nA.localeCompare(nB);
+      });
+
+      setRawMaterials(sortedMats);
       setSelectedMaterialUnit("all");
 
       const studentIds = stdList
@@ -485,6 +592,20 @@ export default function TeoriPage() {
     });
   };
 
+  const applyQuickGradingPreset = (
+    reflectionId: string,
+    preset: (typeof QUICK_GRADING_PRESETS)[number]
+  ) => {
+    setGradingDrafts((prev) => ({
+      ...prev,
+      [reflectionId]: {
+        score: preset.score,
+        grade: preset.grade,
+        feedback: preset.feedback,
+      },
+    }));
+  };
+
   const handleSaveReflectionGrade = async (refItem: StudentReflectionItem) => {
     const draft = gradingDrafts[refItem.id] || {
       score: "",
@@ -527,13 +648,15 @@ export default function TeoriPage() {
       if (error) throw error;
 
       if (refItem.materialId && refItem.studentId) {
-        await supabase
-          .from("student_material_progress")
-          .update({
-            teacher_feedback: draft.feedback.trim() || null,
-          })
-          .eq("student_id", refItem.studentId)
-          .eq("material_id", refItem.materialId);
+        try {
+          await supabase
+            .from("student_material_progress")
+            .update({
+              teacher_feedback: draft.feedback.trim() || null,
+            })
+            .eq("student_id", refItem.studentId)
+            .eq("material_id", refItem.materialId);
+        } catch {}
       }
 
       setRawReflections((prev) =>
@@ -585,28 +708,34 @@ export default function TeoriPage() {
     return DEFAULT_TP_BY_GRADE[currentGrade] || DEFAULT_TP_BY_GRADE[10];
   }, [instrumentData, selectedClass]);
 
-  const materialTriggerMap = useMemo(() => {
-    const map: Record<string, { id: string; trigger: string }> = {};
+  // PEMETAAN DETAIL UNIT MATERI BESERTA 15 BLOK PENYUSUNNYA
+  const materialCatalogMap = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        id: string;
+        unitName: string;
+        trigger: string;
+        imageUrl: string;
+        blocks: any[];
+      }
+    > = {};
     rawMaterials.forEach((m: any) => {
+      const blocks = parseMaterialBlocksForTeacher(m);
+      const entry = {
+        id: m.id,
+        unitName: m.unit_name || "Unit Materi",
+        trigger:
+          m.trigger_question ||
+          "Pertanyaan analisis & refleksi pemahaman unit materi.",
+        imageUrl: m.image_url || "",
+        blocks,
+      };
       const key = String(m.unit_name || "")
         .trim()
         .toLowerCase();
-      if (key) {
-        map[key] = {
-          id: m.id,
-          trigger:
-            m.trigger_question ||
-            "Pertanyaan analisis & refleksi pemahaman unit materi.",
-        };
-      }
-      if (m.id) {
-        map[m.id] = {
-          id: m.id,
-          trigger:
-            m.trigger_question ||
-            "Pertanyaan analisis & refleksi pemahaman unit materi.",
-        };
-      }
+      if (key) map[key] = entry;
+      if (m.id) map[m.id] = entry;
     });
     return map;
   }, [rawMaterials]);
@@ -729,14 +858,14 @@ export default function TeoriPage() {
               .trim()
               .toLowerCase();
             const matInfo =
-              (r.material_id && materialTriggerMap[r.material_id]) ||
-              materialTriggerMap[uKey];
+              (r.material_id && materialCatalogMap[r.material_id]) ||
+              materialCatalogMap[uKey];
             return {
               id: r.id,
               studentId: sId,
               studentName: sName,
               materialId: r.material_id || matInfo?.id || null,
-              unitName: r.unit_name || "Unit Materi",
+              unitName: matInfo?.unitName || r.unit_name || "Unit Materi",
               triggerQuestion:
                 matInfo?.trigger ||
                 "Pertanyaan analisis & refleksi pemahaman unit materi.",
@@ -778,7 +907,7 @@ export default function TeoriPage() {
     rawReflections,
     selectedClass,
     activeTpList,
-    materialTriggerMap,
+    materialCatalogMap,
   ]);
 
   useEffect(() => {
@@ -793,7 +922,13 @@ export default function TeoriPage() {
     studentsData.forEach((s) => {
       s.reflections.forEach((r) => list.push(r));
     });
-    return list;
+    // Dahulukan yang belum dinilai agar Guru langsung fokus memeriksa antrean baru
+    return list.sort((a, b) => {
+      const aGraded = a.score !== null || a.grade !== "" ? 1 : 0;
+      const bGraded = b.score !== null || b.grade !== "" ? 1 : 0;
+      if (aGraded !== bGraded) return aGraded - bGraded;
+      return a.studentName.localeCompare(b.studentName);
+    });
   }, [studentsData]);
 
   const filteredReflections = useMemo(() => {
@@ -824,6 +959,296 @@ export default function TeoriPage() {
     reflectionStatusFilter,
     searchQuery,
   ]);
+
+  // PANEL ACUAN MATERI UNIT (CP/TP, PROSEDUR, RUMUS, STUDI KASUS, KUIS) UNTUK GURU
+  const renderUnitReferenceSummary = (unitKeyOrId: string) => {
+    const matInfo =
+      materialCatalogMap[unitKeyOrId] ||
+      materialCatalogMap[String(unitKeyOrId || "").trim().toLowerCase()];
+    if (!matInfo || !matInfo.blocks || matInfo.blocks.length === 0) return null;
+
+    const cpBlock = matInfo.blocks.find((b: any) => b.type === "cp_tp");
+    const formulaBlocks = matInfo.blocks.filter(
+      (b: any) => b.type === "formula"
+    );
+    const caseBlocks = matInfo.blocks.filter(
+      (b: any) => b.type === "case_study"
+    );
+    const calloutBlocks = matInfo.blocks.filter(
+      (b: any) => b.type === "callout"
+    );
+
+    return (
+      <div className="p-4 rounded-2xl edufit-surface-subtle space-y-3 border border-hairline text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-accent flex items-center gap-1.5">
+            <BookOpen size={13} /> Acuan Kurikulum Unit ({matInfo.blocks.length}{" "}
+            Bagian Materi)
+          </span>
+        </div>
+
+        {cpBlock && (
+          <div className="p-3 rounded-xl edufit-card-primary space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase text-gold-accent block">
+              Tujuan & Fokus Pembelajaran (Bagian A):
+            </span>
+            {cpBlock.learningFocus && (
+              <p className="text-xs leading-relaxed opacity-85">
+                <strong>Fokus:</strong> {cpBlock.learningFocus}
+              </p>
+            )}
+            {Array.isArray(cpBlock.objectivesList) &&
+              cpBlock.objectivesList.filter(Boolean).length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {cpBlock.objectivesList
+                    .filter(Boolean)
+                    .slice(0, 4)
+                    .map((obj: string, i: number) => (
+                      <li key={i} className="text-[11px] opacity-80">
+                        {i + 1}. {obj}
+                      </li>
+                    ))}
+                </ul>
+              )}
+          </div>
+        )}
+
+        {caseBlocks.length > 0 && (
+          <div className="p-3 rounded-xl edufit-card-primary space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase text-sky-accent flex items-center gap-1">
+              <GitCompare size={12} /> Intisari Studi Kasus di Modul Siswa:
+            </span>
+            {caseBlocks.map((cb: any, idx: number) => (
+              <p key={idx} className="text-xs leading-relaxed opacity-85">
+                <strong>{cb.title}:</strong>{" "}
+                {cb.caseKeyTakeaway ||
+                  (cb.caseConclusions || []).filter(Boolean).join(" ")}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {formulaBlocks.length > 0 && (
+          <div className="p-3 rounded-xl edufit-card-primary space-y-1">
+            <span className="text-[10px] font-mono font-bold uppercase text-emerald-accent flex items-center gap-1">
+              <Calculator size={12} /> Acuan Rumus & Interpretasi:
+            </span>
+            {formulaBlocks.map((fb: any, idx: number) => (
+              <p key={idx} className="text-xs font-mono opacity-85">
+                {fb.title || "Rumus"}:{" "}
+                {fb.formulaMode === "linear"
+                  ? fb.formulaLinearExpr
+                  : `${fb.formulaLeft || "IMT"} = (${
+                      fb.formulaNumerator || "BB"
+                    }) / (${fb.formulaDenominator || "TB²"})`}{" "}
+                {fb.formulaResult ? `→ ${fb.formulaResult}` : ""}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {calloutBlocks.length > 0 && !cpBlock && (
+          <div className="p-3 rounded-xl edufit-card-primary">
+            <p className="text-xs opacity-80">
+              <strong>Catatan Kunci:</strong> {calloutBlocks[0].value}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderReflectionGradingCard = (
+    refItem: StudentReflectionItem,
+    showStudentHeader = true
+  ) => {
+    const draft = gradingDrafts[refItem.id] || {
+      score: refItem.score !== null ? String(refItem.score) : "",
+      grade: refItem.grade || "",
+      feedback: refItem.feedbackText || "",
+    };
+    const isGraded = refItem.score !== null || refItem.grade !== "";
+    const isSaving = savingReflectionId === refItem.id;
+    const isRefOpen = Boolean(expandedMaterialPreviewId[refItem.id]);
+
+    return (
+      <div
+        key={refItem.id}
+        className="p-6 sm:p-7 rounded-[2rem] flex flex-col justify-between gap-5 edufit-card-primary relative overflow-hidden"
+      >
+        <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
+
+        <div className="space-y-4 relative z-10">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-hairline">
+            <div>
+              {showStudentHeader && (
+                <div className="text-xl font-bold tracking-tight">
+                  {refItem.studentName}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase badge-tint-amber">
+                  {refItem.unitName}
+                </span>
+                {refItem.updatedAt && (
+                  <span className="text-[11px] font-mono opacity-55">
+                    Dikirim:{" "}
+                    {new Date(refItem.updatedAt).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedMaterialPreviewId((prev) => ({
+                    ...prev,
+                    [refItem.id]: !prev[refItem.id],
+                  }))
+                }
+                className="px-3 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 cursor-pointer edufit-surface-subtle hover:opacity-85"
+                title="Lihat acuan Tujuan Pembelajaran, Rumus & Studi Kasus pada unit ini"
+              >
+                <Eye size={12} />
+                {isRefOpen ? "Tutup Acuan" : "Acuan Materi"}
+              </button>
+
+              <span
+                className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase ${
+                  isGraded ? "badge-tint-emerald" : "badge-tint-rose"
+                }`}
+              >
+                {isGraded
+                  ? `Dinilai: ${refItem.grade || "-"} (${
+                      refItem.score !== null ? refItem.score : "-"
+                    })`
+                  : "Menunggu Nilai"}
+              </span>
+            </div>
+          </div>
+
+          {isRefOpen &&
+            renderUnitReferenceSummary(refItem.materialId || refItem.unitName)}
+
+          <div className="p-4 rounded-2xl edufit-surface-subtle space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-60 block">
+              Pertanyaan Pemantik & Refleksi Unit:
+            </span>
+            <p className="text-xs sm:text-sm font-semibold leading-relaxed">
+              {refItem.triggerQuestion}
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl edufit-card-secondary space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
+              Jawaban Analisis & Refleksi Siswa:
+            </span>
+            <p className="text-sm sm:text-base leading-relaxed whitespace-pre-line font-medium">
+              {refItem.answerText || "Tidak ada teks jawaban."}
+            </p>
+          </div>
+        </div>
+
+        {/* FORM PENILAIAN GURU + RUBRIK INSTAN 1-KLIK */}
+        <div className="pt-4 border-t border-hairline space-y-3.5 relative z-10">
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-60 block">
+              Rubrik Penilaian Cepat (Klik untuk Mengisi Otomatis):
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_GRADING_PRESETS.map((preset) => (
+                <button
+                  key={preset.grade}
+                  type="button"
+                  onClick={() => applyQuickGradingPreset(refItem.id, preset)}
+                  className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold cursor-pointer transition-transform hover:scale-[1.02] edufit-surface-subtle"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+            <div className="sm:col-span-4">
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
+                Skor Angka (0–100)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={draft.score}
+                onChange={(e) =>
+                  updateDraftField(refItem.id, "score", e.target.value)
+                }
+                placeholder="Cth: 88"
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono font-bold outline-none edufit-surface-subtle"
+              />
+            </div>
+
+            <div className="sm:col-span-8">
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
+                Predikat Nilai (Grade)
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(["A", "B", "C", "D"] as const).map((gOpt) => {
+                  const active = draft.grade === gOpt;
+                  return (
+                    <button
+                      key={gOpt}
+                      type="button"
+                      onClick={() => updateDraftField(refItem.id, "grade", gOpt)}
+                      className={`py-2.5 rounded-xl text-xs font-mono font-bold cursor-pointer transition-all ${
+                        active
+                          ? "seg-btn-active shadow-sm"
+                          : "edufit-surface-subtle opacity-75 hover:opacity-100"
+                      }`}
+                    >
+                      Grade {gOpt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
+              Umpan Balik Guru PJOK (Tampil di Aplikasi Siswa)
+            </label>
+            <textarea
+              rows={2}
+              value={draft.feedback}
+              onChange={(e) =>
+                updateDraftField(refItem.id, "feedback", e.target.value)
+              }
+              placeholder="Tuliskan apresiasi atau catatan koreksi pemahaman untuk siswa..."
+              className="w-full p-3.5 rounded-xl text-xs sm:text-sm leading-relaxed outline-none resize-y edufit-surface-subtle"
+            />
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleSaveReflectionGrade(refItem)}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-transform hover:scale-[1.02] disabled:opacity-50 btn-forest-gold"
+            >
+              <Save size={14} />
+              {isSaving ? "Menyimpan..." : "Simpan Penilaian Refleksi"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const questionAnalytics: QuestionAnalyticsItem[] = useMemo(() => {
     const mapByQuestionId: Record<string, QuestionAnalyticsItem> = {};
@@ -1098,159 +1523,6 @@ export default function TeoriPage() {
     );
   };
 
-  const renderReflectionGradingCard = (
-    refItem: StudentReflectionItem,
-    showStudentHeader = true
-  ) => {
-    const draft = gradingDrafts[refItem.id] || {
-      score: refItem.score !== null ? String(refItem.score) : "",
-      grade: refItem.grade || "",
-      feedback: refItem.feedbackText || "",
-    };
-    const isGraded = refItem.score !== null || refItem.grade !== "";
-    const isSaving = savingReflectionId === refItem.id;
-
-    return (
-      <div
-        key={refItem.id}
-        className="p-6 sm:p-7 rounded-[2rem] flex flex-col justify-between gap-5 edufit-card-primary relative overflow-hidden"
-      >
-        <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
-
-        <div className="space-y-4 relative z-10">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-hairline">
-            <div>
-              {showStudentHeader && (
-                <div className="text-xl font-bold tracking-tight">
-                  {refItem.studentName}
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase badge-tint-amber">
-                  {refItem.unitName}
-                </span>
-                {refItem.updatedAt && (
-                  <span className="text-[11px] font-mono opacity-55">
-                    Dikirim:{" "}
-                    {new Date(refItem.updatedAt).toLocaleDateString("id-ID", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <span
-              className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase ${
-                isGraded ? "badge-tint-emerald" : "badge-tint-rose"
-              }`}
-            >
-              {isGraded
-                ? `Dinilai: ${refItem.grade || "-"} (${
-                    refItem.score !== null ? refItem.score : "-"
-                  })`
-                : "Menunggu Penilaian Guru"}
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl edufit-surface-subtle space-y-1.5">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-60 block">
-              Pertanyaan Pemantik Unit Materi:
-            </span>
-            <p className="text-xs font-semibold leading-relaxed">
-              {refItem.triggerQuestion}
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl edufit-card-secondary space-y-1.5">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-gold-accent block">
-              Jawaban Analisis & Refleksi Siswa:
-            </span>
-            <p className="text-sm leading-relaxed whitespace-pre-line font-medium">
-              {refItem.answerText || "Tidak ada teks jawaban."}
-            </p>
-          </div>
-        </div>
-
-        {/* FORM PENILAIAN GURU (SKOR, GRADE A-D, FEEDBACK) */}
-        <div className="pt-4 border-t border-hairline space-y-3 relative z-10">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-            <div className="sm:col-span-4">
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
-                Skor Angka (0–100)
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={draft.score}
-                onChange={(e) =>
-                  updateDraftField(refItem.id, "score", e.target.value)
-                }
-                placeholder="Cth: 88"
-                className="w-full px-3.5 py-2.5 rounded-xl text-sm font-mono font-bold outline-none edufit-surface-subtle"
-              />
-            </div>
-
-            <div className="sm:col-span-8">
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
-                Predikat Nilai (Grade)
-              </label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {(["A", "B", "C", "D"] as const).map((gOpt) => {
-                  const active = draft.grade === gOpt;
-                  return (
-                    <button
-                      key={gOpt}
-                      type="button"
-                      onClick={() => updateDraftField(refItem.id, "grade", gOpt)}
-                      className={`py-2 rounded-xl text-xs font-mono font-bold cursor-pointer transition-all ${
-                        active
-                          ? "seg-btn-active shadow-sm"
-                          : "edufit-surface-subtle opacity-75 hover:opacity-100"
-                      }`}
-                    >
-                      Grade {gOpt}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-65 block mb-1">
-              Umpan Balik Guru PJOK (Tampil di Aplikasi Siswa)
-            </label>
-            <textarea
-              rows={2}
-              value={draft.feedback}
-              onChange={(e) =>
-                updateDraftField(refItem.id, "feedback", e.target.value)
-              }
-              placeholder="Tuliskan apresiasi atau catatan koreksi pemahaman untuk siswa..."
-              className="w-full p-3.5 rounded-xl text-xs leading-relaxed outline-none resize-y edufit-surface-subtle"
-            />
-          </div>
-
-          <div className="flex justify-end pt-1">
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={() => handleSaveReflectionGrade(refItem)}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-transform hover:scale-[1.02] disabled:opacity-50 btn-forest-gold"
-            >
-              <Save size={14} />
-              {isSaving ? "Menyimpan..." : "Simpan Penilaian Refleksi"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   if (!mounted) return null;
 
   const highestTpBar = stats.tpBars.reduce(
@@ -1267,7 +1539,7 @@ export default function TeoriPage() {
     : null;
 
   return (
-    <div className="edufit-guru-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="edufit-guru-theme w-full pt-2 pb-16 relative">
       {/* DYNAMIC ISLAND OVERLAY */}
       <AnimatePresence>
         {islandAlert && (
@@ -1827,7 +2099,7 @@ export default function TeoriPage() {
         </div>
       </div>
 
-      {/* ZONA 4: HEADER FILTER & SWITCHER MODE (KARTU, TABEL, REFLEKSI MATERI, BEDAH SOAL) */}
+      {/* ZONA 4: HEADER FILTER & SWITCHER MODE */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mt-12 mb-6 gap-4 relative z-10">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-gold-accent mb-1">
@@ -1919,8 +2191,11 @@ export default function TeoriPage() {
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   <button
                     type="button"
-                    onClick={() => setSelectedMaterialUnit("all")}
-                    className={`px-3 py-1 rounded-xl text-[11px] font-bold cursor-pointer transition-all ${
+                    onClick={() => {
+                      setSelectedMaterialUnit("all");
+                      setShowUnitReferenceDrawer(false);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${
                       selectedMaterialUnit === "all"
                         ? "seg-btn-active"
                         : "edufit-surface-subtle opacity-75"
@@ -1932,21 +2207,37 @@ export default function TeoriPage() {
                     const active =
                       selectedMaterialUnit === mat.id ||
                       selectedMaterialUnit === mat.unit_name;
+                    const bCount = parseMaterialBlocksForTeacher(mat).length;
                     return (
                       <button
                         key={mat.id}
                         type="button"
                         onClick={() => setSelectedMaterialUnit(mat.unit_name)}
-                        className={`px-3 py-1 rounded-xl text-[11px] font-bold cursor-pointer transition-all ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${
                           active
                             ? "seg-btn-active"
                             : "edufit-surface-subtle opacity-75"
                         }`}
                       >
-                        U{mIdx + 1}: {mat.unit_name}
+                        Unit {mIdx + 1}: {mat.unit_name} ({bCount} Bagian)
                       </button>
                     );
                   })}
+
+                  {selectedMaterialUnit !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowUnitReferenceDrawer(!showUnitReferenceDrawer)
+                      }
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer badge-tint-emerald"
+                    >
+                      <BookOpen size={13} />
+                      {showUnitReferenceDrawer
+                        ? "Sembunyikan Acuan Unit"
+                        : "Lihat Acuan Kurikulum Unit"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2046,6 +2337,15 @@ export default function TeoriPage() {
           </div>
         </div>
       </div>
+
+      {/* PANEL ACUAN UNIT MATERI KETIKA GURU MEMILIH FILTER UNIT SPESIFIK */}
+      {viewMode === "reflections" &&
+        selectedMaterialUnit !== "all" &&
+        showUnitReferenceDrawer && (
+          <div className="mb-6 relative z-10">
+            {renderUnitReferenceSummary(selectedMaterialUnit)}
+          </div>
+        )}
 
       {/* ISI ZONA 4 */}
       {classes.length === 0 ? (

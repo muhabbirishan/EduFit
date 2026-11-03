@@ -175,7 +175,7 @@
     );
 
     /* ======================================================================
-       VARIABEL BARU KHUSUS EKOSISTEM MATERI & SIMULATOR MOBILE SISWA
+       VARIABEL KHUSUS EKOSISTEM MATERI & SIMULATOR MOBILE SISWA
        (Selaras 1:1 dengan AppColors.materi* di Flutter & Referensi UI Mobile)
        ====================================================================== */
     --materi-canvas-bg: #f3f6f4;
@@ -420,6 +420,7 @@
     color: var(--ref-text-primary);
     transition: background-color 0.35s ease, color 0.35s ease;
     min-height: 100vh;
+    overflow-x: clip;
   }
 
   /* KUNCI ANTI-TABRAKAN MODAL: Sembunyikan Navbar otomatis saat ada Modal Pop-up terbuka */
@@ -735,27 +736,60 @@
   }
 
   /* ==========================================================================
-     3. SISTEM DESAIN KHUSUS STUDIO MATERI & SIMULATOR DEVICE (320/375/425/768)
+     3. SISTEM DESAIN KHUSUS STUDIO MATERI & MOCKUP HP UTUH
      ========================================================================== */
+
+  /* Panggung belakang HP: TIDAK BOLEH SCROLL agar bodi HP tampil utuh 100% */
   .materi-device-stage {
     background-color: var(--ref-card-subtle);
     background-image: linear-gradient(var(--ref-card-border) 1px, transparent 1px),
       linear-gradient(90deg, var(--ref-card-border) 1px, transparent 1px);
     background-size: 20px 20px;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.85rem !important;
   }
 
+  /* Bodi Fisik HP: Tinggi tetap (utuh atas-bawah), tidak pernah terpotong */
   .materi-device-viewport {
     background-color: var(--materi-canvas-bg);
     color: var(--materi-text-primary);
     border: 8px solid #13211c;
     border-radius: 2.25rem;
-    box-shadow: 0 24px 60px -15px rgba(12, 23, 19, 0.35),
+    box-shadow: 0 20px 50px -12px rgba(12, 23, 19, 0.35),
       0 0 0 1px rgba(255, 255, 255, 0.12) inset;
-    transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-      max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-    overflow: hidden;
+    transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    height: 100% !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
     margin-left: auto;
     margin-right: auto;
+  }
+
+  /* Layar Dalam HP: HANYA bagian dalam HP ini yang bisa di-scroll */
+  .materi-phone-screen {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(19, 33, 28, 0.28) transparent;
+  }
+
+  .materi-phone-screen::-webkit-scrollbar {
+    width: 4px;
+  }
+  .materi-phone-screen::-webkit-scrollbar-thumb {
+    background-color: rgba(19, 33, 28, 0.28);
+    border-radius: 9999px;
   }
 
   .materi-viewport-320 {
@@ -772,11 +806,10 @@
   }
   .materi-viewport-768 {
     width: 100%;
-    max-width: 768px;
-    border-radius: 1.75rem;
+    max-width: 100%;
+    border-radius: 1.5rem;
   }
 
-  /* Kartu Mengambang (Floating Summary & Status Cards sesuai Referensi Mobile) */
   .materi-floating-card {
     background-color: var(--materi-card-solid);
     border: 1px solid var(--materi-card-border);
@@ -796,7 +829,6 @@
     border: 1px solid var(--materi-card-border);
   }
 
-  /* Komponen Blok Kurikulum PDF (CP/TP, Rumus, Prosedur, Glosarium) */
   .materi-block-cptp {
     background-color: var(--materi-bento-0-bg);
     border: 1px solid var(--materi-bento-0-border);
