@@ -5,8 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AlertCircle,
+  Bell,
   Building2,
   Check,
+  CheckCircle2,
   ChevronDown,
   Download,
   Edit3,
@@ -21,8 +24,16 @@ import {
   X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
+
+interface IslandNotification {
+  id: number;
+  message: string;
+  subtitle?: string;
+  type: "success" | "error" | "info";
+}
 
 const BENTO_SHOWCASE_CLASSES = [
   "bento-showcase-0",
@@ -46,6 +57,26 @@ export default function InstitusiPage() {
   const [schoolClassesMaster, setSchoolClassesMaster] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Dynamic Island Alert State
+  const [islandAlert, setIslandAlert] = useState<IslandNotification | null>(null);
+  const islandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerDynamicIsland = useCallback(
+    (message: string, subtitle?: string, type: "success" | "error" | "info" = "info") => {
+      if (islandTimerRef.current) clearTimeout(islandTimerRef.current);
+      setIslandAlert({
+        id: Date.now(),
+        message,
+        subtitle,
+        type,
+      });
+      islandTimerRef.current = setTimeout(() => {
+        setIslandAlert(null);
+      }, 3400);
+    },
+    []
+  );
+
   // Filter Cakupan di Bento 1 & Tabel Guru
   const [filterType, setFilterType] = useState<"ALL" | "SMA" | "SMK">("ALL");
   const [filterSchoolId, setFilterSchoolId] = useState<string>("all");
@@ -54,9 +85,7 @@ export default function InstitusiPage() {
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
   // Mode Circular Gauge di Bento 3
-  const [gaugeMode, setGaugeMode] = useState<"coverage" | "ratio" | "rombel">(
-    "coverage"
-  );
+  const [gaugeMode, setGaugeMode] = useState<"coverage" | "ratio" | "rombel">("coverage");
 
   // State Modal Tambah / Edit Sekolah
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
@@ -78,17 +107,12 @@ export default function InstitusiPage() {
   // State Modal Kelola Profil & Penempatan Guru
   const [managingTeacher, setManagingTeacher] = useState<any | null>(null);
   const [editTeacherName, setEditTeacherName] = useState("");
-  const [editTeacherSchoolId, setEditTeacherSchoolId] = useState<string | null>(
-    null
-  );
-  const [isEditSchoolDropdownOpen, setIsEditSchoolDropdownOpen] =
-    useState(false);
+  const [editTeacherSchoolId, setEditTeacherSchoolId] = useState<string | null>(null);
+  const [isEditSchoolDropdownOpen, setIsEditSchoolDropdownOpen] = useState(false);
   const [isUpdatingTeacher, setIsUpdatingTeacher] = useState(false);
 
   // State Modal Kelola Master Jurusan/Kelas Sekolah (school_classes)
-  const [managingMasterSchool, setManagingMasterSchool] = useState<any | null>(
-    null
-  );
+  const [managingMasterSchool, setManagingMasterSchool] = useState<any | null>(null);
   const [masterGradeLevel, setMasterGradeLevel] = useState<number>(10);
   const [masterClassName, setMasterClassName] = useState<string>("");
   const [isSubmittingMasterClass, setIsSubmittingMasterClass] = useState(false);
@@ -135,6 +159,7 @@ export default function InstitusiPage() {
       if (scMasterRes.data) setSchoolClassesMaster(scMasterRes.data);
     } catch (error) {
       toast.error("Gagal memuat data institusi dari database.");
+      triggerDynamicIsland("Gagal Sinkronisasi", "Koneksi ke database terputus.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +169,6 @@ export default function InstitusiPage() {
     fetchAllData();
   }, []);
 
-  // Pemetaan Metrik Lengkap per Sekolah (Guru, Siswa, Rombel Aktif, Master Kelas)
   const schoolMetricsMap = useMemo(() => {
     const map: Record<
       string,
@@ -172,7 +196,6 @@ export default function InstitusiPage() {
     return map;
   }, [schools, allProfiles, allClasses, schoolClassesMaster]);
 
-  // Hitung jumlah kelas aktif yang diampu per Guru
   const teacherClassCountMap = useMemo(() => {
     const map: Record<string, number> = {};
     allClasses.forEach((c) => {
@@ -205,8 +228,7 @@ export default function InstitusiPage() {
   );
 
   const schoolsWithTeacherCount = useMemo(() => {
-    return schools.filter((s) => (schoolMetricsMap[s.id]?.guru || 0) > 0)
-      .length;
+    return schools.filter((s) => (schoolMetricsMap[s.id]?.guru || 0) > 0).length;
   }, [schools, schoolMetricsMap]);
 
   const schoolReadinessPct = useMemo(() => {
@@ -250,9 +272,6 @@ export default function InstitusiPage() {
     });
   }, [teachers, filterSchoolId, filterType, schools, teacherSearch]);
 
-  // ==========================================================================
-  // CRUD SEKOLAH (TAMBAH, EDIT, HAPUS)
-  // ==========================================================================
   const openCreateSchoolModal = () => {
     setEditingSchoolId(null);
     setSchoolName("");
@@ -285,11 +304,11 @@ export default function InstitusiPage() {
           .update(payload)
           .eq("id", editingSchoolId);
         if (error) throw error;
-        toast.success(`Data ${schoolName} berhasil diperbarui!`);
+        triggerDynamicIsland("Data Diperbarui", `${schoolName} berhasil disimpan.`, "success");
       } else {
         const { error } = await supabase.from("schools").insert([payload]);
         if (error) throw error;
-        toast.success(`${schoolName} berhasil ditambahkan!`);
+        triggerDynamicIsland("Institusi Ditambahkan", `${schoolName} bergabung dalam ekosistem.`, "success");
       }
       fetchAllData();
       setIsSchoolModalOpen(false);
@@ -315,8 +334,9 @@ export default function InstitusiPage() {
             toast.error(
               "Tidak dapat menghapus sekolah yang masih memiliki data kelas/pengguna aktif."
             );
+            triggerDynamicIsland("Gagal Menghapus", "Sekolah ini masih memiliki pengguna aktif.", "error");
           } else {
-            toast.success("Sekolah berhasil dihapus");
+            triggerDynamicIsland("Sekolah Dihapus", `Institusi ${school.name} telah dihapus.`, "info");
             if (filterSchoolId === school.id) setFilterSchoolId("all");
             fetchAllData();
           }
@@ -332,9 +352,6 @@ export default function InstitusiPage() {
     });
   };
 
-  // ==========================================================================
-  // CRUD MASTER JURUSAN/KELAS SEKOLAH (school_classes)
-  // ==========================================================================
   const handleAddMasterClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!managingMasterSchool || !masterClassName.trim()) return;
@@ -348,8 +365,10 @@ export default function InstitusiPage() {
         },
       ]);
       if (error) throw error;
-      toast.success(
-        `Master Kelas ${masterGradeLevel} ${masterClassName} ditambahkan ke ${managingMasterSchool.name}!`
+      triggerDynamicIsland(
+        "Master Kelas Disimpan",
+        `Kelas ${masterGradeLevel} ${masterClassName} ditambahkan ke ${managingMasterSchool.name}.`,
+        "success"
       );
       setMasterClassName("");
       fetchAllData();
@@ -368,14 +387,11 @@ export default function InstitusiPage() {
     if (error) {
       toast.error("Gagal menghapus master kelas");
     } else {
-      toast.success(`Master kelas ${name} dihapus`);
+      triggerDynamicIsland("Master Kelas Dihapus", `${name} telah dihapus.`, "info");
       fetchAllData();
     }
   };
 
-  // ==========================================================================
-  // REGISTRASI & KELOLA AKUN GURU
-  // ==========================================================================
   const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSchoolId) {
@@ -410,11 +426,16 @@ export default function InstitusiPage() {
       success: () => {
         fetchAllData();
         setIsTeacherModalOpen(false);
+        triggerDynamicIsland(
+          "Akun Guru Berhasil Dibuat",
+          `${teacherName} kini memiliki akses sistem.`,
+          "success"
+        );
         setTeacherName("");
         setTeacherEmail("");
         setTeacherPassword("");
         setSelectedSchoolId(null);
-        return `Akun Guru ${teacherName} berhasil dibuat!`;
+        return `Registrasi Berhasil!`;
       },
       error: (err) => `Gagal: ${err.message}`,
     });
@@ -443,7 +464,7 @@ export default function InstitusiPage() {
         .eq("id", managingTeacher.id);
 
       if (error) throw error;
-      toast.success("Data & penempatan guru berhasil diperbarui!");
+      triggerDynamicIsland("Profil Guru Diperbarui", "Perubahan tersimpan ke database.", "success");
       setManagingTeacher(null);
       fetchAllData();
     } catch (err: any) {
@@ -488,7 +509,7 @@ export default function InstitusiPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Laporan Institusi & Pendidik berhasil diunduh!");
+    triggerDynamicIsland("CSV Institusi Diunduh", "Rekapitulasi institusi dan pendidik diekspor.", "success");
   };
 
   if (!mounted) return null;
@@ -500,6 +521,62 @@ export default function InstitusiPage() {
 
   return (
     <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+      {/* ====================================================================
+          DYNAMIC ISLAND OVERLAY (FIX Z-INDEX MELALUI PORTAL)
+         ==================================================================== */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {islandAlert && (
+            <div className="fixed top-5 left-0 right-0 z-[9999] flex justify-center pointer-events-none px-4">
+              <motion.div
+                key={islandAlert.id}
+                initial={{ opacity: 0, scale: 0.86, y: -18 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -12 }}
+                transition={{ type: "spring", stiffness: 420, damping: 26 }}
+                onClick={() => setIslandAlert(null)}
+                className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
+                  islandAlert.type === "success"
+                    ? "dynamic-island-success"
+                    : islandAlert.type === "error"
+                    ? "dynamic-island-error"
+                    : "dynamic-island-info"
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                    islandAlert.type === "success"
+                      ? "dynamic-island-icon-success"
+                      : islandAlert.type === "error"
+                      ? "dynamic-island-icon-error"
+                      : "dynamic-island-icon-info"
+                  }`}
+                >
+                  {islandAlert.type === "success" ? (
+                    <CheckCircle2 size={16} />
+                  ) : islandAlert.type === "error" ? (
+                    <AlertCircle size={16} />
+                  ) : (
+                    <Bell size={16} />
+                  )}
+                </div>
+                <div className="min-w-0 pr-2">
+                  <p className="text-xs font-bold text-white leading-tight truncate">
+                    {islandAlert.message}
+                  </p>
+                  {islandAlert.subtitle && (
+                    <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                      {islandAlert.subtitle}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
       {/* ====================================================================
           ZONA 1: HERO HEADER & 3 ANGKA UTAMA
          ==================================================================== */}
@@ -556,7 +633,6 @@ export default function InstitusiPage() {
           ZONA 2: 4 BAR TELEMETRI ORGANISASI
          ==================================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end mb-10 relative z-10">
-        {/* Bar 1: Proporsi SMA vs SMK */}
         <button
           type="button"
           onClick={() =>
@@ -590,7 +666,6 @@ export default function InstitusiPage() {
           </div>
         </button>
 
-        {/* Bar 2: Sekolah Terhubung Guru */}
         <div className="lg:col-span-3 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Penempatan Guru</span>
@@ -606,7 +681,6 @@ export default function InstitusiPage() {
           </div>
         </div>
 
-        {/* Bar 3: Striped Track Kesiapan Institusi */}
         <div className="sm:col-span-2 lg:col-span-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Kesiapan Operasional Sekolah</span>
@@ -624,7 +698,6 @@ export default function InstitusiPage() {
           </div>
         </div>
 
-        {/* Bar 4: Total Rombel Kelas */}
         <div className="sm:col-span-2 lg:col-span-2 space-y-2">
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
             <span>Rombel Aktif</span>
@@ -642,10 +715,8 @@ export default function InstitusiPage() {
           ZONA 3: TRIO KARTU BENTO LEBAR
          ==================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-20 mb-10">
-        {/* BENTO 1: FILTER SEKOLAH + TOMBOL REGISTRASI */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-visible flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none rounded-[2rem] overflow-hidden pattern-polkadot" />
-
           <div className="relative z-20">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-60">
@@ -661,7 +732,6 @@ export default function InstitusiPage() {
                 <Download size={15} />
               </button>
             </div>
-
             <h2 className="text-3xl font-light tracking-tight mb-2">
               Kendali Institusi
             </h2>
@@ -670,7 +740,6 @@ export default function InstitusiPage() {
               baru.
             </p>
 
-            {/* Segmented Filter Tipe Institusi */}
             <div className="flex gap-1.5 p-1.5 rounded-2xl mb-6 edufit-surface-subtle">
               {(["ALL", "SMA", "SMK"] as const).map((type) => {
                 const active = filterType === type;
@@ -689,7 +758,6 @@ export default function InstitusiPage() {
               })}
             </div>
 
-            {/* Underline Custom Dropdown Sekolah */}
             <div className="relative w-full mb-6" ref={filterDropdownRef}>
               <div
                 onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
@@ -759,7 +827,6 @@ export default function InstitusiPage() {
             </div>
           </div>
 
-          {/* 2 Tombol Aksi Utama */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10 pt-2">
             <button
               type="button"
@@ -768,7 +835,6 @@ export default function InstitusiPage() {
             >
               <Plus size={15} strokeWidth={2.5} /> Tambah Sekolah
             </button>
-
             <button
               type="button"
               onClick={() => setIsTeacherModalOpen(true)}
@@ -779,10 +845,8 @@ export default function InstitusiPage() {
           </div>
         </div>
 
-        {/* BENTO 2: DISTRIBUSI POPULASI SEKOLAH */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-secondary">
           <div className="absolute inset-0 pointer-events-none pattern-millimeter-grid" />
-
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Building2 size={15} />
@@ -792,7 +856,6 @@ export default function InstitusiPage() {
               {allClasses.length} ROMBEL
             </span>
           </div>
-
           <div className="my-4 flex items-end gap-3 relative z-10">
             <div className="text-6xl font-light font-mono tracking-tighter leading-none">
               {isLoading ? "—" : totalSiswaCount}
@@ -802,7 +865,6 @@ export default function InstitusiPage() {
             </div>
           </div>
 
-          {/* Grafik Batang Proporsional */}
           {(() => {
             const topSchools = schools.slice(0, 6);
             const maxStudents = Math.max(
@@ -896,10 +958,8 @@ export default function InstitusiPage() {
           })()}
         </div>
 
-        {/* BENTO 3: INDEKS ORGANISASI (TEKS LABEL DI LUAR LINGKARAN CHART) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
-
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
@@ -1093,7 +1153,6 @@ export default function InstitusiPage() {
               >
                 <div className="absolute inset-0 pointer-events-none pattern-polkadot" />
 
-                {/* Baris Atas Kartu Sekolah */}
                 <div className="flex justify-between items-start relative z-10 gap-2">
                   <span
                     className={`px-3 py-1 rounded-xl text-[11px] font-bold font-mono tracking-widest uppercase ${
@@ -1134,7 +1193,6 @@ export default function InstitusiPage() {
                   </div>
                 </div>
 
-                {/* Nama Sekolah */}
                 <div className="my-6 relative z-10">
                   <div className="text-4xl font-light tracking-tighter leading-tight mb-3">
                     {school.name}
@@ -1147,7 +1205,6 @@ export default function InstitusiPage() {
                   </div>
                 </div>
 
-                {/* Baris Bawah Angka Guru & Siswa */}
                 <div className="flex items-end justify-between border-t border-black/10 dark:border-white/10 pt-5 relative z-10">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-55 mb-1">

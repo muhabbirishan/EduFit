@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 interface SchoolSummary {
@@ -62,6 +63,13 @@ const BENTO_SHOWCASE_CLASSES = [
   "bento-showcase-2",
   "bento-showcase-3",
 ];
+
+const FITT_ALGO_LOG_REGEX = /^W\d+-M\d+:/i;
+
+function isValidStudentReflectionUnit(unitName: any): boolean {
+  const clean = String(unitName || "").trim().toLowerCase();
+  return clean !== "" && clean !== "cp_tp_read" && clean !== "akhir";
+}
 
 export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
@@ -146,6 +154,8 @@ export default function AdminDashboard() {
     totalMetrics: 0,
     avgTkjiScore: 0,
     totalPrograms: 0,
+    totalFittSessionsLogged: 0,
+    totalVideoPracticesLogged: 0,
     avgPretest: 0,
     avgPosttest: 0,
     bmiStats: { normal: 0, kurang: 0, lebih: 0, total: 0 },
@@ -239,6 +249,7 @@ export default function AdminDashboard() {
           reflectionsRes,
           metricsRes,
           programsRes,
+          optionalPracticesRes,
         ] = await Promise.all([
           supabase
             .from("schools")
@@ -275,11 +286,16 @@ export default function AdminDashboard() {
             ),
           supabase
             .from("student_reflections")
-            .select("id, student_id, unit_name, score, grade"),
+            .select("id, student_id, material_id, unit_name, score, grade"),
           supabase
             .from("student_physical_metrics")
             .select("id, student_id, total_tkji_score, bmi_category"),
-          supabase.from("student_programs").select("id, student_id, status"),
+          supabase
+            .from("student_programs")
+            .select("id, student_id, type, status"),
+          supabase
+            .from("optional_practices")
+            .select("id, student_id, unit_name"),
         ]);
 
         const allSchools = schoolsRes.data || [];
@@ -292,9 +308,14 @@ export default function AdminDashboard() {
         const allQuestions = questionsRes.data || [];
         const allEvalScores = evalScoresRes.data || [];
         const allAnswers = answersRes.data || [];
-        const allReflections = reflectionsRes.data || [];
+        const rawReflections = reflectionsRes.data || [];
         const allMetrics = metricsRes.data || [];
         const allPrograms = programsRes.data || [];
+        const allOptionalPractices = optionalPracticesRes.data || [];
+
+        const allReflections = rawReflections.filter((r: any) =>
+          isValidStudentReflectionUnit(r.unit_name)
+        );
 
         setMaterialsList(allMaterials);
         setEvaluationsList(allEvals);
@@ -382,6 +403,25 @@ export default function AdminDashboard() {
                 allowedStudentIds.has(pr.student_id)
               );
 
+        const filteredOptionalPractices =
+          selectedSchoolId === "all"
+            ? allOptionalPractices
+            : allOptionalPractices.filter((op: any) =>
+                allowedStudentIds.has(op.student_id)
+              );
+
+        let fittSessionsCount = 0;
+        let videoPracticesCount = 0;
+        filteredOptionalPractices.forEach((op: any) => {
+          const uName = String(op.unit_name || "").trim();
+          if (!uName) return;
+          if (FITT_ALGO_LOG_REGEX.test(uName)) {
+            fittSessionsCount++;
+          } else {
+            videoPracticesCount++;
+          }
+        });
+
         const gradeFilteredEvals =
           selectedGradeFilter === "all"
             ? filteredEvalScores
@@ -397,12 +437,12 @@ export default function AdminDashboard() {
           cntPost = 0;
 
         gradeFilteredEvals.forEach((ev: any) => {
-          const type = ev.master_evaluations?.type;
+          const type = String(ev.master_evaluations?.type || "").toLowerCase();
           const s = Number(ev.score) || 0;
-          if (type === "pretest") {
+          if (type === "pretest" || type.includes("pre")) {
             sumPre += s;
             cntPre++;
-          } else if (type === "posttest") {
+          } else if (type === "posttest" || type.includes("post")) {
             sumPost += s;
             cntPost++;
           }
@@ -474,7 +514,7 @@ export default function AdminDashboard() {
         };
 
         allQuestions.forEach((q: any) => {
-          const code = (q.learning_objective_code || "").trim();
+          const code = (q.learning_objective_code || "").trim().toUpperCase();
           if (code && !tpMap[code]) {
             tpMap[code] = { preT: 0, preC: 0, postT: 0, postC: 0 };
           }
@@ -489,16 +529,20 @@ export default function AdminDashboard() {
           }
           const code = (
             ans.question_bank?.learning_objective_code || ""
-          ).trim();
-          const type = ans.student_evaluation_scores?.master_evaluations?.type;
+          )
+            .trim()
+            .toUpperCase();
+          const type = String(
+            ans.student_evaluation_scores?.master_evaluations?.type || ""
+          ).toLowerCase();
           if (!code) return;
           if (!tpMap[code]) {
             tpMap[code] = { preT: 0, preC: 0, postT: 0, postC: 0 };
           }
-          if (type === "pretest") {
+          if (type === "pretest" || type.includes("pre")) {
             tpMap[code].preT++;
             if (ans.is_correct) tpMap[code].preC++;
-          } else if (type === "posttest") {
+          } else if (type === "posttest" || type.includes("post")) {
             tpMap[code].postT++;
             if (ans.is_correct) tpMap[code].postC++;
           }
@@ -521,9 +565,12 @@ export default function AdminDashboard() {
         setTpBars(computedBars);
 
         const unitGradeMap: Record<string, number> = {};
+        const materialIdGradeMap: Record<string, number> = {};
         allMaterials.forEach((m: any) => {
+          const g = Number(m.grade_level) || 10;
+          if (m.id) materialIdGradeMap[String(m.id)] = g;
           if (m.unit_name)
-            unitGradeMap[m.unit_name] = Number(m.grade_level) || 10;
+            unitGradeMap[String(m.unit_name).trim().toLowerCase()] = g;
         });
 
         const grades: GradeSummary[] = [10, 11, 12].map((g) => {
@@ -540,9 +587,16 @@ export default function AdminDashboard() {
             ([sId, grd]) => grd === g && allowedStudentIds.has(sId)
           ).length;
 
-          const gRefs = filteredReflections.filter(
-            (r: any) => (unitGradeMap[r.unit_name] || 10) === g
-          );
+          const gRefs = filteredReflections.filter((r: any) => {
+            const mId = String(r.material_id || "");
+            const uKey = String(r.unit_name || "").trim().toLowerCase();
+            const resolvedGrade =
+              materialIdGradeMap[mId] ||
+              unitGradeMap[uKey] ||
+              studentGradeMap[r.student_id] ||
+              10;
+            return resolvedGrade === g;
+          });
           const gGradedRefs = gRefs.filter(
             (r: any) =>
               r.score !== null || (r.grade && String(r.grade).trim() !== "")
@@ -557,10 +611,13 @@ export default function AdminDashboard() {
             const evGrade = Number(ev.master_evaluations?.grade_level) || 10;
             if (evGrade === g) {
               const s = Number(ev.score) || 0;
-              if (ev.master_evaluations?.type === "pretest") {
+              const t = String(
+                ev.master_evaluations?.type || ""
+              ).toLowerCase();
+              if (t === "pretest" || t.includes("pre")) {
                 gPreSum += s;
                 gPreCnt++;
-              } else if (ev.master_evaluations?.type === "posttest") {
+              } else if (t === "posttest" || t.includes("post")) {
                 gPostSum += s;
                 gPostCnt++;
               }
@@ -600,6 +657,8 @@ export default function AdminDashboard() {
           avgTkjiScore:
             tkjiCnt > 0 ? Number((tkjiSum / tkjiCnt).toFixed(1)) : 0,
           totalPrograms: filteredPrograms.length,
+          totalFittSessionsLogged: fittSessionsCount,
+          totalVideoPracticesLogged: videoPracticesCount,
           avgPretest: avgPre,
           avgPosttest: avgPost,
           bmiStats: bmiData,
@@ -629,11 +688,12 @@ export default function AdminDashboard() {
   const kognitifGain = counts.avgPosttest - counts.avgPretest;
 
   const reflectionRate = useMemo(() => {
-    if (counts.totalSiswa === 0 || counts.totalMaterials === 0) return 0;
-    const target =
-      counts.totalSiswa * Math.max(1, Math.min(3, counts.totalMaterials));
-    return Math.min(100, Math.round((counts.totalReflections / target) * 100));
-  }, [counts.totalReflections, counts.totalSiswa, counts.totalMaterials]);
+    if (counts.totalReflections === 0) return 0;
+    return Math.min(
+      100,
+      Math.round((counts.gradedReflections / counts.totalReflections) * 100)
+    );
+  }, [counts.gradedReflections, counts.totalReflections]);
 
   const physicalCoverageRate = useMemo(() => {
     if (counts.totalSiswa === 0) return 0;
@@ -667,7 +727,7 @@ export default function AdminDashboard() {
       {
         id: "materials",
         title: "Modul Materi Kelas 10, 11, 12",
-        subtitle: `${counts.totalMaterials} Unit Materi & Pemantik`,
+        subtitle: `${counts.totalMaterials} Unit Materi · ${counts.totalReflections} Refleksi Siswa`,
         done:
           gradeSummaries.every((g) => g.materialCount > 0) &&
           counts.totalMaterials > 0,
@@ -682,9 +742,12 @@ export default function AdminDashboard() {
       },
       {
         id: "metrics",
-        title: "Data TKJI & Refleksi Siswa",
-        subtitle: `${counts.totalMetrics} Data Fisik · ${counts.totalReflections} Refleksi`,
-        done: counts.totalMetrics > 0 || counts.totalReflections > 0,
+        title: "Data TKJI, FITT & Jurnal Praktik",
+        subtitle: `${counts.totalMetrics} Fisik · ${counts.totalFittSessionsLogged} Sesi FITT · ${counts.totalVideoPracticesLogged} Jurnal Video`,
+        done:
+          counts.totalMetrics > 0 ||
+          counts.totalFittSessionsLogged > 0 ||
+          counts.totalVideoPracticesLogged > 0,
         href: "/admin/program",
       },
     ];
@@ -722,7 +785,10 @@ export default function AdminDashboard() {
       ["Peningkatan Kognitif (Gain)", kognitifGain],
       ["Total Pengukuran TKJI", counts.totalMetrics],
       ["Rata-rata Skor TKJI", counts.avgTkjiScore],
-      ["Total Refleksi Siswa", counts.totalReflections],
+      ["Total Rancangan FITT Siswa", counts.totalPrograms],
+      ["Total Sesi Latihan FITT Terealisasi", counts.totalFittSessionsLogged],
+      ["Total Jurnal Video Praktik Mandiri", counts.totalVideoPracticesLogged],
+      ["Total Refleksi Siswa (Valid)", counts.totalReflections],
       ["Refleksi Dinilai Guru", counts.gradedReflections],
     ];
     const csvContent =
@@ -764,60 +830,63 @@ export default function AdminDashboard() {
 
   return (
     <div className="edufit-admin-theme w-full pt-2 pb-16 animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      {/* DYNAMIC ISLAND OVERLAY */}
-      <AnimatePresence>
-        {islandAlert && (
-          <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
-            <motion.div
-              key={islandAlert.id}
-              initial={{ opacity: 0, scale: 0.86, y: -18 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -12 }}
-              transition={{
-                type: "spring",
-                stiffness: 420,
-                damping: 26,
-              }}
-              onClick={() => setIslandAlert(null)}
-              className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
-                islandAlert.type === "success"
-                  ? "dynamic-island-success"
-                  : islandAlert.type === "error"
-                  ? "dynamic-island-error"
-                  : "dynamic-island-info"
-              }`}
-            >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+      {/* DYNAMIC ISLAND OVERLAY MENGGUNAKAN CREATEPORTAL */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {islandAlert && (
+            <div className="fixed top-5 left-0 right-0 z-[9999] flex justify-center pointer-events-none px-4">
+              <motion.div
+                key={islandAlert.id}
+                initial={{ opacity: 0, scale: 0.86, y: -18 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -12 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 420,
+                  damping: 26,
+                }}
+                onClick={() => setIslandAlert(null)}
+                className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
                   islandAlert.type === "success"
-                    ? "dynamic-island-icon-success"
+                    ? "dynamic-island-success"
                     : islandAlert.type === "error"
-                    ? "dynamic-island-icon-error"
-                    : "dynamic-island-icon-info"
+                    ? "dynamic-island-error"
+                    : "dynamic-island-info"
                 }`}
               >
-                {islandAlert.type === "success" ? (
-                  <CheckCircle2 size={16} />
-                ) : islandAlert.type === "error" ? (
-                  <AlertCircle size={16} />
-                ) : (
-                  <Bell size={16} />
-                )}
-              </div>
-              <div className="min-w-0 pr-2">
-                <p className="text-xs font-bold text-white leading-tight truncate">
-                  {islandAlert.message}
-                </p>
-                {islandAlert.subtitle && (
-                  <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
-                    {islandAlert.subtitle}
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                    islandAlert.type === "success"
+                      ? "dynamic-island-icon-success"
+                      : islandAlert.type === "error"
+                      ? "dynamic-island-icon-error"
+                      : "dynamic-island-icon-info"
+                  }`}
+                >
+                  {islandAlert.type === "success" ? (
+                    <CheckCircle2 size={16} />
+                  ) : islandAlert.type === "error" ? (
+                    <AlertCircle size={16} />
+                  ) : (
+                    <Bell size={16} />
+                  )}
+                </div>
+                <div className="min-w-0 pr-2">
+                  <p className="text-xs font-bold text-white leading-tight truncate">
+                    {islandAlert.message}
                   </p>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                  {islandAlert.subtitle && (
+                    <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                      {islandAlert.subtitle}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ZONA 1: HERO HEADER & 3 ANGKA UTAMA */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-10 pb-10 mb-10 border-b border-hairline relative z-10">
@@ -966,7 +1035,7 @@ export default function AdminDashboard() {
           className="sm:col-span-2 lg:col-span-4 space-y-2 block group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Partisipasi Materi & Refleksi</span>
+            <span>Koreksi Refleksi Materi</span>
             <span className="font-mono">{counts.totalReflections} JAWABAN</span>
           </div>
           <div className="h-14 rounded-2xl px-6 relative overflow-hidden flex items-center justify-between transition-transform group-hover:scale-[1.01] telemetry-bar-striped">
@@ -974,7 +1043,7 @@ export default function AdminDashboard() {
               {isLoading ? "—" : `${reflectionRate}%`}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-widest opacity-65 relative z-10">
-              {counts.gradedReflections} Dinilai Guru
+              {counts.gradedReflections}/{counts.totalReflections} Dinilai Guru
             </span>
           </div>
         </Link>
@@ -984,7 +1053,7 @@ export default function AdminDashboard() {
           className="sm:col-span-2 lg:col-span-2 space-y-2 block group"
         >
           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest opacity-60 px-1">
-            <span>Data TKJI</span>
+            <span>Data TKJI & FITT</span>
             <span className="font-mono">{counts.totalMetrics} SISWA</span>
           </div>
           <div className="h-14 rounded-2xl px-5 flex items-center justify-between transition-transform group-hover:scale-[1.02] edufit-card-primary">
@@ -1286,14 +1355,14 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* BENTO 3: INDEKS FISIK, TKJI & IMT (TEKS LABEL DI LUAR LINGKARAN CHART) */}
+        {/* BENTO 3: INDEKS FISIK, TKJI & FITT (TEKS LABEL DI LUAR LINGKARAN CHART) */}
         <div className="lg:col-span-4 p-8 md:p-9 rounded-[2rem] relative overflow-hidden flex flex-col justify-between min-h-[410px] edufit-card-primary">
           <div className="absolute inset-0 pointer-events-none pattern-diagonal-stripes" />
 
           <div className="flex justify-between items-start relative z-10">
             <div className="flex items-center gap-2 opacity-60 text-xs font-bold uppercase tracking-widest">
               <Activity size={15} />
-              <span>Fisik, TKJI & IMT</span>
+              <span>Fisik, TKJI & FITT</span>
             </div>
             <div className="flex items-center gap-1 p-1 rounded-xl edufit-surface-subtle">
               {[
@@ -1326,16 +1395,16 @@ export default function AdminDashboard() {
                   : `${counts.totalMetrics}`
                 : gaugeMode === "bmi"
                 ? `${bmiNormalPct}%`
-                : `${counts.totalPrograms}`;
+                : `${counts.totalFittSessionsLogged}`;
 
             const gaugeLabel =
               gaugeMode === "tkji"
                 ? counts.avgTkjiScore > 0
-                  ? "Skor Rata-rata TKJI"
+                  ? "Skor Rata-rata TKJI (/25)"
                   : "Tes TKJI Tercatat"
                 : gaugeMode === "bmi"
                 ? "Siswa IMT Normal"
-                : "Program FITT Kelas XII";
+                : `Sesi Latihan FITT Selesai (${counts.totalPrograms} Rancangan)`;
 
             const gaugePct =
               gaugeMode === "tkji"
@@ -1344,11 +1413,13 @@ export default function AdminDashboard() {
                   : physicalCoverageRate
                 : gaugeMode === "bmi"
                 ? bmiNormalPct
-                : counts.totalSiswa > 0
+                : counts.totalPrograms > 0
                 ? Math.min(
                     100,
                     Math.round(
-                      (counts.totalPrograms / counts.totalSiswa) * 100
+                      (counts.totalFittSessionsLogged /
+                        Math.max(1, counts.totalPrograms * 3)) *
+                        100
                     )
                   )
                 : 0;
@@ -1454,7 +1525,7 @@ export default function AdminDashboard() {
                 </h3>
                 <p className="text-sm font-medium opacity-55 mt-1">
                   Perbandingan modul materi, rombel, capaian ujian, dan koreksi
-                  refleksi per jenjang.
+                  refleksi valid per jenjang kelas.
                 </p>
               </div>
               {selectedGradeFilter !== "all" && (
@@ -1538,7 +1609,7 @@ export default function AdminDashboard() {
                         <div className="text-left sm:text-right">
                           <p className="text-sm font-bold font-mono">
                             {row.gradedReflectionCount}/{row.reflectionCount}{" "}
-                            Tugas
+                            Refleksi
                           </p>
                           <p className="text-[11px] opacity-60">
                             Dinilai: {refPct}%
@@ -1547,6 +1618,7 @@ export default function AdminDashboard() {
                         <Link
                           href="/admin/materi"
                           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform hover:scale-105 edufit-card-primary"
+                          title={`Kelola Materi Kelas ${row.grade}`}
                         >
                           <ArrowUpRight size={16} />
                         </Link>
@@ -1904,6 +1976,7 @@ export default function AdminDashboard() {
                       href="/admin/institusi"
                       onClick={(e) => e.stopPropagation()}
                       className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
+                      title={`Buka Manajemen ${sch.name}`}
                     >
                       <ArrowUpRight size={18} strokeWidth={1.75} />
                     </Link>
@@ -1957,6 +2030,7 @@ export default function AdminDashboard() {
                     <Link
                       href="/admin/evaluasi"
                       className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
+                      title={`Lihat Soal TP ${tp.code} di Bank Evaluasi`}
                     >
                       <ArrowUpRight size={18} strokeWidth={1.75} />
                     </Link>

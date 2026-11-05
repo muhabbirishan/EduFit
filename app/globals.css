@@ -176,7 +176,6 @@
 
     /* ======================================================================
        VARIABEL KHUSUS EKOSISTEM MATERI & SIMULATOR MOBILE SISWA
-       (Selaras 1:1 dengan AppColors.materi* di Flutter & Referensi UI Mobile)
        ====================================================================== */
     --materi-canvas-bg: #f3f6f4;
     --materi-card-solid: #ffffff;
@@ -311,7 +310,7 @@
     --ref-track-bg: rgba(255, 255, 255, 0.1);
     --ref-gauge-track: rgba(255, 255, 255, 0.15);
 
-    /* 4 Kartu Bento Showcase Guru (Dark Mode - 4 Warna Berpendar) */
+    /* 4 Kartu Bento Showcase Guru (Dark Mode) */
     --bento-0-bg: #231d10;
     --bento-0-border: rgba(250, 204, 21, 0.34);
     --bento-1-bg: #10231b;
@@ -331,9 +330,9 @@
   }
 
   /* ========================================================================
-     TEMA TERPISAH KHUSUS DASHBOARD ADMIN (HANYA AKTIF JIKA ADA .edufit-admin-theme)
+     TEMA TERPISAH KHUSUS DASHBOARD ADMIN (DIPAKAI LANGSUNG PADA ELEMEN)
      ======================================================================== */
-  body:has(.edufit-admin-theme) {
+  .edufit-admin-theme {
     --ref-canvas-bg: #f3f6f4;
     --ref-canvas-gradient: none;
     --ref-card-solid: #ffffff;
@@ -364,16 +363,11 @@
     --bento-3-bg: #f1f5f3;
     --bento-3-border: #cbd5d0;
 
-    --ref-stripe-pattern: repeating-linear-gradient(
-      90deg,
-      rgba(31, 122, 92, 0.12) 0px,
-      rgba(31, 122, 92, 0.12) 2px,
-      transparent 2px,
-      transparent 7px
-    );
+    /* Gradasi dihilangkan total sesuai instruksi */
+    --ref-stripe-pattern: none;
   }
 
-  .dark body:has(.edufit-admin-theme) {
+  .dark .edufit-admin-theme {
     --ref-canvas-bg: #090e0c;
     --ref-canvas-gradient: none;
     --ref-card-solid: #111916;
@@ -405,13 +399,8 @@
     --bento-3-bg: #141c19;
     --bento-3-border: rgba(148, 163, 184, 0.2);
 
-    --ref-stripe-pattern: repeating-linear-gradient(
-      90deg,
-      rgba(52, 211, 153, 0.12) 0px,
-      rgba(52, 211, 153, 0.12) 2px,
-      transparent 2px,
-      transparent 7px
-    );
+    /* Gradasi dihilangkan total sesuai instruksi */
+    --ref-stripe-pattern: none;
   }
 
   body {
@@ -738,8 +727,6 @@
   /* ==========================================================================
      3. SISTEM DESAIN KHUSUS STUDIO MATERI & MOCKUP HP UTUH
      ========================================================================== */
-
-  /* Panggung belakang HP: TIDAK BOLEH SCROLL agar bodi HP tampil utuh 100% */
   .materi-device-stage {
     background-color: var(--ref-card-subtle);
     background-image: linear-gradient(var(--ref-card-border) 1px, transparent 1px),
@@ -754,7 +741,6 @@
     padding: 0.85rem !important;
   }
 
-  /* Bodi Fisik HP: Tinggi tetap (utuh atas-bawah), tidak pernah terpotong */
   .materi-device-viewport {
     background-color: var(--materi-canvas-bg);
     color: var(--materi-text-primary);
@@ -773,7 +759,6 @@
     margin-right: auto;
   }
 
-  /* Layar Dalam HP: HANYA bagian dalam HP ini yang bisa di-scroll */
   .materi-phone-screen {
     flex: 1 1 0% !important;
     min-height: 0 !important;
@@ -792,23 +777,10 @@
     border-radius: 9999px;
   }
 
-  .materi-viewport-320 {
-    width: 100%;
-    max-width: 320px;
-  }
-  .materi-viewport-375 {
-    width: 100%;
-    max-width: 375px;
-  }
-  .materi-viewport-425 {
-    width: 100%;
-    max-width: 425px;
-  }
-  .materi-viewport-768 {
-    width: 100%;
-    max-width: 100%;
-    border-radius: 1.5rem;
-  }
+  .materi-viewport-320 { width: 100%; max-width: 320px; }
+  .materi-viewport-375 { width: 100%; max-width: 375px; }
+  .materi-viewport-425 { width: 100%; max-width: 425px; }
+  .materi-viewport-768 { width: 100%; max-width: 100%; border-radius: 1.5rem; }
 
   .materi-floating-card {
     background-color: var(--materi-card-solid);
@@ -887,35 +859,12 @@
 }
 
 @layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .border-hairline {
-    border-color: var(--ref-card-border);
-  }
-
-  .text-emerald-accent {
-    color: var(--ref-accent-emerald);
-  }
-
-  .text-gold-accent {
-    color: var(--ref-accent-gold);
-  }
-
-  .text-sky-accent {
-    color: var(--ref-accent-sky);
-  }
-
-  .text-violet-accent {
-    color: var(--ref-accent-violet);
-  }
-
-  .text-terra-accent {
-    color: var(--ref-accent-terra);
-  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .border-hairline { border-color: var(--ref-card-border); }
+  .text-emerald-accent { color: var(--ref-accent-emerald); }
+  .text-gold-accent { color: var(--ref-accent-gold); }
+  .text-sky-accent { color: var(--ref-accent-sky); }
+  .text-violet-accent { color: var(--ref-accent-violet); }
+  .text-terra-accent { color: var(--ref-accent-terra); }
 }

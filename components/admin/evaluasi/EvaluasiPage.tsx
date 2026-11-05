@@ -3,6 +3,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import {
   Activity,
   AlertCircle,
@@ -822,61 +823,65 @@ export default function EvaluasiPage() {
 
   if (!mounted) return null;
 
-  const renderDynamicIsland = () => (
-    <AnimatePresence>
-      {islandAlert && (
-        <div className="fixed top-5 left-0 right-0 z-[120] flex justify-center pointer-events-none px-4">
-          <motion.div
-            key={islandAlert.id}
-            initial={{ opacity: 0, scale: 0.86, y: -18 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -12 }}
-            transition={{
-              type: "spring",
-              stiffness: 420,
-              damping: 26,
-            }}
-            onClick={() => setIslandAlert(null)}
-            className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
-              islandAlert.type === "success"
-                ? "dynamic-island-success"
-                : islandAlert.type === "error"
-                ? "dynamic-island-error"
-                : "dynamic-island-info"
-            }`}
-          >
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+  const renderDynamicIsland = () => {
+    if (typeof document === "undefined") return null;
+    return createPortal(
+      <AnimatePresence>
+        {islandAlert && (
+          <div className="fixed top-5 left-0 right-0 z-[9999] flex justify-center pointer-events-none px-4">
+            <motion.div
+              key={islandAlert.id}
+              initial={{ opacity: 0, scale: 0.86, y: -18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -12 }}
+              transition={{
+                type: "spring",
+                stiffness: 420,
+                damping: 26,
+              }}
+              onClick={() => setIslandAlert(null)}
+              className={`pointer-events-auto cursor-pointer flex items-center gap-3 px-4 py-3 rounded-[28px] min-w-[220px] max-w-[420px] dynamic-island-shell ${
                 islandAlert.type === "success"
-                  ? "dynamic-island-icon-success"
+                  ? "dynamic-island-success"
                   : islandAlert.type === "error"
-                  ? "dynamic-island-icon-error"
-                  : "dynamic-island-icon-info"
+                  ? "dynamic-island-error"
+                  : "dynamic-island-info"
               }`}
             >
-              {islandAlert.type === "success" ? (
-                <CheckCircle2 size={16} />
-              ) : islandAlert.type === "error" ? (
-                <AlertCircle size={16} />
-              ) : (
-                <Bell size={16} />
-              )}
-            </div>
-            <div className="min-w-0 pr-2">
-              <p className="text-xs font-bold text-white leading-tight truncate">
-                {islandAlert.message}
-              </p>
-              {islandAlert.subtitle && (
-                <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
-                  {islandAlert.subtitle}
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  islandAlert.type === "success"
+                    ? "dynamic-island-icon-success"
+                    : islandAlert.type === "error"
+                    ? "dynamic-island-icon-error"
+                    : "dynamic-island-icon-info"
+                }`}
+              >
+                {islandAlert.type === "success" ? (
+                  <CheckCircle2 size={16} />
+                ) : islandAlert.type === "error" ? (
+                  <AlertCircle size={16} />
+                ) : (
+                  <Bell size={16} />
+                )}
+              </div>
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-bold text-white leading-tight truncate">
+                  {islandAlert.message}
                 </p>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
+                {islandAlert.subtitle && (
+                  <p className="text-[11px] font-medium text-white/70 truncate mt-0.5">
+                    {islandAlert.subtitle}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
+      document.body
+    );
+  };
 
   // ==========================================================================
   // VIEW 1: DETAIL MANAJEMEN BANK SOAL
